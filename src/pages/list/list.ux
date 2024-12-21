@@ -1,0 +1,228 @@
+<template>
+	<div class="list-page">
+		<text class="header-time">{{ count }} 个倒数日</text>
+		<img src="/common/back.png" @click="routeBack" style="position: absolute; left: 45px; top: 6px" />
+		<scroll scroll-y="true" bounces="true">
+			<div for="{{events}}">
+				<div class="countdown-card" style="background-color: {{$item.already ? '#f78803' : '#3184d0'}}"
+					@click="routeEditEvent($idx)">
+					<text class="countdown-name">{{ $item.display_name }}</text>
+					<div class="countdown-radius"></div>
+					<div class="countdown-background">
+						<text class="countdown-days" style="font-size: {{$item.font_size}}">
+							{{ $item.days }}
+						</text>
+					</div>
+				</div>
+			</div>
+		</scroll>
+		<img src="/common/Add_A.png" @click="routeAdd" style="position: absolute; left: 45px; bottom: 6px" />
+	</div>
+</template>
+
+<script>
+import router from "@system.router";
+import storage from "@system.storage";
+
+const dateDiff = (date1) => {
+	const _date = new Date();
+	const date =
+		_date.getFullYear() + "-" + (_date.getMonth() + 1) + "-" + _date.getDate();
+	return Math.floor(
+		(new Date(date).getTime() - new Date(date1).getTime()) /
+			(1000 * 60 * 60 * 24)
+	);
+};
+
+export default {
+	private: {
+		count: 0,
+		events: [],
+	},
+
+	onBackPress() {
+		this.routeBack();
+		return true;
+	},
+
+	routeBack() {
+		router.replace({
+			uri: "/pages/index",
+		});
+	},
+
+	onReady() {
+		storage.get({
+			key: "events",
+			default: "[]",
+			success: (data) => {
+				this.events = JSON.parse(data).map((event) => {
+					let days,
+						font_size,
+						display_name = event.name,
+						already = true;
+
+					const diff = dateDiff(event.date);
+					if (diff > 0) {
+						display_name += "已经";
+						days = String(diff);
+					} else if (diff == 0) {
+						days = "今天";
+					} else {
+						display_name += "还有";
+						days = String(-diff);
+						already = false;
+					}
+
+					const days_length = String(days).length;
+					if (days == "今天") {
+						font_size = 26;
+					} else if (days_length < 3) {
+						font_size = 30;
+					} else if (days_length == 3) {
+						font_size = 28;
+					} else {
+						font_size = 20;
+					}
+
+					return {
+						name: event.name,
+						display_name,
+						date: event.date,
+						days,
+						already,
+						on_index: event.on_index,
+						font_size,
+					};
+				});
+				this.count = this.events.length;
+			},
+		});
+	},
+
+	onRefresh() {
+		router.clear();
+	},
+
+	routeEditEvent(event_id) {
+		const event = this.events[event_id];
+		router.push({
+			uri: "/pages/edit",
+			params: {
+				extend: "false",
+				event_id: String(event_id),
+				event_name: event.name,
+				date: event.date,
+				on_index: event.on_index,
+				callback_uri: "/pages/list",
+			},
+		});
+	},
+
+	routeAdd() {
+		router.push({
+			uri: "/pages/edit",
+			params: {
+				extend: "true",
+				event_id: this.count,
+				callback_uri: "/pages/list",
+			},
+		});
+	},
+};
+</script>
+
+<style>
+.header-time {
+	font-weight: bold;
+	font-size: 28px;
+}
+.list-page {
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	color: white;
+	background-color: black;
+}
+
+scroll {
+	display: flex;
+	flex-direction: column;
+	width: 182px;
+	height: 260px;
+	position: relative;
+	top: 8px;
+}
+
+.countdown-card {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	width: 170px;
+	height: 66px;
+	border-radius: 10px;
+	padding: 6px;
+	margin-bottom: 8px;
+}
+
+.countdown-name {
+	font-size: 20px;
+	width: 80px;
+	height: 60px;
+	text-overflow: ellipsis;
+	font-weight: bold;
+}
+
+.countdown-radius {
+	position: absolute;
+	top: 0;
+	right: 0;
+	height: 66px;
+	width: 20px;
+	background-color: white;
+	border-radius: 10px;
+	z-index: -1;
+}
+
+.countdown-background {
+	background-color: white;
+	position: absolute;
+	top: 0px;
+	right: 10px;
+	width: 60px;
+	height: 66px;
+	z-index: 1000;
+}
+
+.countdown-days {
+	color: black;
+	font-weight: bold;
+	text-align: center;
+	width: 60px;
+	height: 66px;
+	text-overflow: clip;
+	position: relative;
+	right: -5px;
+	z-index: 1001;
+}
+
+.add-button {
+	width: 140px;
+	height: 44px;
+	background-color: black;
+	border: 3px;
+	border-color: gray;
+	color: white;
+	font-size: 22px;
+	margin-top: 30px;
+	position: absolute;
+	bottom: 32px;
+}
+
+#version-number {
+	position: absolute;
+	bottom: 2px;
+	color: gray;
+	font-size: 16px;
+}
+</style>

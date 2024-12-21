@@ -1,0 +1,59 @@
+{
+  "package": "com.yzf.daymatter",
+  "name": "倒数日",
+  "versionName": "1.0",
+  "versionCode": 10200,
+  "minPlatformVersion": 1000,
+  "icon": "/common/logo.png",
+  "deviceTypeList": [
+    "watch"
+  ],
+  "features": [
+    {
+      "name": "system.router"
+    },
+    {
+      "name": "system.app"
+    },
+    {
+      "name": "system.prompt"
+    },
+    {
+      "name": "system.storage"
+    },
+    {
+      "name": "system.vibrator"
+    },
+    {
+      "name": "system.file"
+    }
+  ],
+  "config": {
+    "logLevel": "log",
+    "designWidth": 192
+  },
+  "router": {
+    "entry": "pages/index",
+    "pages": {
+      "pages/index": {
+        "component": "index"
+      },
+      "pages/list": {
+        "component": "list"
+      },
+      "pages/edit": {
+        "component": "edit"
+      },
+      "pages/inputdate": {
+        "component": "inputdate"
+      },
+      "pages/about": {
+        "component": "about"
+      }
+    }
+  },
+  "display": {
+    "forceDark": true,
+    "backgroundColor": "#000000"
+  }
+}

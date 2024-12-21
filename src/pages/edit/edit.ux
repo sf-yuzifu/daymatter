@@ -1,0 +1,294 @@
+<import
+	name="input-method"
+	src="../../components/InputMethod/InputMethod.ux"
+></import>
+<template>
+	<div class="new-page">
+		<img if="{{this.extend == 'true'}}" src="/common/back.png" @click="routeBack"
+			style="position: absolute; left: 45px; top: 6px" />
+		<img else src="/common/Delete_W.png" @click="deleteEvent" style="position: absolute; left: 45px; top: 6px" />
+		<div class="line">
+			<text static style="margin-left: 14px">事件名称</text>
+			<div class="input-line" @click="editEventName">
+				<text>{{ event_name }}</text>
+			</div>
+		</div>
+		<div style="width: 1px; height: 10px"></div>
+		<div class="line" show="{{hide}}">
+			<text static style="margin-left: 14px">目标日</text>
+			<div class="input-line" @click="editDate">
+				<text static>{{ date }}</text>
+			</div>
+		</div>
+		<div style="width: 1px; height: 14px"></div>
+		<div style="align-items: center" class="line">
+			<text static>在首页显示</text>
+			<img style="height: 50px; width: 71px" @click="changeDisplayOnIndex" src="/common/{{on_index}}.png" />
+		</div>
+		<!-- <div style="width: 1px; height: 48px"></div> -->
+		<img static src="/common/Check_A.png" @click="saveEvent" style="position: absolute; left: 45px; bottom: 6px" />
+		<input-method hide="{{hide}}" keyboardtype.static="{{keyboardtype}}" maxlength="5"
+			vibratemode.static="{{vibratemode}}" screentype.static="{{screentype}}" @visibility-change="visibilityChange"
+			@key-down="keyDown" @delete="delete" @complete="complete"></input-method>
+	</div>
+</template>
+
+<script>
+import router from "@system.router";
+import storage from "@system.storage";
+import file from "@system.file";
+import { showToast } from "@system.prompt";
+
+export default {
+	private: {
+		event_name: "",
+		extend: "true",
+		date: "",
+		on_index: true,
+		date_callback: "",
+		input_callback: "",
+		callback_uri: "/pages/index",
+		event_id: "0",
+
+		hide: true,
+		keyboardtype: "QWERTY",
+		vibratemode: "short",
+		screentype: "pill-shaped",
+	},
+
+	visibilityChange(evt) {
+		console.log("onVisibilityChange:" + JSON.stringify(evt));
+	},
+
+	keyDown(evt) {
+		// this.textValue += evt.detail.content;
+		console.log("onKeyDown:" + JSON.stringify(evt));
+	},
+
+	delete() {
+		this.event_name = this.event_name.slice(0, -1);
+		console.log("删除字符");
+	},
+
+	changeState() {
+		this.hide = !this.hide;
+	},
+
+	complete(evt) {
+		this.event_name += evt.detail.content;
+		console.log("onComplete:" + JSON.stringify(evt));
+	},
+
+	routeBack() {
+		router.replace({
+			uri: this.callback_uri,
+		});
+	},
+
+	onReady() {
+		const isInputCallback = !(this.input_callback == "");
+		const isDateCallback = !(this.date_callback == "");
+		if (!isInputCallback && !isDateCallback) {
+			// 没有 callback
+			if (this.date == "") {
+				const _date = new Date();
+				this.date =
+					_date.getFullYear() +
+					"-" +
+					(_date.getMonth() + 1) +
+					"-" +
+					_date.getDate();
+			}
+			return;
+		} else if (isInputCallback) {
+			console.log("Input callback");
+			const callback = JSON.parse(this.input_callback);
+			const _cache = JSON.parse(callback.input_cache_data);
+			this.event_id = _cache.event_id;
+			this.callback_uri = _cache.callback_uri;
+			this.extend = _cache.extend;
+
+			this.on_index = _cache.on_index;
+			this.event_name = callback.input_text;
+			this.date = _cache.date;
+		} else if (isDateCallback) {
+			console.log("Date callback");
+			const callback = JSON.parse(this.date_callback);
+			const _cache = JSON.parse(callback.input_cache_data);
+			this.event_id = _cache.event_id;
+			this.callback_uri = _cache.callback_uri;
+			this.extend = _cache.extend;
+
+			this.on_index = _cache.on_index;
+			this.event_name = _cache.event_name;
+			this.date = callback.date;
+		}
+	},
+
+	editEventName() {
+		global.runGC();
+		this.hide = !this.hide;
+	},
+
+	editDate() {
+		router.push({
+			uri: "/pages/inputdate",
+			params: {
+				input_cache_data: JSON.stringify({
+					event_id: this.event_id,
+					extend: this.extend,
+					callback_uri: this.callback_uri,
+					event_name: this.event_name,
+					on_index: this.on_index,
+				}),
+				date: this.date,
+				callback_uri: "/pages/edit",
+			},
+		});
+	},
+
+	changeDisplayOnIndex() {
+		if (this.on_index === "true") {
+			this.on_index = true;
+		} else if (this.on_index === "false") {
+			this.on_index = false;
+		}
+		this.on_index = !this.on_index;
+	},
+
+	saveEvent() {
+		if (this.event_name == "") {
+			showToast({ message: "事件名称不能为空" });
+			return;
+		}
+
+		storage.get({
+			key: "events",
+			default: "[]",
+			success: (data) => {
+				let events = JSON.parse(data);
+				if (this.on_index === "true") {
+					this.on_index = true;
+				} else if (this.on_index === "false") {
+					this.on_index = false;
+				}
+				const _event = {
+					name: this.event_name,
+					date: this.date,
+					on_index: this.on_index,
+				};
+				if (this.extend == "true") {
+					events.push(_event);
+				} else {
+					events[Number(this.event_id)] = _event;
+				}
+				storage.set({
+					key: "events",
+					value: JSON.stringify(events),
+					success: (data) => {
+						console.log("handling success");
+						router.replace({
+							uri: this.callback_uri,
+						});
+						if (this.on_index) {
+							file.writeText({
+								uri: "internal://files/date.txt",
+								text: `${this.event_name},${this.date}`,
+								success: function () {
+									console.log("handling success");
+								},
+								fail: function (data, code) {
+									showToast({
+										message:
+											"数据保存失败，可能是设备可用空间不足，错误码: " + code,
+									});
+								},
+							});
+						}
+						showToast({ message: "事件保存成功！" });
+					},
+					fail: (data, code) => {
+						showToast({
+							message: "数据保存失败，可能是设备可用空间不足，错误码: " + code,
+						});
+					},
+				});
+			},
+		});
+	},
+
+	deleteEvent() {
+		storage.get({
+			key: "events",
+			default: "[]",
+			success: (data) => {
+				let events = JSON.parse(data);
+				events.splice(Number(this.event_id), 1);
+				storage.set({
+					key: "events",
+					value: JSON.stringify(events),
+					success: (data) => {
+						router.replace({
+							uri: this.callback_uri,
+						});
+						showToast({ message: "事件删除成功！" });
+					},
+					fail: (data, code) => {
+						showToast({
+							message: "数据保存失败，可能是设备可用空间不足，错误码: " + code,
+						});
+					},
+				});
+			},
+		});
+	},
+};
+</script>
+
+<style>
+.new-page {
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	color: white;
+	background-color: black;
+}
+
+.line {
+	display: flex;
+	flex-direction: column;
+	justify-content: left;
+}
+
+text {
+	font-size: 22px;
+	font-weight: bold;
+}
+
+.save-button {
+	width: 78px;
+	height: 44px;
+	background-color: black;
+	border: 3px;
+	border-color: gray;
+	color: white;
+	font-size: 22px;
+	margin-top: 30px;
+	margin-left: 2px;
+	margin-right: 2px;
+}
+
+.input-line {
+	height: 54px;
+	width: 180px;
+	background-color: #262626;
+	border: 3px solid rgba(255, 255, 255, 0.06);
+	border-radius: 100%;
+	padding-left: 12px;
+}
+
+.bottom-buttons {
+	display: flex;
+	flex-direction: row;
+}
+</style>

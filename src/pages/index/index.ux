@@ -1,0 +1,215 @@
+<template>
+	<div class="index-page">
+		<img src="/common/Info_B.png" @click="info" style="position: absolute; left: 45px; top: 6px" />
+		<swiper if="{{!is_no_event}}" indicator="false" class="countdown-swiper">
+			<div for="{{events}}">
+				<div class="countdown-page" style="background-color: {{$item.already ? '#f78803' : '#3184d0'}}">
+					<div class="countdown-event-bg">
+						<text class="countdown-event">{{ $item.name }}</text>
+					</div>
+					<div class="countdown-date-bg2"></div>
+					<div class="countdown-days-bg">
+						<text class="countdown-days">{{ $item.days }}</text>
+					</div>
+					<div class="countdown-date-bg">
+						<text class="countdown-date">目标日：{{ $item.date }}</text>
+					</div>
+				</div>
+			</div>
+		</swiper>
+		<div id="empty" if="{{is_no_event}}">
+			<img src="/common/empty.png" />
+			<text id="emp">空空如也</text>
+		</div>
+		<img src="/common/More_B.png" @click="routeMore" style="position: absolute; left: 45px; bottom: 6px" />
+	</div>
+</template>
+
+<script>
+import router from "@system.router";
+import storage from "@system.storage";
+
+const dateDiff = (date1) => {
+	const _date = new Date();
+	const date =
+		_date.getFullYear() + "-" + (_date.getMonth() + 1) + "-" + _date.getDate();
+	return Math.floor(
+		(new Date(date).getTime() - new Date(date1).getTime()) /
+			(1000 * 60 * 60 * 24)
+	);
+};
+
+export default {
+	private: {
+		time: "07:21",
+		events: [
+			{ name: "暂无事件...", days: "无", date: "2024-07-21", already: false },
+		],
+		is_no_event: true,
+		allEvents: 0,
+	},
+
+	onReady() {
+		// 清除缓存
+		router.clear();
+
+		// 获取数据
+		storage.get({
+			key: "events",
+			default: "[]",
+			success: (data) => {
+				const events = JSON.parse(data);
+				if (events.length == 0) {
+					this.is_no_event = true;
+					return;
+				}
+				this.is_no_event = false;
+				this.allEvents = events.length;
+				this.events = events
+					.filter((event) => event.on_index == true)
+					.map((event) => {
+						let days,
+							name = event.name,
+							already = true,
+							date = event.date;
+						const diff = dateDiff(event.date);
+
+						if (diff > 0) {
+							name += "已经";
+							days = String(diff);
+						} else if (diff == 0) {
+							days = "今天";
+						} else {
+							name += "还有";
+							days = String(-diff);
+							already = false;
+						}
+						return {
+							name,
+							days,
+							date,
+							already,
+						};
+					});
+				if (this.events.length == 0) {
+					this.is_no_event = true;
+					return;
+				}
+			},
+		});
+	},
+
+	info() {
+		router.push({
+			uri: "/pages/about",
+		});
+	},
+
+	routeMore() {
+		if (this.allEvents.length == 0) {
+			router.push({
+				uri: "/pages/edit",
+				params: {
+					extend: "true",
+					callback_uri: "/pages/index",
+				},
+			});
+		} else {
+			router.push({ uri: "/pages/list" });
+		}
+	},
+};
+</script>
+
+<style>
+.index-page {
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	color: white;
+	background-color: black;
+}
+
+.countdown-swiper {
+	width: 184px;
+	height: 184px;
+}
+
+.countdown-page {
+	display: flex;
+	flex-direction: column;
+	width: 178px;
+	height: 178px;
+	border-radius: 20px;
+	align-items: center;
+}
+
+#empty {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+}
+
+#empty #emp {
+	font-weight: bold;
+	margin-top: 12px;
+}
+
+.countdown-event {
+	font-size: 20px;
+	text-align: center;
+	width: 150px;
+	position: relative;
+	font-weight: bold;
+}
+
+.countdown-event-bg {
+	height: 66px;
+	margin: unset;
+	padding: unset;
+}
+
+.countdown-days-bg {
+	display: flex;
+	flex-direction: column;
+	position: relative;
+	width: 100%;
+	height: 126px;
+	background-color: #efefef;
+	color: black;
+	justify-content: center;
+	align-items: center;
+}
+
+.countdown-date-bg {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 50px;
+	color: black;
+	justify-content: center;
+	align-items: center;
+	border-radius: 20px;
+}
+
+.countdown-date-bg2 {
+	position: absolute;
+	background-color: #ffffff;
+	width: 100%;
+	height: 60px;
+	bottom: 0;
+	border-radius: 20px;
+}
+.countdown-date {
+	text-align: center;
+	font-size: 16px;
+	color: rgba(0, 0, 0, 0.6);
+}
+
+.countdown-days {
+	text-align: center;
+	font-size: 56px;
+	font-weight: bold;
+}
+</style>
