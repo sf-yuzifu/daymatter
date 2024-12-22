@@ -4,9 +4,8 @@
 ></import>
 <template>
 	<div class="new-page">
-		<img if="{{this.extend == 'true'}}" src="/common/back.png" @click="routeBack"
-			style="position: absolute; left: 45px; top: 6px" />
-		<img else src="/common/Delete_W.png" @click="deleteEvent" style="position: absolute; left: 45px; top: 6px" />
+		<img src="/common/back.png" @click="routeBack" style="position: absolute; left: 6px; top: 6px" />
+		<img if="{{!(this.extend == 'true')}}" src="/common/Delete_W.png" @click="deleteEvent" style="position: absolute; left: 117px; bottom: 18px" />
 		<div class="line">
 			<text static style="margin-left: 14px">事件名称</text>
 			<div class="input-line" @click="editEventName">
@@ -21,12 +20,12 @@
 			</div>
 		</div>
 		<div style="width: 1px; height: 14px"></div>
-		<div style="align-items: center" class="line">
+		<div class="line button">
 			<text static>在首页显示</text>
-			<img style="height: 50px; width: 71px" @click="changeDisplayOnIndex" src="/common/{{on_index}}.png" />
+			<img style="right:0;bottom:0;position: absolute;height: 50px; width: 71px" @click="changeDisplayOnIndex" src="/common/{{on_index}}.png" />
 		</div>
-		<!-- <div style="width: 1px; height: 48px"></div> -->
-		<img static src="/common/Check_A.png" @click="saveEvent" style="position: absolute; left: 45px; bottom: 6px" />
+		<div style="width: 1px; height: 48px"></div>
+		<img static src="/common/Check_B.png" @click="saveEvent" style="position: absolute; right: 6px; top: 6px" />
 		<input-method hide="{{hide}}" keyboardtype.static="{{keyboardtype}}" maxlength="5"
 			vibratemode.static="{{vibratemode}}" screentype.static="{{screentype}}" @visibility-change="visibilityChange"
 			@key-down="keyDown" @delete="delete" @complete="complete"></input-method>
@@ -53,7 +52,7 @@ export default {
 		hide: true,
 		keyboardtype: "QWERTY",
 		vibratemode: "short",
-		screentype: "pill-shaped",
+		screentype: "rect",
 	},
 
 	visibilityChange(evt) {
@@ -280,7 +279,7 @@ text {
 
 .input-line {
 	height: 54px;
-	width: 180px;
+	width: 238px;
 	background-color: #262626;
 	border: 3px solid rgba(255, 255, 255, 0.06);
 	border-radius: 100%;
@@ -290,5 +289,10 @@ text {
 .bottom-buttons {
 	display: flex;
 	flex-direction: row;
+}
+
+.button {
+	width: 210px;
+	height: 80px;
 }
 </style>

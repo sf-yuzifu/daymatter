@@ -1,6 +1,7 @@
 <template>
 	<div class="index-page">
-		<img src="/common/Info_B.png" @click="info" style="position: absolute; left: 45px; top: 6px" />
+		<img src="/common/back.png" @click="routeList" style="position: absolute; left: 6px; top: 6px" />
+		<img src="/common/Info_B.png" @click="info" style="position: absolute; right: 6px; top: 6px" />
 		<swiper if="{{!is_no_event}}" indicator="false" class="countdown-swiper">
 			<div for="{{events}}">
 				<div class="countdown-page" style="background-color: {{$item.already ? '#f78803' : '#3184d0'}}">
@@ -19,9 +20,10 @@
 		</swiper>
 		<div id="empty" if="{{is_no_event}}">
 			<img src="/common/empty.png" />
+			<div style="width: 1px; height: 10px"></div>
 			<text id="emp">空空如也</text>
 		</div>
-		<img src="/common/More_B.png" @click="routeMore" style="position: absolute; left: 45px; bottom: 6px" />
+		<img src="/common/More_B.png" @click="routeMore" style="position: absolute; left: 117px; bottom: 18px" />
 	</div>
 </template>
 
@@ -49,6 +51,10 @@ export default {
 		allEvents: 0,
 	},
 
+	routeList() {
+		router.back();
+	},
+
 	onReady() {
 		// 清除缓存
 		router.clear();
@@ -59,12 +65,12 @@ export default {
 			default: "[]",
 			success: (data) => {
 				const events = JSON.parse(data);
+				this.allEvents = events.length;
 				if (events.length == 0) {
 					this.is_no_event = true;
 					return;
 				}
 				this.is_no_event = false;
-				this.allEvents = events.length;
 				this.events = events
 					.filter((event) => event.on_index == true)
 					.map((event) => {
@@ -106,7 +112,7 @@ export default {
 	},
 
 	routeMore() {
-		if (this.allEvents.length == 0) {
+		if (this.allEvents == 0) {
 			router.push({
 				uri: "/pages/edit",
 				params: {
@@ -131,17 +137,18 @@ export default {
 }
 
 .countdown-swiper {
-	width: 184px;
-	height: 184px;
+	width: 266px;
+	height: 266px;
 }
 
 .countdown-page {
 	display: flex;
 	flex-direction: column;
-	width: 178px;
-	height: 178px;
+	width: 256px;
+	height: 256px;
 	border-radius: 20px;
 	align-items: center;
+	justify-items: center;
 }
 
 #empty {
@@ -159,7 +166,7 @@ export default {
 .countdown-event {
 	font-size: 20px;
 	text-align: center;
-	width: 150px;
+	width: 256px;
 	position: relative;
 	font-weight: bold;
 }
@@ -175,7 +182,7 @@ export default {
 	flex-direction: column;
 	position: relative;
 	width: 100%;
-	height: 126px;
+	height: 176px;
 	background-color: #efefef;
 	color: black;
 	justify-content: center;
@@ -209,7 +216,7 @@ export default {
 
 .countdown-days {
 	text-align: center;
-	font-size: 56px;
+	font-size: 88px;
 	font-weight: bold;
 }
 </style>

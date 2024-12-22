@@ -1,7 +1,7 @@
 <template>
 	<div class="list-page">
 		<text class="header-time">{{ count }} 个倒数日</text>
-		<img src="/common/back.png" @click="routeBack" style="position: absolute; left: 45px; top: 6px" />
+		<img src="/common/back.png" @click="routeBack" style="position: absolute; left: 6px; top: 6px" />
 		<scroll scroll-y="true" bounces="true">
 			<div for="{{events}}">
 				<div class="countdown-card" style="background-color: {{$item.already ? '#f78803' : '#3184d0'}}"
@@ -16,7 +16,7 @@
 				</div>
 			</div>
 		</scroll>
-		<img src="/common/Add_A.png" @click="routeAdd" style="position: absolute; left: 45px; bottom: 6px" />
+		<img src="/common/Add_A.png" @click="routeAdd" style="position: absolute; left: 117px; bottom: 18px" />
 	</div>
 </template>
 
@@ -148,8 +148,8 @@ export default {
 scroll {
 	display: flex;
 	flex-direction: column;
-	width: 182px;
-	height: 260px;
+	width: 240px;
+	height: 300px;
 	position: relative;
 	top: 8px;
 }
@@ -158,7 +158,7 @@ scroll {
 	display: flex;
 	flex-direction: row;
 	align-items: center;
-	width: 170px;
+	width: 238px;
 	height: 66px;
 	border-radius: 10px;
 	padding: 6px;
