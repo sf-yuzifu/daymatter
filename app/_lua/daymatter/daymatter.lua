@@ -254,8 +254,8 @@ local function createWatchface(parent)
     t.objImage = lvgl.Image(wfRoot, { x = 0, y = 0, src = imgPath("bg.bin") })
 
     --倒数日方框
-    t.countdown1 = Image(wfRoot, { x = 6, y = 74, src = imgPath("before.bin") })
-    t.countdown2 = Image(wfRoot, { x = 6, y = 262, src = imgPath("later.bin") })
+    t.countdown1 = Image(wfRoot, imgPath("before.bin"), { 6, 74 })
+    t.countdown2 = Image(wfRoot, imgPath("later.bin"), { 6, 262 })
 
     -- 电量
     t.chargeCont = Label(wfRoot, "100%", { w = 84, h = 27, x = 64, y = 480 }, "#ffffff")
@@ -277,7 +277,7 @@ local function createWatchface(parent)
 
 
     -- 文字
-    t.gaokao = Label(wfRoot, "", { w = 180, h = 27, x = 16, y = 76.5 }, "#ffffff")
+    t.gaokao = Label(wfRoot, "", { w = 200, h = 27, x = 16, y = 76.5 }, "#ffffff")
     t.countdown = Label(wfRoot, "目标日: 2026-6-8", { w = 200, h = 27, x = 6, y = 200.5 }, "#ffffff")
 
     -- 日期
@@ -335,25 +335,25 @@ local function uiCreate()
 
     -- 倒数日计算器
     local function calculateDaysLeft(targetYear, targetMonth, targetDay)
-        -- 获取当前日期
-        local currentTime = os.time()
+        -- 获取当前日期的0点0分0秒
+        local now = os.date("*t") -- 获取当前时间的详细表
+        now.hour = 0
+        now.min = 0
+        now.sec = 0
+        local currentTime = os.time(now) -- 转换为时间戳（当天0点）
 
-        -- 设置目标日期
-        local targetDate = {
+        -- 设置目标日期的0点0分0秒
+        local targetTime = os.time({
             year = targetYear,
             month = targetMonth,
             day = targetDay,
             hour = 0,
             min = 0,
             sec = 0
-        }
-        local targetTime = os.time(targetDate)
+        })
 
-        -- 计算差值（秒）
-        local diffSeconds = targetTime - currentTime
-
-        -- 转换为天数
-        local daysLeft = math.floor(diffSeconds / (24 * 60 * 60))
+        -- 计算差值（秒）并转换为天数
+        local daysLeft = math.floor((targetTime - currentTime) / 86400) -- 86400 = 24*60*60
 
         return daysLeft
     end
@@ -362,7 +362,7 @@ local function uiCreate()
     -- 倒计时天数
     dataman.subscribe("timeSecondLow", watchface.timeDay.widget, function(obj, value)
         watchface.dateCont.label:set({ text = month .. "/" .. day .. " " .. week })
-        watchface.countdown1.widget:set({ src = imgPath("after.bin") })
+        watchface.countdown1.widget:set({ src = imgPath("later.bin") })
         -- 倒计时日期设置
         if fileExists(file) then
             local jsonStr = readFileToStr(file)
