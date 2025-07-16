@@ -138,7 +138,7 @@ local function Label(root, text, pos, color)
         bg_opa = 0,
         bg_color = 0,
         w = pos.w,
-        h = 520,
+        h = 480,
         align = lvgl.ALIGN.CENTER
     })
     t.widget:clear_flag(lvgl.FLAG.SCROLLABLE)
@@ -244,8 +244,8 @@ local function createWatchface(parent)
         bg_opa = 0,
         bg_color = 0,
         align = lvgl.ALIGN.CENTER,
-        w = 212,
-        h = 520,
+        w = 336,
+        h = 480,
     })
     wfRoot:clear_flag(lvgl.FLAG.SCROLLABLE)
     wfRoot:add_flag(lvgl.FLAG.EVENT_BUBBLE)
@@ -254,34 +254,34 @@ local function createWatchface(parent)
     t.objImage = lvgl.Image(wfRoot, { x = 0, y = 0, src = imgPath("bg.bin") })
 
     --倒数日方框
-    t.countdown1 = Image(wfRoot, imgPath("before.bin"), { 6, 74 })
-    t.countdown2 = Image(wfRoot, imgPath("later.bin"), { 6, 262 })
+    t.countdown1 = Image(wfRoot, imgPath("before.bin"), { 68, 46 })
+    t.countdown2 = Image(wfRoot, imgPath("later.bin"), { 68, 234 })
 
     -- 电量
-    t.chargeCont = Label(wfRoot, "100%", { w = 84, h = 27, x = 64, y = 480 }, "#ffffff")
+    t.chargeCont = Label(wfRoot, "100%", { w = 84, h = 27, x = 126, y = 440 }, "#ffffff")
 
     -- 倒计时天数
-    t.timeDay = imageGroup(wfRoot, { 0, 109 })
-    t.timeDayChild1 = t.timeDay:setChild(imgPath("0.bin"), { x = 24 })
-    t.timeDayChild2 = t.timeDay:setChild(imgPath("7.bin"), { x = 65 })
-    t.timeDayChild3 = t.timeDay:setChild(imgPath("2.bin"), { x = 106 })
-    t.timeDayChild4 = t.timeDay:setChild(imgPath("1.bin"), { x = 147 })
-    t.timeDayChild5 = t.timeDay:setChild(imgPath("today.bin"), { x = 34, y = 4 })
+    t.timeDay = imageGroup(wfRoot, { 0, 81 })
+    t.timeDayChild1 = t.timeDay:setChild(imgPath("0.bin"), { x = 86 })
+    t.timeDayChild2 = t.timeDay:setChild(imgPath("7.bin"), { x = 127 })
+    t.timeDayChild3 = t.timeDay:setChild(imgPath("2.bin"), { x = 168 })
+    t.timeDayChild4 = t.timeDay:setChild(imgPath("1.bin"), { x = 209 })
+    t.timeDayChild5 = t.timeDay:setChild(imgPath("today.bin"), { x = 88 })
 
     -- 小时分钟
-    t.timeHourHigh = Image(wfRoot, imgPath("0.bin"), { 15.5, 297 })
-    t.timeHourLow = Image(wfRoot, imgPath("9.bin"), { 56.5, 297 })
-    t.timeGang = Image(wfRoot, imgPath("mao.bin"), { 85.5, 297 })
-    t.timeMinuteHigh = Image(wfRoot, imgPath("2.bin"), { 114.5, 297 })
-    t.timeMinuteLow = Image(wfRoot, imgPath("8.bin"), { 155.5, 297 })
+    t.timeHourHigh = Image(wfRoot, imgPath("0.bin"), { 77.5, 269 })
+    t.timeHourLow = Image(wfRoot, imgPath("9.bin"), { 118, 269 })
+    t.timeGang = Image(wfRoot, imgPath("mao.bin"), { 159, 269 })
+    t.timeMinuteHigh = Image(wfRoot, imgPath("2.bin"), { 177, 269 })
+    t.timeMinuteLow = Image(wfRoot, imgPath("8.bin"), { 217.5, 269 })
 
 
     -- 文字
-    t.gaokao = Label(wfRoot, "", { w = 200, h = 27, x = 16, y = 76.5 }, "#ffffff")
-    t.countdown = Label(wfRoot, "目标日: 2026-6-8", { w = 200, h = 27, x = 6, y = 200.5 }, "#ffffff")
+    t.gaokao = Label(wfRoot, "", { w = 200, h = 27, x = 78, y = 49 }, "#ffffff")
+    t.countdown = Label(wfRoot, "目标日: 2026-6-8", { w = 200, h = 27, x = 68, y = 172.5 }, "#ffffff")
 
     -- 日期
-    t.dateCont = Label(wfRoot, "03/08 周六", { w = 155, h = 27, x = 29, y = 388.5 }, "#ffffff")
+    t.dateCont = Label(wfRoot, "03/08 周六", { w = 155, h = 27, x = 91, y = 360.5 }, "#ffffff")
 
     return t
 end
@@ -399,37 +399,37 @@ local function uiCreate()
             watchface.timeDayChild5:clear_flag(lvgl.FLAG.HIDDEN)
         elseif days < 10 then
             src = string.format("%d.bin", days)
-            watchface.timeDayChild3:set({ src = imgPath(src), x = 85.5 })
+            watchface.timeDayChild3:set({ src = imgPath(src), x = 147.5 })
             watchface.timeDayChild3:clear_flag(lvgl.FLAG.HIDDEN)
         elseif days < 100 then
             src = string.format("%d.bin", math.floor(days / 10))
-            watchface.timeDayChild2:set({ src = imgPath(src), x = 65 })
+            watchface.timeDayChild2:set({ src = imgPath(src), x = 127 })
             watchface.timeDayChild2:clear_flag(lvgl.FLAG.HIDDEN)
             src = string.format("%d.bin", days % 10)
-            watchface.timeDayChild3:set({ src = imgPath(src), x = 106 })
+            watchface.timeDayChild3:set({ src = imgPath(src), x = 168 })
             watchface.timeDayChild3:clear_flag(lvgl.FLAG.HIDDEN)
         elseif days < 1000 then
             src = string.format("%d.bin", math.floor(days / 100))
-            watchface.timeDayChild2:set({ src = imgPath(src), x = 44.5 })
+            watchface.timeDayChild2:set({ src = imgPath(src), x = 106.5 })
             watchface.timeDayChild2:clear_flag(lvgl.FLAG.HIDDEN)
             src = string.format("%d.bin", math.floor(days / 10) % 10)
-            watchface.timeDayChild3:set({ src = imgPath(src), x = 85.5 })
+            watchface.timeDayChild3:set({ src = imgPath(src), x = 147.5 })
             watchface.timeDayChild3:clear_flag(lvgl.FLAG.HIDDEN)
             src = string.format("%d.bin", days % 10)
-            watchface.timeDayChild4:set({ src = imgPath(src), x = 126.5 })
+            watchface.timeDayChild4:set({ src = imgPath(src), x = 188.5 })
             watchface.timeDayChild4:clear_flag(lvgl.FLAG.HIDDEN)
         else
             src = string.format("%d.bin", math.floor(days / 1000))
-            watchface.timeDayChild1:set({ src = imgPath(src), x = 24 })
+            watchface.timeDayChild1:set({ src = imgPath(src), x = 86 })
             watchface.timeDayChild1:clear_flag(lvgl.FLAG.HIDDEN)
             src = string.format("%d.bin", math.floor(days / 100) % 10)
-            watchface.timeDayChild2:set({ src = imgPath(src), x = 65 })
+            watchface.timeDayChild2:set({ src = imgPath(src), x = 127 })
             watchface.timeDayChild2:clear_flag(lvgl.FLAG.HIDDEN)
             src = string.format("%d.bin", math.floor(days / 10) % 10)
-            watchface.timeDayChild3:set({ src = imgPath(src), x = 106 })
+            watchface.timeDayChild3:set({ src = imgPath(src), x = 168 })
             watchface.timeDayChild3:clear_flag(lvgl.FLAG.HIDDEN)
             src = string.format("%d.bin", days % 10)
-            watchface.timeDayChild4:set({ src = imgPath(src), x = 147 })
+            watchface.timeDayChild4:set({ src = imgPath(src), x = 209 })
             watchface.timeDayChild4:clear_flag(lvgl.FLAG.HIDDEN)
         end
     end)
