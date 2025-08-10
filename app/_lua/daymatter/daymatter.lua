@@ -127,7 +127,7 @@ end
 
 FontChange("demibold", "Demibold")
 
-local function Label(root, text, pos, color)
+local function Label(root, text, pos, color, size)
     --- @class Label
     local t = {} -- create new table
 
@@ -138,7 +138,7 @@ local function Label(root, text, pos, color)
         bg_opa = 0,
         bg_color = 0,
         w = pos.w,
-        h = 480,
+        h = 466,
         align = lvgl.ALIGN.CENTER
     })
     t.widget:clear_flag(lvgl.FLAG.SCROLLABLE)
@@ -151,7 +151,7 @@ local function Label(root, text, pos, color)
         y = pos.y,
         text = text,
         text_color = color,
-        font_size = 20,
+        font_size = size,
         text_font = TEXT_FONT,
         text_align = lvgl.ALIGN.TOP_MID,
         long_mode = lvgl.LABEL.LONG_SCROLL_CIRCULAR
@@ -244,8 +244,8 @@ local function createWatchface(parent)
         bg_opa = 0,
         bg_color = 0,
         align = lvgl.ALIGN.CENTER,
-        w = 336,
-        h = 480,
+        w = 466,
+        h = 466,
     })
     wfRoot:clear_flag(lvgl.FLAG.SCROLLABLE)
     wfRoot:add_flag(lvgl.FLAG.EVENT_BUBBLE)
@@ -254,14 +254,14 @@ local function createWatchface(parent)
     t.objImage = lvgl.Image(wfRoot, { x = 0, y = 0, src = imgPath("bg.bin") })
 
     --倒数日方框
-    t.countdown1 = Image(wfRoot, imgPath("before.bin"), { 68, 46 })
-    t.countdown2 = Image(wfRoot, imgPath("later.bin"), { 68, 234 })
+    t.countdown1 = Image(wfRoot, imgPath("before.bin"), { 133, 46 })
+    t.countdown2 = Image(wfRoot, imgPath("later.bin"), { 133, 234 })
 
     -- 电量
-    t.chargeCont = Label(wfRoot, "100%", { w = 84, h = 27, x = 126, y = 440 }, "#ffffff")
+    t.chargeCont = Label(wfRoot, "100%", { w = 84, h = 27, x = 126, y = 426 }, "#ffffff", 24)
 
     -- 倒计时天数
-    t.timeDay = imageGroup(wfRoot, { 0, 81 })
+    t.timeDay = imageGroup(wfRoot, { 65, 81 })
     t.timeDayChild1 = t.timeDay:setChild(imgPath("0.bin"), { x = 86 })
     t.timeDayChild2 = t.timeDay:setChild(imgPath("7.bin"), { x = 127 })
     t.timeDayChild3 = t.timeDay:setChild(imgPath("2.bin"), { x = 168 })
@@ -269,19 +269,19 @@ local function createWatchface(parent)
     t.timeDayChild5 = t.timeDay:setChild(imgPath("today.bin"), { x = 88 })
 
     -- 小时分钟
-    t.timeHourHigh = Image(wfRoot, imgPath("0.bin"), { 77.5, 269 })
-    t.timeHourLow = Image(wfRoot, imgPath("9.bin"), { 118, 269 })
-    t.timeGang = Image(wfRoot, imgPath("mao.bin"), { 159, 269 })
-    t.timeMinuteHigh = Image(wfRoot, imgPath("2.bin"), { 177, 269 })
-    t.timeMinuteLow = Image(wfRoot, imgPath("8.bin"), { 217.5, 269 })
+    t.timeHourHigh = Image(wfRoot, imgPath("0.bin"), { 77.5 + 65, 269 })
+    t.timeHourLow = Image(wfRoot, imgPath("9.bin"), { 118 + 65, 269 })
+    t.timeGang = Image(wfRoot, imgPath("mao.bin"), { 212, 269 })
+    t.timeMinuteHigh = Image(wfRoot, imgPath("2.bin"), { 177 + 65, 269 })
+    t.timeMinuteLow = Image(wfRoot, imgPath("8.bin"), { 217.5 + 65, 269 })
 
 
     -- 文字
-    t.gaokao = Label(wfRoot, "", { w = 200, h = 27, x = 78, y = 49 }, "#ffffff")
-    t.countdown = Label(wfRoot, "目标日: 2026-6-8", { w = 200, h = 27, x = 68, y = 172.5 }, "#ffffff")
+    t.gaokao = Label(wfRoot, "", { w = 200, h = 27, x = 143, y = 49 }, "#ffffff", 20)
+    t.countdown = Label(wfRoot, "目标日: 2026-6-8", { w = 200, h = 27, x = 133, y = 172.5 }, "#ffffff", 20)
 
     -- 日期
-    t.dateCont = Label(wfRoot, "03/08 周六", { w = 155, h = 27, x = 91, y = 360.5 }, "#ffffff")
+    t.dateCont = Label(wfRoot, "03/08 周六", { w = 155, h = 27, x = 156, y = 360.5 }, "#ffffff", 20)
 
     return t
 end
