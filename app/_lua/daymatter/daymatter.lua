@@ -30,6 +30,8 @@ local function splitString(inputstr, sep)
     end
     local t = {}
     for str in string.gmatch(inputstr, "([^" .. sep .. "]+)") do
+        -- 移除换行符（\n 和 \r）
+        str = str:gsub("[\r\n]", "")
         table.insert(t, str)
     end
     return t
@@ -334,7 +336,7 @@ local function uiCreate()
     end)
 
     -- 倒数日计算器
-    local function calculateDaysLeft(targetYear, targetMonth, targetDay)
+    local function calculateDaysLeft(targetYear, targetMonth, targetDay, IFStartDay)
         -- 获取当前日期的0点0分0秒
         local now = os.date("*t") -- 获取当前时间的详细表
         now.hour = 0
@@ -355,6 +357,10 @@ local function uiCreate()
         -- 计算差值（秒）并转换为天数
         local daysLeft = math.floor((targetTime - currentTime) / 86400) -- 86400 = 24*60*60
 
+        if IFStartDay and daysLeft <= 0 then
+            daysLeft = daysLeft - 1
+        end
+
         return daysLeft
     end
     local daysLeft
@@ -366,9 +372,10 @@ local function uiCreate()
         -- 倒计时日期设置
         if fileExists(file) then
             local jsonStr = readFileToStr(file)
+            local value1 = splitString(jsonStr, ",")[3] -- 只计算一次
             watchface.countdown.label:set({ text = "目标日: " .. splitString(jsonStr, ",")[2] })
             local time = splitString(splitString(jsonStr, ",")[2], "-")
-            daysLeft = calculateDaysLeft(time[1], time[2], time[3])
+            daysLeft = calculateDaysLeft(time[1], time[2], time[3], #value1 == 4)
             if daysLeft > 0 then
                 watchface.gaokao.label:set({ text = "" .. splitString(jsonStr, ",")[1] .. "还有" })
                 watchface.countdown1.widget:set({ src = imgPath("before.bin") })
