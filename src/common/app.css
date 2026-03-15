@@ -1,0 +1,104 @@
+.header {
+  position: absolute;
+  top: 4px;
+  justify-content: center;
+  align-items: center;
+}
+
+.header-time {
+  font-size: 24px;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: bold;
+}
+
+.info-btn {
+  position: absolute;
+  top: 36px;
+}
+
+.more-btn {
+  position: absolute;
+  bottom: 6px;
+}
+
+@media (device-type: band) and (shape: rect) {
+  .title {
+    position: relative;
+    display: flex;
+    justify-items: center;
+    align-items: center;
+    margin-top: 7px;
+    font-size: 32px;
+    font-weight: bold;
+    color: rgba(255, 255, 255, 1);
+  }
+
+  .time {
+    position: relative;
+    top: 10px;
+    display: flex;
+    justify-items: center;
+    align-items: center;
+    font-size: 24px;
+    font-weight: bold;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .leftButton {
+    position: absolute;
+    left: 6px;
+  }
+
+  .rightButton {
+    position: absolute;
+    right: 6px;
+  }
+
+  .bottom {
+    bottom: 6px;
+  }
+
+  .top {
+    top: 6px;
+  }
+}
+
+/* 看看是不是红米手表 */
+@media (device-type: watch) and (shape: rect) {
+  .leftButton {
+    left: 20px;
+  }
+
+  .rightButton {
+    right: 20px;
+  }
+
+  .top {
+    top: 20px;
+  }
+
+  .bottom {
+    bottom: 20px;
+  }
+}
+
+/* 看看是不是小米手表 */
+@media (device-type: watch) and (shape: circle) {
+  .leftButton {
+    left: 60%;
+  }
+
+  .rightButton {
+    right: 60%;
+  }
+
+  .top {
+    position: absolute;
+    top: 6px;
+  }
+
+  .bottom {
+    position: absolute;
+    bottom: 6px;
+  }
+}
