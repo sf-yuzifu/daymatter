@@ -8,6 +8,9 @@
       src="/common/info_rect.png"
       @click="info"
     />
+    <text class="title" elif="{{ global.screenShape == 'circle' }}" @click="info">
+      {{ $t("appName") }}
+    </text>
     <img else class="top" src="/common/info.png" @click="info" />
     <img
       class="top leftButton"

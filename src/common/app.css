@@ -57,7 +57,7 @@
   .time {
     top: 20px;
   }
-  
+
   .title {
     top: 48px;
   }
@@ -98,4 +98,26 @@
     position: absolute;
     bottom: 6px;
   }
+
+  .title {
+    position: absolute;
+    top: 35px;
+    display: flex;
+    justify-items: center;
+    align-items: center;
+    font-size: 32px;
+    font-weight: bold;
+    color: rgba(255, 255, 255, 1);
+  }
+}
+
+@font-face {
+  font-family: "iconfont";
+  src: url("iconfont.ttf") format("truetype");
+}
+
+.iconfont {
+  font-family: "iconfont" !important;
+  font-size: 32px;
+  font-style: normal;
 }

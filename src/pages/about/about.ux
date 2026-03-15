@@ -1,0 +1,228 @@
+<template>
+  <div class="container">
+    <text class="time">{{ time }}</text>
+    <text class="title" if="{{ global.screenShape == 'rect' }}">{{ $t("about") }}</text>
+    <img
+      if="{{ global.screenShape == 'rect' }}"
+      class="top leftButton"
+      src="/common/back_rect.png"
+      @click="routeBack"
+    />
+    <text @click="routeBack" class="title" elif="{{ global.screenShape == 'circle' }}">
+      <span class="iconfont">&#xe685;</span>
+      <span>{{ $t("about") }}</span>
+    </text>
+    <img else class="top" src="/common/back.png" @click="routeBack" />
+    <text class="bold spacer-large"></text>
+    <div class="box">
+      <scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
+        <div id="info">
+          <div id="inner">
+            <text class="bold app-name">{{ name }}</text>
+            <text id="version" class="re">{{ ver }}</text>
+          </div>
+          <div id="logo-container">
+            <image id="logo" src="/common/logo.png" />
+          </div>
+        </div>
+        <div id="copyright">
+          <text class="re bold" if="{{ global.isPillShaped }}">
+            {{ $t("author") }}
+          </text>
+          <text class="re bold">
+            <span if="{{ !global.isPillShaped }}">
+              {{ $t("author") }}
+            </span>
+            <!-- 这里是占位符 -->
+            <span if="{{ !global.isPillShaped }}" style="color: transparent">2</span>
+            <span class="bold white">小鱼yuzifu</span>
+          </text>
+          <div class="spacer" if="{{ !global.isPillShaped }}"></div>
+          <text class="re bold" if="{{ !global.isPillShaped }}">
+            {{ $t("thanks") }}
+          </text>
+          <text class="bold white">chiyuki0325</text>
+          <text class="bold white">NEORUAA</text>
+          <text class="bold white">无源流沙</text>
+        </div>
+        <div class="padding"></div>
+      </scroll>
+    </div>
+  </div>
+</template>
+
+<script>
+import router from "@system.router"
+import app from "@system.app"
+
+export default {
+  private: {
+    ver: app.getInfo().versionName,
+    name: app.getInfo().name,
+    time: ""
+  },
+
+  onShow() {
+    this.time = global.getTime()
+  },
+
+  routeBack() {
+    router.back()
+  }
+}
+</script>
+
+<style>
+@import "../../common/app.css";
+
+.container {
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.spacer {
+  width: 1px;
+  height: 10px;
+}
+
+.spacer-large {
+  height: 116px;
+}
+
+.app-name {
+  color: #fff;
+  font-size: 30px;
+}
+
+.white {
+  color: #fff;
+  font-size: 28px;
+}
+
+#info {
+  flex-direction: column;
+  justify-content: center;
+  border: 3px solid rgba(255, 255, 255, 0.06);
+  background-color: #262626;
+  border-radius: 20px;
+  padding: 10px 20px;
+  width: 90%;
+}
+
+#logo-container {
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+#inner {
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-direction: column;
+  width: 100%;
+}
+
+#logo {
+  width: 56px;
+}
+
+#version {
+  font-size: 24px;
+}
+
+#copyright {
+  margin-top: 10px;
+  width: 90%;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.sub {
+  color: #666;
+}
+
+.re {
+  color: #999;
+}
+
+.bold {
+  font-weight: bold;
+}
+
+.box {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+}
+
+@media (shape: rect) {
+  #logo {
+    width: 76px;
+  }
+
+  .white {
+    font-size: unset;
+  }
+}
+
+@media (device-type: band) and (shape: rect) {
+  .spacer-large {
+    height: 80px;
+  }
+
+  #info {
+    width: 83%;
+  }
+
+  #copyright {
+    width: 83%;
+    align-items: flex-start;
+  }
+}
+
+@media (device-type: watch) and (shape: rect) {
+  .spacer-large {
+    height: 94px;
+  }
+
+  #info {
+    width: 75%;
+  }
+
+  #copyright {
+    width: 75%;
+    align-items: flex-start;
+  }
+}
+
+@media (device-type: watch) and (shape: circle) {
+  .spacer-large {
+    height: 84px;
+  }
+
+  #info {
+    width: 70%;
+  }
+
+  #copyright {
+    width: 70%;
+    align-items: flex-start;
+  }
+
+  #logo {
+    width: 76px;
+  }
+
+  .white {
+    font-size: unset;
+  }
+
+  .padding {
+    height: 72px;
+  }
+}
+</style>

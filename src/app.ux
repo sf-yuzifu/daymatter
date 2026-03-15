@@ -9,6 +9,7 @@ device.getInfo({
 		screenSize.height = deviceRet.screenHeight;
 		global.screenShape = deviceRet.screenShape;
 		global.screenSize = screenSize;
+		global.isPillShaped = deviceRet.screenShape !== 'rect' && deviceRet.screenShape !== 'circle';
 	},
 });
 

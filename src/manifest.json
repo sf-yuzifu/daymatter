@@ -40,6 +40,9 @@
     "pages": {
       "pages/index": {
         "component": "index"
+      },
+      "pages/about": {
+        "component": "about"
       }
     }
   },

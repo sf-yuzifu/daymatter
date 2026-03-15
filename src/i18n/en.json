@@ -13,5 +13,8 @@
   "addSuccess": "Event added successfully!",
   "changeSuccess": "Event updated successfully!",
   "deleteSuccess": "Event deleted successfully!",
-  "saveFail": "Save failed, possibly insufficient storage, error code: {code}"
+  "saveFail": "Save failed, possibly insufficient storage, error code: {code}",
+  "about": "About",
+  "author": "Author",
+  "thanks": "Thanks to"
 }
