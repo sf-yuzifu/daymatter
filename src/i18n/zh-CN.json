@@ -1,4 +1,5 @@
 {
+  "appName": "倒数日",
   "empty": "空空如也",
   "targetDate": "目标日：{date}",
   "noEvent": "暂无事件...",

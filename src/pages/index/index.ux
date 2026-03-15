@@ -1,12 +1,20 @@
 <template>
   <div class="index-page">
-    <div class="header">
-      <text class="header-time">
-        {{ time }}
-      </text>
-    </div>
-    <img class="info-btn" src="/common/info.png" @click="info" />
-    <div class="header"></div>
+    <text class="time">{{ time }}</text>
+    <text class="title" if="{{ global.screenShape == 'rect' }}">{{ $t("appName") }}</text>
+    <img
+      class="top rightButton"
+      if="{{ global.screenShape == 'rect' }}"
+      src="/common/info_rect.png"
+      @click="info"
+    />
+    <img else class="top" src="/common/info.png" @click="info" />
+    <img
+      class="top leftButton"
+      if="{{ global.screenShape == 'rect' }}"
+      src="/common/back_rect.png"
+      @click="routeBack"
+    />
     <swiper if="{{ !is_no_event }}" indicator="false" class="countdown-swiper">
       <div for="{{ events }}">
         <div
@@ -21,16 +29,22 @@
             <text class="countdown-days">{{ $item.days }}</text>
           </div>
           <div class="countdown-date-bg">
-            <text class="countdown-date">{{ $t('targetDate', {date: $item.date}) }}</text>
+            <text class="countdown-date">{{ $t("targetDate", {date: $item.date}) }}</text>
           </div>
         </div>
       </div>
     </swiper>
     <div id="empty" if="{{ is_no_event }}">
       <img src="/common/empty.png" />
-      <text id="emp">{{ $t('empty') }}</text>
+      <text id="emp">{{ $t("empty") }}</text>
     </div>
-    <img class="more-btn" src="/common/more.png" @click="routeMore" />
+    <img
+      if="{{ global.screenShape == 'rect' }}"
+      class="bottom rightButton"
+      src="/common/more_rect.png"
+      @click="routeMore"
+    />
+    <img else class="bottom" src="/common/more.png" @click="routeMore" />
   </div>
 </template>
 
@@ -100,13 +114,13 @@ export default {
     let already = true
 
     if (diff > 0 || (diff === 0 && event.IFStaringDay)) {
-      name = this.$t('already') + name
-      days = String(diff > 0 ? (event.IFStaringDay ? diff + 1 : diff) : 1) + this.$t('days')
+      name = this.$t("already") + name
+      days = String(diff > 0 ? (event.IFStaringDay ? diff + 1 : diff) : 1) + this.$t("days")
     } else if (diff === 0) {
-      days = this.$t('today')
+      days = this.$t("today")
     } else {
-      name = this.$t('remaining') + name
-      days = String(-diff) + this.$t('days')
+      name = this.$t("remaining") + name
+      days = String(-diff) + this.$t("days")
       already = false
     }
 
@@ -151,7 +165,7 @@ export default {
         this.completed()
       },
       fail: (data, code) => {
-        showToast({message: this.$t('saveFail', {code})})
+        showToast({message: this.$t("saveFail", {code})})
       }
     })
   },
@@ -160,8 +174,8 @@ export default {
     this.readEvents((events) => {
       connect.send({
         data: {data: events},
-        success: () => showToast({message: this.$t('syncSuccess'), duration: 2000}),
-        fail: () => showToast({message: this.$t('syncFail'), duration: 2000})
+        success: () => showToast({message: this.$t("syncSuccess"), duration: 2000}),
+        fail: () => showToast({message: this.$t("syncFail"), duration: 2000})
       })
     })
   },
@@ -170,7 +184,7 @@ export default {
     this.readEvents((events) => {
       const {type, ...eventData} = data
       events.push(eventData)
-      this.writeEvents(events, 'addSuccess')
+      this.writeEvents(events, "addSuccess")
     })
   },
 
@@ -179,7 +193,7 @@ export default {
       const {type, index, ...eventData} = data
       if (index >= 0 && index < events.length) {
         events[index] = eventData
-        this.writeEvents(events, 'changeSuccess')
+        this.writeEvents(events, "changeSuccess")
       }
     })
   },
@@ -188,7 +202,7 @@ export default {
     this.readEvents((events) => {
       if (data.index >= 0 && data.index < events.length) {
         events.splice(data.index, 1)
-        this.writeEvents(events, 'deleteSuccess')
+        this.writeEvents(events, "deleteSuccess")
       }
     })
   },
@@ -197,6 +211,10 @@ export default {
     router.push({
       uri: "/pages/about"
     })
+  },
+
+  routeBack() {
+    router.back()
   },
 
   routeMore() {

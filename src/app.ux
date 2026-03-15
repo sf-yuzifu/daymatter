@@ -1,4 +1,17 @@
 <script>
+import device from "@system.device";
+
+let screenSize = { width: 0, height: 0 };
+
+device.getInfo({
+	success: function (deviceRet) {
+		screenSize.width = deviceRet.screenWidth;
+		screenSize.height = deviceRet.screenHeight;
+		global.screenShape = deviceRet.screenShape;
+		global.screenSize = screenSize;
+	},
+});
+
 global.dateDiff = (date1) => {
   const _date = new Date()
   const date = _date.getFullYear() + "-" + (_date.getMonth() + 1) + "-" + _date.getDate()

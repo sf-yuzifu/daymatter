@@ -1,4 +1,5 @@
 {
+  "appName": "Days Matter",
   "empty": "Empty",
   "targetDate": "Target: {date}",
   "noEvent": "No events...",
