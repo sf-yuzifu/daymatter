@@ -1,10 +1,16 @@
 <script>
-export default {
-  onCreate() {
-    console.log("app created")
-  },
-  onDestroy() {
-    console.log("app destroyed")
-  }
+global.dateDiff = (date1) => {
+  const _date = new Date()
+  const date = _date.getFullYear() + "-" + (_date.getMonth() + 1) + "-" + _date.getDate()
+  return Math.floor((new Date(date).getTime() - new Date(date1).getTime()) / (1000 * 60 * 60 * 24))
 }
+
+global.getTime = function () {
+	const date = new Date();
+	const hour = date.getHours().toString().padStart(2, "0");
+	const minute = date.getMinutes().toString().padStart(2, "0");
+	return hour + ":" + minute;
+};
+
+export default {}
 </script>

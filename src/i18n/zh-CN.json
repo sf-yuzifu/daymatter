@@ -1,1 +1,16 @@
-{"a":{"b":"你好"}}
+{
+  "empty": "空空如也",
+  "targetDate": "目标日：{date}",
+  "noEvent": "暂无事件...",
+  "none": "无",
+  "today": "今天",
+  "already": "已经",
+  "remaining": "还有",
+  "days": "天",
+  "syncSuccess": "同步成功！",
+  "syncFail": "同步失败",
+  "addSuccess": "事件添加成功！",
+  "changeSuccess": "事件修改成功！",
+  "deleteSuccess": "事件删除成功！",
+  "saveFail": "数据保存失败，可能是设备可用空间不足，错误码: {code}"
+}

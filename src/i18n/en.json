@@ -1,1 +1,16 @@
-{"a":{"b":"hello"}}
+{
+  "empty": "Empty",
+  "targetDate": "Target: {date}",
+  "noEvent": "No events...",
+  "none": "None",
+  "today": "Today",
+  "already": "Already ",
+  "remaining": "",
+  "days": " days",
+  "syncSuccess": "Sync successful!",
+  "syncFail": "Sync failed",
+  "addSuccess": "Event added successfully!",
+  "changeSuccess": "Event updated successfully!",
+  "deleteSuccess": "Event deleted successfully!",
+  "saveFail": "Save failed, possibly insufficient storage, error code: {code}"
+}

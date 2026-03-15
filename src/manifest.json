@@ -40,9 +40,6 @@
     "pages": {
       "pages/index": {
         "component": "index"
-      },
-      "pages/detail": {
-        "component": "detail"
       }
     }
   },
