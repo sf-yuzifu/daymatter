@@ -1,0 +1,278 @@
+<template>
+  <div class="list-page">
+    <text class="time">{{ time }}</text>
+    <text class="title" if="{{ global.screenShape == 'rect' }}">{{ $t("eventCount", {count: count}) }}</text>
+    <img
+      if="{{ global.screenShape == 'rect' }}"
+      class="top leftButton"
+      src="/common/back_rect.png"
+      @click="routeBack"
+    />
+    <text @click="routeBack" class="title" elif="{{ global.screenShape == 'circle' }}">
+      <span class="iconfont">&#xe685;</span>
+      <span>{{ $t("eventCount", {count: count}) }}</span>
+    </text>
+    <img else class="top" src="/common/back.png" @click="routeBack" />
+    <div class="box">
+      <scroll scroll-y="true" bounces="true">
+        <div for="{{ events }}">
+          <div
+            class="countdown-card"
+            style="background-color: {{ $item.already ? '#f78803' : '#3184d0' }}"
+            @click="routeEditEvent($idx)"
+          >
+            <text class="countdown-name">{{ $item.display_name }}</text>
+            <div class="countdown-radius"></div>
+            <div class="countdown-background">
+              <text class="countdown-days" style="font-size: {{ $item.font_size }}">
+                {{ $item.days }}
+              </text>
+            </div>
+          </div>
+        </div>
+      </scroll>
+    </div>
+    <img
+      if="{{ global.screenShape == 'rect' }}"
+      class="top rightButton"
+      src="/common/add_rect.png"
+      @click="routeAdd"
+    />
+    <img else class="bottom" src="/common/add.png" @click="routeAdd" />
+  </div>
+</template>
+
+<script>
+import router from "@system.router"
+import file from "@system.file"
+
+export default {
+  private: {
+    count: 0,
+    events: [],
+    time: ""
+  },
+
+  onBackPress() {
+    this.routeBack()
+    return true
+  },
+
+  routeBack() {
+    router.replace({
+      uri: "/pages/index"
+    })
+  },
+
+  onShow() {
+    this.time = global.getTime()
+  },
+
+  onReady() {
+    file.readText({
+      uri: "internal://files/events.json",
+      success: (data) => {
+        this.events = JSON.parse(data.text).map((event) => global.formatEvent(event, $t, { withFontSize: true }))
+        this.count = this.events.length
+      }
+    })
+  },
+
+  onRefresh() {
+    router.clear()
+  },
+
+  routeEditEvent(event_id) {
+    const event = this.events[event_id]
+    router.push({
+      uri: "/pages/edit",
+      params: {
+        extend: "false",
+        event_id: String(event_id),
+        event_name: event.name,
+        date: event.date,
+        on_index: event.on_index,
+        IFStaringDay: event.IFStaringDay || false,
+        callback_uri: "/pages/list"
+      }
+    })
+  },
+
+  routeAdd() {
+    router.push({
+      uri: "/pages/edit",
+      params: {
+        extend: "true",
+        event_id: this.count,
+        callback_uri: "/pages/list"
+      }
+    })
+  }
+}
+</script>
+
+<style>
+@import "../../common/app.css";
+
+.list-page {
+  flex-direction: column;
+  align-items: center;
+  color: white;
+  background-color: black;
+}
+
+.box {
+  position: relative;
+  flex: 1;
+  width: 90%;
+  margin-top: 116px;
+  margin-bottom: 86px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+scroll {
+  flex: 1;
+  width: 100%;
+  align-items: flex-start;
+}
+
+.countdown-card {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 238px;
+  height: 66px;
+  border-radius: 10px;
+  padding: 6px;
+  margin-bottom: 8px;
+}
+
+.countdown-name {
+  font-size: 20px;
+  width: 180px;
+  height: 60px;
+  text-overflow: ellipsis;
+  font-weight: bold;
+}
+
+.countdown-radius {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 66px;
+  width: 20px;
+  background-color: white;
+  border-radius: 10px;
+  z-index: -1;
+}
+
+.countdown-background {
+  background-color: white;
+  position: absolute;
+  top: 0px;
+  right: 10px;
+  width: 60px;
+  height: 66px;
+  z-index: 1000;
+}
+
+.countdown-days {
+  color: black;
+  font-weight: bold;
+  text-align: center;
+  width: 60px;
+  height: 66px;
+  text-overflow: clip;
+  position: relative;
+  right: -5px;
+  z-index: 1001;
+}
+
+.add-button {
+  width: 140px;
+  height: 44px;
+  background-color: black;
+  border: 3px;
+  border-color: gray;
+  color: white;
+  font-size: 22px;
+  margin-top: 30px;
+  position: absolute;
+  bottom: 32px;
+}
+
+#version-number {
+  position: absolute;
+  bottom: 2px;
+  color: gray;
+  font-size: 16px;
+}
+
+@media (shape: rect) {
+  .countdown-card {
+    width: 300px;
+  }
+
+  .countdown-name {
+    width: 230px;
+  }
+}
+
+@media (device-type: band) and (shape: rect) {
+  .countdown-card {
+    width: 280px;
+  }
+
+  .countdown-name {
+    width: 210px;
+  }
+
+  .box {
+    margin-top: 92px;
+    margin-bottom: 16px;
+	width: 83%;
+  }
+}
+
+@media (device-type: watch) and (shape: rect) {
+  .countdown-card {
+    width: 300px;
+  }
+
+  .countdown-name {
+    width: 230px;
+  }
+
+  .box {
+    margin-top: 102px;
+    margin-bottom: 32px;
+	width: 75%;
+  }
+}
+
+@media (device-type: watch) and (shape: circle) {
+  .countdown-card {
+    width: 220px;
+  }
+
+  .countdown-name {
+    width: 160px;
+  }
+
+  .time-container {
+    top: 18px;
+  }
+
+  .time-text {
+    font-size: 28px;
+  }
+
+  .box {
+    margin-top: 92px;
+    margin-bottom: 84px;
+	width: 70%;
+  }
+}
+</style>

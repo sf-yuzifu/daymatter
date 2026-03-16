@@ -26,5 +26,66 @@ global.getTime = function () {
 	return hour + ":" + minute;
 };
 
+global.formatEvent = (event, t, options = {}) => {
+  const { withDaysSuffix = false, withFontSize = false } = options
+  let days, font_size, display_name = event.name, already = true
+
+  const diff = global.dateDiff(event.date)
+  if (diff > 0) {
+    if (event.IFStaringDay) {
+      display_name += t("already")
+      days = String(diff + 1)
+    } else {
+      display_name += t("already")
+      days = String(diff)
+    }
+  } else if (diff == 0) {
+    if (event.IFStaringDay) {
+      display_name += t("already")
+      days = String(diff + 1)
+    } else {
+      days = t("today")
+    }
+  } else {
+    display_name += t("remaining")
+    days = String(-diff)
+    already = false
+  }
+
+  let resultDays = days
+  if (withDaysSuffix && days !== t("today")) {
+    resultDays += t("days")
+  }
+
+  if (withFontSize) {
+    const days_length = String(days).length
+    if (days == t("today")) {
+      font_size = 26
+    } else if (days_length < 3) {
+      font_size = 30
+    } else if (days_length == 3) {
+      font_size = 28
+    } else {
+      font_size = 20
+    }
+  }
+
+  const result = {
+    name: event.name,
+    display_name,
+    date: event.date,
+    days: resultDays,
+    already,
+    on_index: event.on_index,
+    IFStaringDay: event.IFStaringDay || false
+  }
+
+  if (withFontSize) {
+    result.font_size = font_size
+  }
+
+  return result
+}
+
 export default {}
 </script>

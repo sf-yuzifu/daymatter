@@ -110,33 +110,16 @@ export default {
     this.completed()
   },
 
-  formatEvent(event) {
-    const diff = global.dateDiff(event.date)
-    let name = event.name
-    let days
-    let already = true
-
-    if (diff > 0 || (diff === 0 && event.IFStaringDay)) {
-      name = this.$t("already") + name
-      days = String(diff > 0 ? (event.IFStaringDay ? diff + 1 : diff) : 1) + this.$t("days")
-    } else if (diff === 0) {
-      days = this.$t("today")
-    } else {
-      name = this.$t("remaining") + name
-      days = String(-diff) + this.$t("days")
-      already = false
-    }
-
-    return {name, days, date: event.date, already}
-  },
-
   completed() {
     file.readText({
       uri: "internal://files/events.json",
       success: (data) => {
         const events = JSON.parse(data.text)
         this.allEvents = events.length
-        this.events = events.filter((e) => e.on_index).map((e) => this.formatEvent(e))
+        this.events = events.filter((e) => e.on_index).map((e) => {
+          const formatted = global.formatEvent(e, this.$t, { withDaysSuffix: true })
+          return { name: formatted.display_name, days: formatted.days, date: formatted.date, already: formatted.already }
+        })
         this.is_no_event = this.events.length === 0
       },
       fail: (data, code) => console.log(`handling fail, code = ${code}`)
@@ -221,17 +204,17 @@ export default {
   },
 
   routeMore() {
-    if (this.allEvents === 0) {
-      router.push({
-        uri: "/pages/edit",
-        params: {
-          extend: "true",
-          callback_uri: "/pages/index"
-        }
-      })
-    } else {
+    // if (this.allEvents === 0) {
+    //   router.push({
+    //     uri: "/pages/edit",
+    //     params: {
+    //       extend: "true",
+    //       callback_uri: "/pages/index"
+    //     }
+    //   })
+    // } else {
       router.push({uri: "/pages/list"})
-    }
+    // }
   }
 }
 </script>

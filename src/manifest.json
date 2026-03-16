@@ -43,6 +43,9 @@
       },
       "pages/about": {
         "component": "about"
+      },
+      "pages/list": {
+        "component": "list"
       }
     }
   },

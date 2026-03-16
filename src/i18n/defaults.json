@@ -8,6 +8,7 @@
   "already": "Already ",
   "remaining": "",
   "days": " days",
+  "eventCount": "{count} Events",
   "syncSuccess": "Sync successful!",
   "syncFail": "Sync failed",
   "addSuccess": "Event added successfully!",
