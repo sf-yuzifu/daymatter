@@ -1,7 +1,9 @@
 <template>
   <div class="list-page">
     <text class="time">{{ time }}</text>
-    <text class="title" if="{{ global.screenShape == 'rect' }}">{{ $t("eventCount", {count: count}) }}</text>
+    <text class="title" if="{{ global.screenShape == 'rect' }}">
+      {{ $t("eventCount", {count: count}) }}
+    </text>
     <img
       if="{{ global.screenShape == 'rect' }}"
       class="top leftButton"
@@ -66,14 +68,22 @@ export default {
 
   onShow() {
     this.time = global.getTime()
-  },
-
-  onReady() {
     file.readText({
       uri: "internal://files/events.json",
       success: (data) => {
-        this.events = JSON.parse(data.text).map((event) => global.formatEvent(event, $t, { withFontSize: true }))
-        this.count = this.events.length
+        try {
+          this.events = JSON.parse(data.text).map((event) =>
+            global.formatEvent(event, this.$t, {withFontSize: true})
+          )
+          this.count = this.events.length
+        } catch (e) {
+          this.events = []
+          this.count = 0
+        }
+      },
+      fail: () => {
+        this.events = []
+        this.count = 0
       }
     })
   },
@@ -136,13 +146,14 @@ scroll {
   flex: 1;
   width: 100%;
   align-items: flex-start;
+  flex-direction: column;
 }
 
 .countdown-card {
   display: flex;
   flex-direction: row;
   align-items: center;
-  width: 238px;
+  width: 100%;
   height: 66px;
   border-radius: 10px;
   padding: 6px;
@@ -175,7 +186,6 @@ scroll {
   right: 10px;
   width: 60px;
   height: 66px;
-  z-index: 1000;
 }
 
 .countdown-days {
@@ -187,80 +197,31 @@ scroll {
   text-overflow: clip;
   position: relative;
   right: -5px;
-  z-index: 1001;
-}
-
-.add-button {
-  width: 140px;
-  height: 44px;
-  background-color: black;
-  border: 3px;
-  border-color: gray;
-  color: white;
-  font-size: 22px;
-  margin-top: 30px;
-  position: absolute;
-  bottom: 32px;
-}
-
-#version-number {
-  position: absolute;
-  bottom: 2px;
-  color: gray;
-  font-size: 16px;
 }
 
 @media (shape: rect) {
-  .countdown-card {
-    width: 300px;
-  }
 
-  .countdown-name {
-    width: 230px;
-  }
+
 }
 
 @media (device-type: band) and (shape: rect) {
-  .countdown-card {
-    width: 280px;
-  }
-
-  .countdown-name {
-    width: 210px;
-  }
 
   .box {
     margin-top: 92px;
     margin-bottom: 16px;
-	width: 83%;
+    width: 83%;
   }
 }
 
 @media (device-type: watch) and (shape: rect) {
-  .countdown-card {
-    width: 300px;
-  }
-
-  .countdown-name {
-    width: 230px;
-  }
-
   .box {
     margin-top: 102px;
     margin-bottom: 32px;
-	width: 75%;
+    width: 75%;
   }
 }
 
 @media (device-type: watch) and (shape: circle) {
-  .countdown-card {
-    width: 220px;
-  }
-
-  .countdown-name {
-    width: 160px;
-  }
-
   .time-container {
     top: 18px;
   }
@@ -272,7 +233,7 @@ scroll {
   .box {
     margin-top: 92px;
     margin-bottom: 84px;
-	width: 70%;
+    width: 70%;
   }
 }
 </style>

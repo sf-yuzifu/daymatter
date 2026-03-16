@@ -116,10 +116,17 @@ export default {
       success: (data) => {
         const events = JSON.parse(data.text)
         this.allEvents = events.length
-        this.events = events.filter((e) => e.on_index).map((e) => {
-          const formatted = global.formatEvent(e, this.$t, { withDaysSuffix: true })
-          return { name: formatted.display_name, days: formatted.days, date: formatted.date, already: formatted.already }
-        })
+        this.events = events
+          .filter((e) => e.on_index)
+          .map((e) => {
+            const formatted = global.formatEvent(e, this.$t, {withDaysSuffix: true})
+            return {
+              name: formatted.display_name,
+              days: formatted.days,
+              date: formatted.date,
+              already: formatted.already
+            }
+          })
         this.is_no_event = this.events.length === 0
       },
       fail: (data, code) => console.log(`handling fail, code = ${code}`)
@@ -204,17 +211,17 @@ export default {
   },
 
   routeMore() {
-    // if (this.allEvents === 0) {
-    //   router.push({
-    //     uri: "/pages/edit",
-    //     params: {
-    //       extend: "true",
-    //       callback_uri: "/pages/index"
-    //     }
-    //   })
-    // } else {
+    if (this.allEvents === 0) {
+      router.push({
+        uri: "/pages/edit",
+        params: {
+          extend: "true",
+          callback_uri: "/pages/index"
+        }
+      })
+    } else {
       router.push({uri: "/pages/list"})
-    // }
+    }
   }
 }
 </script>

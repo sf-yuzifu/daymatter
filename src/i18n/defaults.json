@@ -17,5 +17,13 @@
   "saveFail": "Save failed, possibly insufficient storage, error code: {code}",
   "about": "About",
   "author": "Author",
-  "thanks": "Thanks to"
+  "thanks": "Thanks to",
+  "addEvent": "Add Event",
+  "editEvent": "Edit Event",
+  "eventName": "Event Name",
+  "targetDateLabel": "Target Date",
+  "showOnHome": "Show on Home",
+  "includeStartDay": "Include Start Day",
+  "eventNameRequired": "Event name is required",
+  "saveSuccess": "Event saved successfully!"
 }

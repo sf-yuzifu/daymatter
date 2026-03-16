@@ -17,5 +17,13 @@
   "saveFail": "数据保存失败，可能是设备可用空间不足，错误码: {code}",
   "about": "关于",
   "author": "作者",
-  "thanks": "感谢"
+  "thanks": "感谢",
+  "addEvent": "添加事件",
+  "editEvent": "编辑事件",
+  "eventName": "事件名称",
+  "targetDateLabel": "目标日",
+  "showOnHome": "在首页显示",
+  "includeStartDay": "包含起始日",
+  "eventNameRequired": "事件名称不能为空",
+  "saveSuccess": "事件保存成功！"
 }

@@ -46,6 +46,9 @@
       },
       "pages/list": {
         "component": "list"
+      },
+      "pages/edit": {
+        "component": "edit"
       }
     }
   },
