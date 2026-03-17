@@ -49,6 +49,9 @@
       },
       "pages/edit": {
         "component": "edit"
+      },
+      "pages/input": {
+        "component": "input"
       }
     }
   },

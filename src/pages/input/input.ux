@@ -1,0 +1,191 @@
+<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
+<template>
+  <div class="container">
+    <text class="time">{{ time }}</text>
+    <text class="title" if="{{ global.screenShape == 'rect' }}">{{ $t("eventName") }}</text>
+    <img
+      if="{{ global.screenShape == 'rect' }}"
+      class="top leftButton"
+      src="/common/back_rect.png"
+      @click="routeBack"
+    />
+    <text @click="routeBack" class="title" elif="{{ global.screenShape == 'circle' }}">
+      <span class="iconfont">&#xe685;</span>
+      <span>{{ $t("eventName") }}</span>
+    </text>
+    <img else class="top" src="/common/back.png" @click="routeBack" />
+
+    <img
+      if="{{ global.screenShape == 'rect' }}"
+      class="top rightButton"
+      src="/common/check_rect.png"
+      @click="saveEvent"
+    />
+    <img else class="bottom" src="/common/check.png" @click="saveEvent" />
+
+    <div class="padding"></div>
+    <div class="line" @click="changeState">
+      <div class="input-line">
+        <scroll
+          style="position: absolute; width: 100%; height: 42px; margin: 6px 0"
+          scroll-x="true"
+        >
+          <text class="input-text">
+            {{textValue}}
+          </text>
+        </scroll>
+      </div>
+    </div>
+    <input-method
+      hide="{{hide}}"
+      keyboardtype="{{keyboardtype}}"
+      maxlength="5"
+      vibratemode="{{vibratemode}}"
+      screentype="{{screentype}}"
+      @visibility-change="onVisibilityChange"
+      @key-down="onKeyDown"
+      @delete="onDelete"
+      @complete="onComplete"
+    ></input-method>
+  </div>
+</template>
+
+<script>
+import router from "@system.router"
+
+export default {
+  private: {
+    time: "",
+    textValue: "",
+    hide: false,
+    keyboardtype: "QWERTY",
+    vibratemode: "short",
+    screentype: global.screenShape,
+    input_cache_data: "",
+    callback_uri: "",
+    date: ""
+  },
+
+  onInit() {
+    // 接收从 edit.ux 传来的参数
+    if (this.input_cache_data) {
+      const cache = JSON.parse(this.input_cache_data)
+      this.textValue = cache.event_name || ""
+      this.date = cache.date || ""
+    }
+  },
+
+  onVisibilityChange(evt) {
+    console.log("显示状态变更:"+JSON.stringify(evt));
+  },
+
+  onKeyDown(evt) {
+    console.log("按下按键:"+JSON.stringify(evt));
+  },
+
+  onDelete() {
+    this.textValue = this.textValue.slice(0, -1);
+    console.log("删除字符");
+  },
+
+  changeState() {
+    this.hide = !this.hide;
+  },
+
+  onComplete(evt) {
+    this.textValue += evt.detail.content;
+    console.log("返回字符:"+JSON.stringify(evt));
+  },
+
+  onShow() {
+    this.time = global.getTime()
+  },
+
+  saveEvent() {
+    // 回传输入的内容到 edit.ux
+    router.replace({
+      uri: this.callback_uri || "/pages/edit",
+      params: {
+        input_callback: JSON.stringify({
+          input_text: this.textValue,
+          input_cache_data: this.input_cache_data,
+          date: this.date
+        })
+      }
+    })
+  },
+
+  routeBack() {
+    router.back()
+  }
+}
+</script>
+
+<style>
+@import "../../common/app.css";
+
+.container {
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.line {
+  display: flex;
+  flex-direction: column;
+  justify-content: left;
+  width: 90%;
+}
+
+.input-line {
+  height: 48px;
+  width: 100%;
+  background-color: #262626;
+  border: 3px solid rgba(255, 255, 255, 0.06);
+  border-radius: 100%;
+  margin-top: 4px;
+}
+
+.input-text {
+  lines: 1;
+  position: absolute;
+  padding: 0 12px;
+  font-size: 24px;
+  color: white;
+  font-weight: bold;
+}
+
+.padding {
+  height: 126px;
+}
+
+@media (device-type: band) and (shape: rect) {
+  .line {
+    width: 83%;
+  }
+
+  .padding {
+    height: 108px;
+  }
+}
+
+@media (device-type: watch) and (shape: rect) {
+  .line {
+    width: 75%;
+  }
+
+  .padding {
+    height: 126px;
+  }
+}
+
+@media (device-type: watch) and (shape: circle) {
+  .line {
+    width: 70%;
+  }
+
+  .padding {
+    height: 84px;
+  }
+}
+</style>

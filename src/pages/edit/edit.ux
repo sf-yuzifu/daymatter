@@ -37,7 +37,7 @@
         </scroll>
       </div>
     </div>
-    <div class="line" show="{{ hide }}" style="margin-bottom: 8px">
+    <div class="line" style="margin-bottom: 8px">
       <text style="margin-left: 14px">{{ $t("targetDateLabel") }}</text>
       <div class="input-line" @click="editDate">
         <scroll
@@ -77,7 +77,7 @@ import {showToast} from "@system.prompt"
 
 export default {
   private: {
-    event_name: "114514456468544144545454574547",
+    event_name: "",
     extend: "true",
     date: "",
     on_index: true,
@@ -86,7 +86,6 @@ export default {
     input_callback: "",
     callback_uri: "/pages/index",
     event_id: "0",
-
     time: ""
   },
 
@@ -121,7 +120,7 @@ export default {
       this.on_index = _cache.on_index
       this.IFStaringDay = _cache.IFStaringDay
       this.event_name = callback.input_text
-      this.date = _cache.date
+      this.date = callback.date || _cache.date
     } else if (isDateCallback) {
       console.log("Date callback")
       const callback = JSON.parse(this.date_callback)
@@ -138,7 +137,21 @@ export default {
   },
 
   editEventName() {
-    this.hide = !this.hide
+    router.push({
+      uri: "/pages/input",
+      params: {
+        input_cache_data: JSON.stringify({
+          event_id: this.event_id,
+          extend: this.extend,
+          callback_uri: this.callback_uri,
+          event_name: this.event_name,
+          on_index: this.on_index,
+          IFStaringDay: this.IFStaringDay,
+          date: this.date
+        }),
+        callback_uri: "/pages/edit"
+      }
+    })
   },
 
   editDate() {
