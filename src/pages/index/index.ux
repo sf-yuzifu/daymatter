@@ -25,7 +25,9 @@
           style="background-color: {{ $item.already ? '#f78803' : '#3184d0' }}"
         >
           <div class="countdown-event-bg">
-            <text class="countdown-event">{{ $item.name }}</text>
+            <marquee class="countdown-event" scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
+              {{ $item.name }}
+            </marquee>
           </div>
           <div class="countdown-date-bg2"></div>
           <div class="countdown-days-bg">
@@ -110,23 +112,33 @@ export default {
     this.completed()
   },
 
+  formatEvent(event) {
+    const diff = global.dateDiff(event.date)
+    let name = event.name
+    let days
+    let already = true
+
+    if (diff > 0 || (diff === 0 && event.IFStaringDay)) {
+      name = name + this.$t("already")
+      days = String(diff > 0 ? (event.IFStaringDay ? diff + 1 : diff) : 1) + this.$t("days")
+    } else if (diff === 0) {
+      days = this.$t("today")
+    } else {
+      name = name + this.$t("remaining")
+      days = String(-diff) + this.$t("days")
+      already = false
+    }
+
+    return {name, days, date: event.date, already}
+  },
+
   completed() {
     file.readText({
       uri: "internal://files/events.json",
       success: (data) => {
         const events = JSON.parse(data.text)
         this.allEvents = events.length
-        this.events = events
-          .filter((e) => e.on_index)
-          .map((e) => {
-            const formatted = global.formatEvent(e, this.$t, {withDaysSuffix: true})
-            return {
-              name: formatted.display_name,
-              days: formatted.days,
-              date: formatted.date,
-              already: formatted.already
-            }
-          })
+        this.events = events.filter((e) => e.on_index).map((e) => this.formatEvent(e))
         this.is_no_event = this.events.length === 0
       },
       fail: (data, code) => console.log(`handling fail, code = ${code}`)
@@ -267,7 +279,7 @@ export default {
 .countdown-event {
   font-size: 20px;
   text-align: center;
-  width: 150px;
+  width: 85%;
   position: relative;
   font-weight: bold;
 }
@@ -322,5 +334,134 @@ export default {
   text-align: center;
   font-size: 56px;
   font-weight: bold;
+}
+
+@media (device-type: band) and (shape: rect) {
+  .countdown-swiper {
+    width: 256px;
+    height: 256px;
+  }
+
+  .countdown-page {
+    width: 256px;
+    height: 256px;
+    border-radius: 24px;
+  }
+
+  .countdown-event {
+    font-size: 24px;
+  }
+
+  .countdown-event-bg {
+    height: 66px;
+  }
+
+  .countdown-days-bg {
+    height: 178px;
+  }
+
+  .countdown-date-bg {
+    height: 64px;
+  }
+
+  .countdown-date-bg2 {
+    height: 74px;
+    border-radius: 24px;
+  }
+
+  .countdown-date {
+    font-size: 20px;
+    font-weight: bold;
+  }
+
+  .countdown-days {
+    font-size: 74px;
+  }
+}
+
+@media (device-type: watch) and (shape: rect) {
+  .countdown-swiper {
+    width: 300px;
+    height: 300px;
+  }
+
+  .countdown-page {
+    width: 300px;
+    height: 300px;
+    border-radius: 32px;
+  }
+
+  .countdown-event {
+    font-size: 28px;
+  }
+
+  .countdown-event-bg {
+    height: 66px;
+  }
+
+  .countdown-days-bg {
+    height: 178px;
+  }
+
+  .countdown-date-bg {
+    height: 64px;
+  }
+
+  .countdown-date-bg2 {
+    height: 84px;
+    border-radius: 32px;
+  }
+
+  .countdown-date {
+    font-size: 24px;
+    font-weight: bold;
+  }
+
+  .countdown-days {
+    font-size: 86px;
+  }
+}
+
+@media (device-type: watch) and (shape: circle) {
+  .countdown-swiper {
+    width: 300px;
+    height: 300px;
+  }
+
+  .countdown-page {
+    width: 300px;
+    height: 300px;
+    border-radius: 32px;
+  }
+
+  .countdown-event {
+    font-size: 28px;
+  }
+
+  .countdown-event-bg {
+    height: 66px;
+  }
+
+  .countdown-days-bg {
+    height: 178px;
+  }
+
+  .countdown-date-bg {
+    height: 64px;
+  }
+
+  .countdown-date-bg2 {
+    height: 84px;
+    border-radius: 32px;
+  }
+
+  .countdown-date {
+    font-size: 24px;
+    font-weight: bold;
+  }
+
+  .countdown-days {
+    font-size: 86px;
+  }
 }
 </style>

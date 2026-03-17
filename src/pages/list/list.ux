@@ -66,15 +66,61 @@ export default {
     })
   },
 
+  formatEvent(event) {
+    let days, font_size, display_name = event.name, already = true
+
+    const diff = global.dateDiff(event.date)
+    if (diff > 0) {
+      if (event.IFStaringDay) {
+        display_name += this.$t("already")
+        days = String(diff + 1)
+      } else {
+        display_name += this.$t("already")
+        days = String(diff)
+      }
+    } else if (diff == 0) {
+      if (event.IFStaringDay) {
+        display_name += this.$t("already")
+        days = String(diff + 1)
+      } else {
+        days = this.$t("today")
+      }
+    } else {
+      display_name += this.$t("remaining")
+      days = String(-diff)
+      already = false
+    }
+
+    const days_length = String(days).length
+    if (days == this.$t("today")) {
+      font_size = 26
+    } else if (days_length < 3) {
+      font_size = 30
+    } else if (days_length == 3) {
+      font_size = 28
+    } else {
+      font_size = 20
+    }
+
+    return {
+      name: event.name,
+      display_name,
+      date: event.date,
+      days,
+      already,
+      on_index: event.on_index,
+      IFStaringDay: event.IFStaringDay || false,
+      font_size
+    }
+  },
+
   onShow() {
     this.time = global.getTime()
     file.readText({
       uri: "internal://files/events.json",
       success: (data) => {
         try {
-          this.events = JSON.parse(data.text).map((event) =>
-            global.formatEvent(event, this.$t, {withFontSize: true})
-          )
+          this.events = JSON.parse(data.text).map((event) => this.formatEvent(event))
           this.count = this.events.length
         } catch (e) {
           this.events = []
