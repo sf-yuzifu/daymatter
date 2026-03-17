@@ -48,6 +48,8 @@
 import router from "@system.router"
 import file from "@system.file"
 
+const extraFontSize = global.screenShape == 'rect' || global.screenShape == 'circle' ? 8 : 0
+
 export default {
   private: {
     count: 0,
@@ -67,7 +69,10 @@ export default {
   },
 
   formatEvent(event) {
-    let days, font_size, display_name = event.name, already = true
+    let days,
+      font_size,
+      display_name = event.name,
+      already = true
 
     const diff = global.dateDiff(event.date)
     if (diff > 0) {
@@ -92,7 +97,9 @@ export default {
     }
 
     const days_length = String(days).length
-    if (days == this.$t("today")) {
+    if (days_length == 5) {
+      font_size = 20
+    } else if (days == this.$t("today")) {
       font_size = 26
     } else if (days_length < 3) {
       font_size = 30
@@ -101,6 +108,8 @@ export default {
     } else {
       font_size = 20
     }
+
+    font_size = font_size + extraFontSize
 
     return {
       name: event.name,
@@ -207,8 +216,8 @@ scroll {
 }
 
 .countdown-name {
-  font-size: 20px;
-  width: 180px;
+  font-size: 22px;
+  width: 60%;
   height: 60px;
   text-overflow: ellipsis;
   font-weight: bold;
@@ -230,7 +239,7 @@ scroll {
   position: absolute;
   top: 0px;
   right: 10px;
-  width: 60px;
+  width: 35%;
   height: 66px;
 }
 
@@ -238,19 +247,38 @@ scroll {
   color: black;
   font-weight: bold;
   text-align: center;
-  width: 60px;
+  width: 100%;
   height: 66px;
   text-overflow: clip;
   position: relative;
   right: -5px;
 }
 
-@media (shape: rect) {
-
-
-}
-
 @media (device-type: band) and (shape: rect) {
+  .countdown-card {
+    height: 78px;
+    margin-bottom: 10px;
+  }
+
+  .countdown-name {
+    width: 65%;
+    height: 70px;
+    font-size: 26px;
+  }
+
+  .countdown-radius {
+    height: 78px;
+    width: 20px;
+  }
+
+  .countdown-background {
+    width: 30%;
+    height: 78px;
+  }
+
+  .countdown-days {
+    height: 78px;
+  }
 
   .box {
     margin-top: 92px;
@@ -260,6 +288,31 @@ scroll {
 }
 
 @media (device-type: watch) and (shape: rect) {
+  .countdown-card {
+    height: 78px;
+    margin-bottom: 10px;
+  }
+
+  .countdown-name {
+    width: 65%;
+    height: 70px;
+    font-size: 26px;
+  }
+
+  .countdown-radius {
+    height: 78px;
+    width: 20px;
+  }
+
+  .countdown-background {
+    width: 30%;
+    height: 78px;
+  }
+
+  .countdown-days {
+    height: 78px;
+  }
+
   .box {
     margin-top: 102px;
     margin-bottom: 32px;
@@ -268,6 +321,31 @@ scroll {
 }
 
 @media (device-type: watch) and (shape: circle) {
+  .countdown-card {
+    height: 78px;
+    margin-bottom: 10px;
+  }
+
+  .countdown-name {
+    width: 65%;
+    height: 70px;
+    font-size: 26px;
+  }
+
+  .countdown-radius {
+    height: 78px;
+    width: 20px;
+  }
+
+  .countdown-background {
+    width: 30%;
+    height: 78px;
+  }
+
+  .countdown-days {
+    height: 78px;
+  }
+
   .time-container {
     top: 18px;
   }
