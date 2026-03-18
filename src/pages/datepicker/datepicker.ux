@@ -1,0 +1,421 @@
+<template>
+  <div class="container">
+    <text class="time">{{ time }}</text>
+    <text class="title" if="{{ global.screenShape == 'rect' }}">{{ $t("targetDateLabel") }}</text>
+    <img
+      if="{{ global.screenShape == 'rect' }}"
+      class="top leftButton"
+      src="/common/back_rect.png"
+      @click="routeBack"
+    />
+    <text @click="routeBack" class="title" elif="{{ global.screenShape == 'circle' }}">
+      <span class="iconfont">&#xe685;</span>
+      <span>{{ $t("targetDateLabel") }}</span>
+    </text>
+    <img else class="top" src="/common/back.png" @click="routeBack" />
+
+    <img
+      if="{{ global.screenShape == 'rect' }}"
+      class="top rightButton"
+      src="/common/check_rect.png"
+      @click="saveEvent"
+    />
+    <img else class="bottom" src="/common/check.png" @click="saveEvent" />
+
+    <!-- 月份选择器 -->
+    <div class="month-selector">
+      <text class="iconfont arrow" @click="prevMonth">&#xe685;</text>
+      <text class="month-text">{{currentYear}}-{{currentMonth}}</text>
+      <text class="iconfont arrow" @click="nextMonth">&#xe687;</text>
+    </div>
+
+    <!-- 星期标题 -->
+    <div class="week-header">
+      <text class="week-day" for="{{weekDays}}">{{$item}}</text>
+    </div>
+
+    <!-- 日期网格 -->
+    <div class="calendar-grid">
+      <div class="day-cell" for="{{calendarDays}}" @click="selectDay($idx)">
+        <div class="day-bg {{$item.isSelected ? 'selected' : ''}} {{$item.isToday ? 'today' : ''}}">
+          <text class="day-text {{$item.isCurrentMonth ? '' : 'other-month'}} {{$item.isSelected ? 'selected-text' : ''}}">
+            {{$item.day}}
+          </text>
+        </div>
+      </div>
+    </div>
+
+    <!-- 选中日期显示 -->
+    <text class="selected-date">{{date}}</text>
+  </div>
+</template>
+
+<script>
+import router from "@system.router"
+
+export default {
+  private: {
+    time: "",
+    cache: "",
+    field: "",
+    date: "",
+    currentYear: 2024,
+    currentMonth: 1,
+    selectedYear: 2024,
+    selectedMonth: 1,
+    selectedDay: 1,
+    weekDays: ["日", "一", "二", "三", "四", "五", "六"],
+    calendarDays: []
+  },
+
+  onInit() {
+    // 初始化日期
+    let initDate
+    if (this.cache) {
+      const cache = JSON.parse(this.cache)
+      initDate = cache[this.field] || ""
+    }
+    
+    if (!initDate) {
+      const now = new Date()
+      initDate = now.getFullYear() + "-" + (now.getMonth() + 1) + "-" + now.getDate()
+    }
+    
+    this.date = initDate
+    const [year, month, day] = initDate.split("-").map(Number)
+    this.currentYear = year
+    this.currentMonth = month
+    this.selectedYear = year
+    this.selectedMonth = month
+    this.selectedDay = day
+    
+    this.generateCalendar()
+  },
+
+  onShow() {
+    this.time = global.getTime()
+  },
+
+  generateCalendar() {
+    const days = []
+    const firstDay = new Date(this.currentYear, this.currentMonth - 1, 1)
+    const lastDay = new Date(this.currentYear, this.currentMonth, 0)
+    const prevLastDay = new Date(this.currentYear, this.currentMonth - 1, 0)
+    
+    const startWeekDay = firstDay.getDay() // 0-6
+    const totalDays = lastDay.getDate()
+    const prevTotalDays = prevLastDay.getDate()
+    
+    // 上个月的日期
+    for (let i = startWeekDay - 1; i >= 0; i--) {
+      days.push({
+        day: prevTotalDays - i,
+        isCurrentMonth: false,
+        isSelected: false,
+        isToday: false
+      })
+    }
+    
+    // 当前月的日期
+    const today = new Date()
+    for (let i = 1; i <= totalDays; i++) {
+      const isToday = this.currentYear === today.getFullYear() && 
+                      this.currentMonth === today.getMonth() + 1 && 
+                      i === today.getDate()
+      const isSelected = this.currentYear === this.selectedYear && 
+                         this.currentMonth === this.selectedMonth && 
+                         i === this.selectedDay
+      days.push({
+        day: i,
+        isCurrentMonth: true,
+        isSelected: isSelected,
+        isToday: isToday
+      })
+    }
+    
+    // 下个月的日期（补齐网格）
+    const remainingCells = 42 - days.length // 6行 x 7列 = 42
+    for (let i = 1; i <= remainingCells; i++) {
+      days.push({
+        day: i,
+        isCurrentMonth: false,
+        isSelected: false,
+        isToday: false
+      })
+    }
+    
+    this.calendarDays = days
+  },
+
+  prevMonth() {
+    if (this.currentMonth === 1) {
+      this.currentMonth = 12
+      this.currentYear--
+    } else {
+      this.currentMonth--
+    }
+    this.generateCalendar()
+  },
+
+  nextMonth() {
+    if (this.currentMonth === 12) {
+      this.currentMonth = 1
+      this.currentYear++
+    } else {
+      this.currentMonth++
+    }
+    this.generateCalendar()
+  },
+
+  selectDay(index) {
+    const day = this.calendarDays[index]
+    if (!day.isCurrentMonth) {
+      // 点击了其他月份的日期，切换月份
+      if (index < 7) {
+        this.prevMonth()
+      } else {
+        this.nextMonth()
+      }
+      return
+    }
+    
+    this.selectedYear = this.currentYear
+    this.selectedMonth = this.currentMonth
+    this.selectedDay = day.day
+    this.date = `${this.selectedYear}-${this.selectedMonth}-${this.selectedDay}`
+    this.generateCalendar()
+  },
+
+  saveEvent() {
+    const cache = JSON.parse(this.cache)
+    cache[this.field] = this.date
+    router.replace({
+      uri: "/pages/edit",
+      params: { cache: JSON.stringify(cache) }
+    })
+  },
+
+  routeBack() {
+    router.back()
+  }
+}
+</script>
+
+<style>
+@import "../../common/app.css";
+
+.container {
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+/* 月份选择器 */
+.month-selector {
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  margin-top: 108px;
+  margin-bottom: 10px;
+}
+
+.month-text {
+  font-size: 24px;
+  font-weight: bold;
+  color: white;
+}
+
+.arrow {
+  font-size: 24px;
+  color: #3184d0;
+  font-weight: bold;
+  padding: 10px;
+}
+
+/* 星期标题 */
+.week-header {
+  flex-direction: row;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: 5px;
+}
+
+.week-day {
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.6);
+  width: 14%;
+  text-align: center;
+}
+
+/* 日历网格 */
+.calendar-grid {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+}
+
+.day-cell {
+  width: 14%;
+  justify-content: center;
+  align-items: center;
+}
+
+.day-bg {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  justify-content: center;
+  align-items: center;
+}
+
+.today {
+  background-color: #f78803;
+}
+
+.selected {
+  background-color: #3184d0;
+}
+
+.day-text {
+  font-size: 18px;
+  color: white;
+  font-weight: bold;
+}
+
+.other-month {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.selected-text {
+  font-weight: bold;
+}
+
+/* 选中日期显示 */
+.selected-date {
+  font-size: 24px;
+  color: #3184d0;
+  font-weight: bold;
+  margin-top: 10px;
+}
+
+/* 适配圆形屏幕 */
+@media (device-type: watch) and (shape: circle) {
+  .month-selector {
+    margin-top: 72px;
+    margin-bottom: 2px;
+  }
+
+  .week-header, .calendar-grid {
+    width: 85%;
+  }
+  
+  .day-cell {
+    height: 32px;
+  }
+
+  .month-text {
+    font-size: 28px;
+    margin: 0 20px;
+  }
+
+  .arrow {
+    font-size: 28px;
+  }
+  
+  .day-bg {
+    width: 32px;
+    height: 32px;
+    border-radius: 16px;
+  }
+  
+  .day-text {
+    font-size: 20px;
+  }
+  
+  .week-day {
+    font-size: 16px;
+  }
+
+  .selected-date {
+    font-size: 28px;
+    margin-top: 0;
+  }
+}
+
+@media (device-type: band) and (shape: rect) {
+  .week-header, .calendar-grid {
+    width: 90%;
+  }
+
+  .month-selector {
+    margin-top: 86px;
+  }
+
+  .month-text {
+    margin: 0 20px;
+  }
+  
+  .day-cell {
+    height: 32px;
+  }
+  
+  .day-text {
+    font-size: 20px;
+  }
+
+  .day-bg {
+    width: 32px;
+    height: 32px;
+    border-radius: 16px;
+  }
+
+  .selected-date {
+    font-size: 28px;
+    margin-top: 24px;
+  }
+}
+
+@media (device-type: watch) and (shape: rect) {
+  .week-header, .calendar-grid {
+    width: 90%;
+  }
+
+  .month-selector {
+    margin-top: 96px;
+  }
+  
+  .day-cell {
+    height: 42px;
+  }
+  
+  .day-text {
+    font-size: 24px;
+  }
+
+  .day-bg {
+    width: 42px;
+    height: 42px;
+    border-radius: 21px;
+  }
+
+  .selected-date {
+    font-size: 32px;
+    margin-top: 12px;
+  }
+
+  .arrow {
+    font-size: 28px;
+  }
+  
+  .month-text {
+    font-size: 28px;
+    margin: 0 20px;
+  }
+
+  .week-day {
+    font-size: 22px;
+  }
+}
+</style>
+</content>
