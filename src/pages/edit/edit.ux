@@ -82,8 +82,7 @@ export default {
     date: "",
     on_index: true,
     IFStaringDay: false,
-    date_callback: "",
-    input_callback: "",
+    cache: "",
     callback_uri: "/pages/index",
     event_id: "0",
     time: ""
@@ -100,39 +99,32 @@ export default {
   },
 
   onReady() {
-    const isInputCallback = !(this.input_callback == "")
-    const isDateCallback = !(this.date_callback == "")
-    if (!isInputCallback && !isDateCallback) {
-      // 没有 callback
-      if (this.date == "") {
-        const _date = new Date()
-        this.date = _date.getFullYear() + "-" + (_date.getMonth() + 1) + "-" + _date.getDate()
-      }
-      return
-    } else if (isInputCallback) {
-      console.log("Input callback")
-      const callback = JSON.parse(this.input_callback)
-      const _cache = JSON.parse(callback.input_cache_data)
-      this.event_id = _cache.event_id
-      this.callback_uri = _cache.callback_uri
-      this.extend = _cache.extend
+    // 处理从子页面返回的数据
+    if (this.cache) {
+      const cache = JSON.parse(this.cache)
+      this.event_id = cache.event_id
+      this.callback_uri = cache.callback_uri
+      this.extend = cache.extend
+      this.event_name = cache.event_name
+      this.date = cache.date
+      this.on_index = cache.on_index
+      this.IFStaringDay = cache.IFStaringDay
+    } else if (this.date == "") {
+      // 初始化默认日期
+      const _date = new Date()
+      this.date = _date.getFullYear() + "-" + (_date.getMonth() + 1) + "-" + _date.getDate()
+    }
+  },
 
-      this.on_index = _cache.on_index
-      this.IFStaringDay = _cache.IFStaringDay
-      this.event_name = callback.input_text
-      this.date = callback.date || _cache.date
-    } else if (isDateCallback) {
-      console.log("Date callback")
-      const callback = JSON.parse(this.date_callback)
-      const _cache = JSON.parse(callback.input_cache_data)
-      this.event_id = _cache.event_id
-      this.callback_uri = _cache.callback_uri
-      this.extend = _cache.extend
-
-      this.on_index = _cache.on_index
-      this.IFStaringDay = _cache.IFStaringDay
-      this.event_name = _cache.event_name
-      this.date = callback.date
+  getCache() {
+    return {
+      event_id: this.event_id,
+      extend: this.extend,
+      callback_uri: this.callback_uri,
+      event_name: this.event_name,
+      date: this.date,
+      on_index: this.on_index,
+      IFStaringDay: this.IFStaringDay
     }
   },
 
@@ -140,17 +132,8 @@ export default {
     router.push({
       uri: "/pages/input",
       params: {
-        input_cache_data: JSON.stringify({
-          event_id: this.event_id,
-          extend: this.extend,
-          callback_uri: this.callback_uri,
-          event_name: this.event_name,
-          on_index: this.on_index,
-          IFStaringDay: this.IFStaringDay,
-          date: this.date
-        }),
-        date: this.date,
-        callback_uri: "/pages/edit"
+        cache: JSON.stringify(this.getCache()),
+        field: "event_name"
       }
     })
   },
@@ -159,16 +142,8 @@ export default {
     router.push({
       uri: "/pages/datepicker",
       params: {
-        input_cache_data: JSON.stringify({
-          event_id: this.event_id,
-          extend: this.extend,
-          callback_uri: this.callback_uri,
-          event_name: this.event_name,
-          on_index: this.on_index,
-          IFStaringDay: this.IFStaringDay
-        }),
-        date: this.date,
-        callback_uri: "/pages/edit"
+        cache: JSON.stringify(this.getCache()),
+        field: "date"
       }
     })
   },

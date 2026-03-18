@@ -61,17 +61,15 @@ export default {
     keyboardtype: "QWERTY",
     vibratemode: "short",
     screentype: global.screenShape,
-    input_cache_data: "",
-    callback_uri: "",
-    date: ""
+    cache: "",
+    field: ""
   },
 
   onInit() {
     // 接收从 edit.ux 传来的参数
-    if (this.input_cache_data) {
-      const cache = JSON.parse(this.input_cache_data)
-      this.textValue = cache.event_name || ""
-      this.date = cache.date || ""
+    if (this.cache) {
+      const cache = JSON.parse(this.cache)
+      this.textValue = cache[this.field] || ""
     }
   },
 
@@ -102,16 +100,12 @@ export default {
   },
 
   saveEvent() {
-    // 回传输入的内容到 edit.ux
+    // 更新 cache 中的对应字段并回传
+    const cache = JSON.parse(this.cache)
+    cache[this.field] = this.textValue
     router.replace({
-      uri: this.callback_uri || "/pages/edit",
-      params: {
-        input_callback: JSON.stringify({
-          input_text: this.textValue,
-          input_cache_data: this.input_cache_data,
-          date: this.date
-        })
-      }
+      uri: "/pages/edit",
+      params: { cache: JSON.stringify(cache) }
     })
   },
 
