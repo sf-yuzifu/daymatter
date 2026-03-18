@@ -149,6 +149,7 @@ export default {
           IFStaringDay: this.IFStaringDay,
           date: this.date
         }),
+        date: this.date,
         callback_uri: "/pages/edit"
       }
     })
@@ -156,7 +157,7 @@ export default {
 
   editDate() {
     router.push({
-      uri: "/pages/inputdate",
+      uri: "/pages/datepicker",
       params: {
         input_cache_data: JSON.stringify({
           event_id: this.event_id,
@@ -197,12 +198,12 @@ export default {
   },
 
   showErrorToast(code) {
-    showToast({message: $t("saveFail", {code: code})})
+    showToast({message: this.$t("saveFail", {code: code})})
   },
 
   saveEvent() {
     if (this.event_name == "") {
-      showToast({message: $t("eventNameRequired")})
+      showToast({message: this.$t("eventNameRequired")})
       return
     }
 
@@ -243,7 +244,7 @@ export default {
         if (this.on_index) {
           this.saveDateToFile()
         }
-        showToast({message: $t("saveSuccess")})
+        showToast({message: this.$t("saveSuccess")})
       },
       fail: (data, code) => this.showErrorToast(code)
     })
@@ -269,7 +270,7 @@ export default {
           text: JSON.stringify(events),
           success: () => {
             router.replace({uri: this.callback_uri})
-            showToast({message: $t("deleteSuccess")})
+            showToast({message: this.$t("deleteSuccess")})
           },
           fail: (data, code) => this.showErrorToast(code)
         })
