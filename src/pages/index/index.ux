@@ -120,12 +120,12 @@ export default {
 
     if (diff > 0 || (diff === 0 && event.IFStaringDay)) {
       name = name + this.$t("already")
-      days = String(diff > 0 ? (event.IFStaringDay ? diff + 1 : diff) : 1) + this.$t("days")
+      days = String(diff > 0 ? (event.IFStaringDay ? diff + 1 : diff) : 1)
     } else if (diff === 0) {
       days = this.$t("today")
     } else {
       name = name + this.$t("remaining")
-      days = String(-diff) + this.$t("days")
+      days = String(-diff)
       already = false
     }
 
@@ -375,7 +375,7 @@ export default {
   }
 
   .countdown-days {
-    font-size: 74px;
+    font-size: 88px;
   }
 }
 
@@ -418,7 +418,7 @@ export default {
   }
 
   .countdown-days {
-    font-size: 86px;
+    font-size: 96px;
   }
 }
 
