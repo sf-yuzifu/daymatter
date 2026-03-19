@@ -15,11 +15,15 @@
       <span>{{ $t("eventCount", {count: count}) }}</span>
     </text>
     <img else class="top" src="/common/back.png" @click="routeBack" />
+    <text class="count" if="{{ global.isPillShaped }}">{{ $t("eventCount", {count: count}) }}</text>
     <div class="box">
       <scroll scroll-y="true" bounces="true">
         <div for="{{ events }}">
           <div class="countdown-card" @click="routeEditEvent($idx)">
-            <div class="card-header" style="background-color: {{ $item.already ? '#f78803' : '#3184d0' }}">
+            <div
+              class="card-header"
+              style="background-color: {{ $item.already ? '#f78803' : '#3184d0' }}"
+            >
               <text class="countdown-name">{{ $item.display_name }}</text>
             </div>
             <div class="card-body">
@@ -45,7 +49,7 @@
 import router from "@system.router"
 import file from "@system.file"
 
-const extraFontSize = global.screenShape == 'rect' || global.screenShape == 'circle' ? 8 : 0
+const extraFontSize = global.screenShape == "rect" || global.screenShape == "circle" ? 8 : 0
 
 export default {
   private: {
@@ -187,7 +191,6 @@ export default {
   position: relative;
   flex: 1;
   width: 90%;
-  margin-top: 116px;
   margin-bottom: 86px;
   display: flex;
   flex-direction: column;
@@ -246,6 +249,12 @@ scroll {
   height: 66px;
   text-overflow: clip;
   position: relative;
+}
+
+.count {
+  margin-top: 116px;
+  margin-bottom: 10px;
+  font-weight: bold;
 }
 
 @media (device-type: band) and (shape: rect) {
