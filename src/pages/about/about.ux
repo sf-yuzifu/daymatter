@@ -18,7 +18,7 @@
       <scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
         <div id="info">
           <div id="inner">
-            <text class="bold app-name">{{ name }}</text>
+            <text class="bold app-name">{{ $t("appName") }}</text>
             <text id="version" class="re">{{ ver }}</text>
           </div>
           <div id="logo-container">
@@ -58,7 +58,6 @@ import app from "@system.app"
 export default {
   private: {
     ver: app.getInfo().versionName,
-    name: app.getInfo().name,
     time: ""
   },
 
