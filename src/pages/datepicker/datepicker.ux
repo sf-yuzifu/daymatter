@@ -1,5 +1,13 @@
 <template>
   <div class="container">
+    <!-- 日期选择器 -->
+    <div class="date-picker-container">
+      <picker class="date-picker year" type="text" range="{{yearRange}}" selected="{{yearIndex}}" @change="onYearChange" />
+      <div class="wrapper">
+        <picker class="date-picker" type="text" range="{{monthRange}}" selected="{{currentMonth - 1 + 12}}" @change="onMonthChange" />
+        <picker class="date-picker" type="text" range="{{dayRange}}" selected="{{selectedDay - 1 + dayRange.length / 3}}" @change="onDayChange" />
+      </div>
+    </div>
     <text class="time">{{ time }}</text>
     <text class="title" if="{{ global.screenShape == 'rect' }}">{{ $t("targetDateLabel") }}</text>
     <img
@@ -13,7 +21,6 @@
       <span>{{ $t("targetDateLabel") }}</span>
     </text>
     <img else class="top" src="/common/back.png" @click="routeBack" />
-
     <img
       if="{{ global.screenShape == 'rect' }}"
       class="top rightButton"
@@ -21,32 +28,6 @@
       @click="saveEvent"
     />
     <img else class="bottom" src="/common/check.png" @click="saveEvent" />
-
-    <!-- 月份选择器 -->
-    <div class="month-selector">
-      <text class="iconfont arrow" @click="prevMonth">&#xe685;</text>
-      <text class="month-text">{{currentYear}}-{{currentMonth}}</text>
-      <text class="iconfont arrow" @click="nextMonth">&#xe687;</text>
-    </div>
-
-    <!-- 星期标题 -->
-    <div class="week-header">
-      <text class="week-day" for="{{weekDays}}">{{$item}}</text>
-    </div>
-
-    <!-- 日期网格 -->
-    <div class="calendar-grid">
-      <div class="day-cell" for="{{calendarDays}}" @click="selectDay($idx)">
-        <div class="day-bg {{$item.isSelected ? 'selected' : ''}} {{$item.isToday ? 'today' : ''}}">
-          <text class="day-text {{$item.isCurrentMonth ? '' : 'other-month'}} {{$item.isSelected ? 'selected-text' : ''}}">
-            {{$item.day}}
-          </text>
-        </div>
-      </div>
-    </div>
-
-    <!-- 选中日期显示 -->
-    <text class="selected-date">{{date}}</text>
   </div>
 </template>
 
@@ -64,11 +45,23 @@ export default {
     selectedYear: 2024,
     selectedMonth: 1,
     selectedDay: 1,
-    weekDays: ["日", "一", "二", "三", "四", "五", "六"],
-    calendarDays: []
+    yearRange: [],
+    monthRange: [],
+    dayRange: [],
+    originalMonthRange: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"],
+    yearIndex: 0
   },
 
   onInit() {
+    // 初始化年份范围（前后50年）
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const years = []
+    for (let i = currentYear - 50; i <= currentYear + 50; i++) {
+      years.push(String(i))
+    }
+    this.yearRange = years
+
     // 初始化日期
     let initDate
     if (this.cache) {
@@ -77,8 +70,7 @@ export default {
     }
     
     if (!initDate) {
-      const now = new Date()
-      initDate = now.getFullYear() + "-" + (now.getMonth() + 1) + "-" + now.getDate()
+      initDate = currentYear + "-" + (now.getMonth() + 1) + "-" + now.getDate()
     }
     
     this.date = initDate
@@ -89,7 +81,34 @@ export default {
     this.selectedMonth = month
     this.selectedDay = day
     
-    this.generateCalendar()
+    // 计算年份索引
+    this.yearIndex = this.yearRange.indexOf(String(year))
+    if (this.yearIndex === -1) this.yearIndex = 50 // 默认当前年
+    
+    // 初始化循环的月份范围（前后各加一份实现循环效果）
+    this.monthRange = [...this.originalMonthRange, ...this.originalMonthRange, ...this.originalMonthRange]
+    
+    // 初始化日期范围
+    this.updateDayRange()
+  },
+
+  updateDayRange() {
+    // 根据年月计算当月天数
+    const daysInMonth = new Date(this.currentYear, this.currentMonth, 0).getDate()
+    const originalDays = []
+    for (let i = 1; i <= daysInMonth; i++) {
+      originalDays.push(String(i))
+    }
+    // 循环滚动：前后各加一份实现循环效果
+    this.dayRange = [...originalDays, ...originalDays, ...originalDays]
+    
+    // 如果当前选中的日期超出范围，调整为最后一天
+    if (this.selectedDay > daysInMonth) {
+      this.selectedDay = daysInMonth
+    }
+    
+    // 更新日期字符串
+    this.date = `${this.currentYear}-${this.currentMonth}-${this.selectedDay}`
   },
 
   onShow() {
@@ -147,43 +166,24 @@ export default {
     this.calendarDays = days
   },
 
-  prevMonth() {
-    if (this.currentMonth === 1) {
-      this.currentMonth = 12
-      this.currentYear--
-    } else {
-      this.currentMonth--
-    }
-    this.generateCalendar()
+  onYearChange(e) {
+    this.currentYear = parseInt(this.yearRange[e.newSelected])
+    this.yearIndex = e.newSelected
+    this.updateDayRange()
   },
 
-  nextMonth() {
-    if (this.currentMonth === 12) {
-      this.currentMonth = 1
-      this.currentYear++
-    } else {
-      this.currentMonth++
-    }
-    this.generateCalendar()
+  onMonthChange(e) {
+    // 处理循环：将索引映射到 1-12 范围
+    const totalMonths = 12
+    this.currentMonth = (e.newSelected % totalMonths) + 1
+    this.updateDayRange()
   },
 
-  selectDay(index) {
-    const day = this.calendarDays[index]
-    if (!day.isCurrentMonth) {
-      // 点击了其他月份的日期，切换月份
-      if (index < 7) {
-        this.prevMonth()
-      } else {
-        this.nextMonth()
-      }
-      return
-    }
-    
-    this.selectedYear = this.currentYear
-    this.selectedMonth = this.currentMonth
-    this.selectedDay = day.day
-    this.date = `${this.selectedYear}-${this.selectedMonth}-${this.selectedDay}`
-    this.generateCalendar()
+  onDayChange(e) {
+    // 处理循环：将索引映射到 1-当月天数 范围
+    const daysInMonth = new Date(this.currentYear, this.currentMonth, 0).getDate()
+    this.selectedDay = (e.newSelected % daysInMonth) + 1
+    this.updateDayRange()
   },
 
   saveEvent() {
@@ -210,211 +210,86 @@ export default {
   align-items: center;
 }
 
-/* 月份选择器 */
-.month-selector {
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  margin-top: 108px;
-  margin-bottom: 10px;
-}
-
-.month-text {
-  font-size: 24px;
-  font-weight: bold;
-  color: white;
-}
-
-.arrow {
-  font-size: 24px;
-  color: #3184d0;
-  font-weight: bold;
-  padding: 10px;
-}
-
-/* 星期标题 */
-.week-header {
-  flex-direction: row;
-  justify-content: center;
+/* 日期选择器容器 */
+.date-picker-container {
+  margin-top: 20px;
   width: 100%;
-  margin-bottom: 5px;
-}
-
-.week-day {
-  font-size: 18px;
-  color: rgba(255, 255, 255, 0.6);
-  width: 14%;
-  text-align: center;
-}
-
-/* 日历网格 */
-.calendar-grid {
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-content: center;
-  width: 100%;
-}
-
-.day-cell {
-  width: 14%;
+  flex: 1;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
 }
 
-.day-bg {
-  width: 26px;
-  height: 26px;
-  border-radius: 4px;
+.wrapper {
+  flex-direction: column;
   justify-content: center;
   align-items: center;
 }
 
-.today {
-  background-color: #f78803;
-}
-
-.selected {
-  background-color: #3184d0;
-}
-
-.day-text {
-  font-size: 18px;
-  color: white;
-  font-weight: bold;
-}
-
-.other-month {
-  color: rgba(255, 255, 255, 0.3);
-}
-
-.selected-text {
-  font-weight: bold;
-}
-
-/* 选中日期显示 */
-.selected-date {
-  font-size: 24px;
-  color: #3184d0;
-  font-weight: bold;
-  margin-top: 10px;
+.date-picker {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.2);
+  selected-color: #fff;
+  selected-font-size: 42px;
 }
 
 /* 适配圆形屏幕 */
 @media (device-type: watch) and (shape: circle) {
-  .month-selector {
-    margin-top: 72px;
-    margin-bottom: 2px;
+  .date-picker-container {
+    flex-direction: row;
+    width: 90%;
+    height: 100%;
+    margin-top: 10px;
   }
 
-  .week-header, .calendar-grid {
-    width: 85%;
-  }
-  
-  .day-cell {
-    height: 32px;
+  .date-picker {
+    height: 100%;
+    font-size: 36px;
+    selected-font-size: 56px;
   }
 
-  .month-text {
-    font-size: 28px;
-    margin: 0 20px;
+  .year {
+    width: 75%;
   }
 
-  .arrow {
-    font-size: 28px;
-  }
-  
-  .day-bg {
-    width: 32px;
-    height: 32px;
-    border-radius: 16px;
-  }
-  
-  .day-text {
-    font-size: 20px;
-  }
-  
-  .week-day {
-    font-size: 16px;
-  }
-
-  .selected-date {
-    font-size: 28px;
-    margin-top: 0;
+  .wrapper {
+    width: 100%;
+    height: 100%;
+    flex-direction: row;
   }
 }
 
 @media (device-type: band) and (shape: rect) {
-  .week-header, .calendar-grid {
-    width: 90%;
+  .date-picker-container {
+    margin-top: 108px;
   }
 
-  .month-selector {
-    margin-top: 86px;
+  .date-picker {
+    font-size: 36px;
+    selected-font-size: 56px;
   }
 
-  .month-text {
-    margin: 0 20px;
-  }
-  
-  .day-cell {
-    height: 32px;
-  }
-  
-  .day-text {
-    font-size: 20px;
-  }
-
-  .day-bg {
-    width: 32px;
-    height: 32px;
-    border-radius: 16px;
-  }
-
-  .selected-date {
-    font-size: 28px;
-    margin-top: 24px;
+  .wrapper {
+    width: 100%;
+    height: 100%;
+    flex-direction: row;
   }
 }
 
 @media (device-type: watch) and (shape: rect) {
-  .week-header, .calendar-grid {
-    width: 90%;
+  .date-picker-container {
+    margin-top: 124px;
   }
 
-  .month-selector {
-    margin-top: 96px;
-  }
-  
-  .day-cell {
-    height: 42px;
-  }
-  
-  .day-text {
-    font-size: 24px;
+  .date-picker {
+    font-size: 36px;
+    selected-font-size: 64px;
   }
 
-  .day-bg {
-    width: 42px;
-    height: 42px;
-    border-radius: 21px;
-  }
-
-  .selected-date {
-    font-size: 32px;
-    margin-top: 12px;
-  }
-
-  .arrow {
-    font-size: 28px;
-  }
-  
-  .month-text {
-    font-size: 28px;
-    margin: 0 20px;
-  }
-
-  .week-day {
-    font-size: 22px;
+  .wrapper {
+    width: 100%;
+    height: 100%;
+    flex-direction: row;
   }
 }
 </style>
