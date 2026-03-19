@@ -259,6 +259,7 @@ export default {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  background-color: #fff;
 }
 
 #empty {
@@ -294,7 +295,7 @@ export default {
   justify-content: center;
   align-items: center;
   width: 100%;
-  background-color: #fff;
+  border-radius: 1px; /* 这个是解决9和9Pro不知道为啥加圆角会少一点像素的问题的 */
   flex: 1;
 }
 
