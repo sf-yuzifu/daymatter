@@ -18,14 +18,11 @@
     <div class="box">
       <scroll scroll-y="true" bounces="true">
         <div for="{{ events }}">
-          <div
-            class="countdown-card"
-            style="background-color: {{ $item.already ? '#f78803' : '#3184d0' }}"
-            @click="routeEditEvent($idx)"
-          >
-            <text class="countdown-name">{{ $item.display_name }}</text>
-            <div class="countdown-radius"></div>
-            <div class="countdown-background">
+          <div class="countdown-card" @click="routeEditEvent($idx)">
+            <div class="card-header" style="background-color: {{ $item.already ? '#f78803' : '#3184d0' }}">
+              <text class="countdown-name">{{ $item.display_name }}</text>
+            </div>
+            <div class="card-body">
               <text class="countdown-days" style="font-size: {{ $item.font_size }}">
                 {{ $item.days }}
               </text>
@@ -210,37 +207,35 @@ scroll {
   align-items: center;
   width: 100%;
   height: 66px;
-  border-radius: 10px;
-  padding: 6px;
+  border-radius: 14px;
   margin-bottom: 8px;
+  overflow: hidden;
+  background-color: white;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  width: 65%;
+  height: 100%;
+  padding-left: 4px;
 }
 
 .countdown-name {
   font-size: 22px;
-  width: 60%;
-  height: 60px;
   text-overflow: ellipsis;
   font-weight: bold;
+  color: white;
+  lines: 2;
 }
 
-.countdown-radius {
-  position: absolute;
-  top: 0;
-  right: 0;
-  height: 66px;
-  width: 20px;
-  background-color: white;
-  border-radius: 10px;
-  z-index: -1;
-}
-
-.countdown-background {
-  background-color: white;
-  position: absolute;
-  top: 0px;
-  right: 10px;
+.card-body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
   width: 35%;
-  height: 66px;
+  height: 100%;
+  background-color: white;
 }
 
 .countdown-days {
@@ -251,7 +246,6 @@ scroll {
   height: 66px;
   text-overflow: clip;
   position: relative;
-  right: -5px;
 }
 
 @media (device-type: band) and (shape: rect) {
@@ -260,20 +254,16 @@ scroll {
     margin-bottom: 10px;
   }
 
+  .card-header {
+    width: 70%;
+  }
+
   .countdown-name {
-    width: 65%;
-    height: 70px;
     font-size: 26px;
   }
 
-  .countdown-radius {
-    height: 78px;
-    width: 20px;
-  }
-
-  .countdown-background {
+  .card-body {
     width: 30%;
-    height: 78px;
   }
 
   .countdown-days {
@@ -293,20 +283,16 @@ scroll {
     margin-bottom: 10px;
   }
 
+  .card-header {
+    width: 70%;
+  }
+
   .countdown-name {
-    width: 65%;
-    height: 70px;
     font-size: 26px;
   }
 
-  .countdown-radius {
-    height: 78px;
-    width: 20px;
-  }
-
-  .countdown-background {
+  .card-body {
     width: 30%;
-    height: 78px;
   }
 
   .countdown-days {
@@ -326,20 +312,16 @@ scroll {
     margin-bottom: 10px;
   }
 
+  .card-header {
+    width: 70%;
+  }
+
   .countdown-name {
-    width: 65%;
-    height: 70px;
     font-size: 26px;
   }
 
-  .countdown-radius {
-    height: 78px;
-    width: 20px;
-  }
-
-  .countdown-background {
+  .card-body {
     width: 30%;
-    height: 78px;
   }
 
   .countdown-days {
