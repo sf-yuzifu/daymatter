@@ -36,7 +36,7 @@ global.adjustThemeColor = (baseColor, already) => {
   const colorMap = {
     "#3184d0": ["#f78803", "#3184d0"],
     "#f78803": ["#fdb763", "#f78803"],
-    "#e74c3c": ["#e74c3c", "#3cd7e7"],
+    "#e74c3c": ["#e74c3c", "#f29f97"],
     "#27ae60": ["#104627", "#27ae60"],
     "#9b59b6": ["#532c64", "#9b59b6"]
   }
