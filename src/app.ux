@@ -1,17 +1,17 @@
 <script>
-import device from "@system.device";
+import device from "@system.device"
 
-let screenSize = { width: 0, height: 0 };
+let screenSize = {width: 0, height: 0}
 
 device.getInfo({
-	success: function (deviceRet) {
-		screenSize.width = deviceRet.screenWidth;
-		screenSize.height = deviceRet.screenHeight;
-		global.screenShape = deviceRet.screenShape;
-		global.screenSize = screenSize;
-		global.isPillShaped = deviceRet.screenShape !== 'rect' && deviceRet.screenShape !== 'circle';
-	},
-});
+  success: function (deviceRet) {
+    screenSize.width = deviceRet.screenWidth
+    screenSize.height = deviceRet.screenHeight
+    global.screenShape = deviceRet.screenShape
+    global.screenSize = screenSize
+    global.isPillShaped = deviceRet.screenShape !== "rect" && deviceRet.screenShape !== "circle"
+  }
+})
 
 global.dateDiff = (date1) => {
   const _date = new Date()
@@ -20,11 +20,34 @@ global.dateDiff = (date1) => {
 }
 
 global.getTime = function () {
-	const date = new Date();
-	const hour = date.getHours().toString().padStart(2, "0");
-	const minute = date.getMinutes().toString().padStart(2, "0");
-	return hour + ":" + minute;
-};
+  const date = new Date()
+  const hour = date.getHours().toString().padStart(2, "0")
+  const minute = date.getMinutes().toString().padStart(2, "0")
+  return hour + ":" + minute
+}
+
+global.adjustThemeColor = (baseColor, already) => {
+  // 如果没有设置主题色，使用默认颜色
+  if (!baseColor) {
+    return already ? "#f78803" : "#3184d0"
+  }
+
+  // 色调映射表：基础色 -> [已过去色调, 未到来色调]
+  const colorMap = {
+    "#3184d0": ["#f78803", "#3184d0"],
+    "#f78803": ["#fdb763", "#f78803"],
+    "#e74c3c": ["#e74c3c", "#3cd7e7"],
+    "#27ae60": ["#104627", "#27ae60"],
+    "#9b59b6": ["#532c64", "#9b59b6"]
+  }
+
+  const colors = colorMap[baseColor]
+  if (colors) {
+    return already ? colors[0] : colors[1]
+  }
+
+  return baseColor
+}
 
 export default {}
 </script>

@@ -22,7 +22,7 @@
           <div class="countdown-card" @click="routeEditEvent($idx)">
             <div
               class="card-header"
-              style="background-color: {{ $item.already ? '#f78803' : '#3184d0' }}"
+              style="background-color: {{ global.adjustThemeColor($item.themeColor, $item.already) }}"
             >
               <text class="countdown-name">{{ $item.display_name }}</text>
             </div>
@@ -118,6 +118,7 @@ export default {
       date: event.date,
       days,
       already,
+      themeColor: event.themeColor,
       on_index: event.on_index,
       IFStaringDay: event.IFStaringDay || false,
       font_size
@@ -158,6 +159,7 @@ export default {
         event_name: event.name,
         date: event.date,
         on_index: event.on_index,
+        themeColor: event.themeColor,
         IFStaringDay: event.IFStaringDay || false,
         callback_uri: "/pages/list"
       }

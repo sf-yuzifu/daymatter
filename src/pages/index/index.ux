@@ -21,7 +21,7 @@
     <swiper if="{{ !is_no_event }}" indicator="false" class="countdown-swiper">
       <div for="{{ events }}">
         <div class="countdown-page">
-          <div class="countdown-header" style="background-color: {{ $item.already ? '#f78803' : '#3184d0' }}">
+          <div class="countdown-header" style="background-color: {{ $item.themeColor }}">
             <marquee class="countdown-event" scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
               {{ $item.name }}
             </marquee>
@@ -113,6 +113,7 @@ export default {
     let name = event.name
     let days
     let already = true
+    let themeColor = event.themeColor
 
     if (diff > 0 || (diff === 0 && event.IFStaringDay)) {
       name = name + this.$t("already")
@@ -125,7 +126,10 @@ export default {
       already = false
     }
 
-    return {name, days, date: event.date, already}
+    // 根据事件状态调整主题色色调
+    themeColor = global.adjustThemeColor(themeColor, already)
+
+    return {name, days, date: event.date, already, themeColor}
   },
 
   completed() {

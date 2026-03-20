@@ -23,42 +23,81 @@
       @click="routeBack"
     />
     <img else class="top" src="/common/back.png" @click="routeBack" />
-    <div class="padding"></div>
-    <div class="line" style="margin-bottom: 10px">
-      <text style="margin-left: 14px">{{ $t("eventName") }}</text>
-      <div class="input-line" @click="editEventName">
-        <scroll
-          style="position: absolute; width: 100%; height: 42px; margin: 6px 0"
-          scroll-x="true"
-        >
-          <text class="input-text">
-            {{ event_name }}
-          </text>
-        </scroll>
-      </div>
-    </div>
-    <div class="line" style="margin-bottom: 8px">
-      <text style="margin-left: 14px">{{ $t("targetDateLabel") }}</text>
-      <div class="input-line" @click="editDate">
-        <scroll
-          style="position: absolute; width: 100%; height: 42px; margin: 6px 0"
-          scroll-x="true"
-        >
-          <text class="input-text">{{ date }}</text>
-        </scroll>
-      </div>
-    </div>
-    <div class="line button" style="margin-bottom: 8px">
-      <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}">{{ $t("showOnHome") }}</marquee>
-      <img style="height: 40px" @click="changeDisplayOnIndex" src="/common/{{ on_index }}.png" />
-    </div>
-    <div class="line button" style="margin-bottom: 36px">
-      <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}">{{ $t("includeStartDay") }}</marquee>
-      <img
-        style="height: 40px"
-        @click="changeDisplayIFStaringDay"
-        src="/common/{{ IFStaringDay }}.png"
-      />
+    <div class="box padding">
+      <scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
+        <div class="line" style="margin-bottom: 10px">
+          <text style="margin-left: 14px">{{ $t("eventName") }}</text>
+          <div class="input-line" @click="editEventName">
+            <scroll
+              style="position: absolute; width: 100%; height: 42px; margin: 6px 0"
+              scroll-x="true"
+            >
+              <text class="input-text">
+                {{ event_name }}
+              </text>
+            </scroll>
+          </div>
+        </div>
+        <div class="line" style="margin-bottom: 8px">
+          <text style="margin-left: 14px">{{ $t("targetDateLabel") }}</text>
+          <div class="input-line" @click="editDate">
+            <scroll
+              style="position: absolute; width: 100%; height: 42px; margin: 6px 0"
+              scroll-x="true"
+            >
+              <text class="input-text">{{ date }}</text>
+            </scroll>
+          </div>
+        </div>
+        <div class="line button" style="margin-bottom: 8px">
+          <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}">{{ $t("showOnHome") }}</marquee>
+          <img
+            style="height: 40px"
+            @click="changeDisplayOnIndex"
+            src="/common/{{ on_index }}.png"
+          />
+        </div>
+        <div class="line button" style="margin-bottom: 8px">
+          <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
+            {{ $t("includeStartDay") }}
+          </marquee>
+          <img
+            style="height: 40px"
+            @click="changeDisplayIFStaringDay"
+            src="/common/{{ IFStaringDay }}.png"
+          />
+        </div>
+        <div class="line color-picker-container">
+          <text>{{ $t("themeColor") }}</text>
+          <div class="color-picker">
+            <div
+              class="color-option"
+              style="background-color: #3184d0; opacity: {{ themeColor === '#3184d0' ? 1 : 0.4 }}"
+              @click="changeThemeColor('#3184d0')"
+            ></div>
+            <div
+              class="color-option"
+              style="background-color: #f78803; opacity: {{ themeColor === '#f78803' ? 1 : 0.4 }}"
+              @click="changeThemeColor('#f78803')"
+            ></div>
+            <div
+              class="color-option"
+              style="background-color: #e74c3c; opacity: {{ themeColor === '#e74c3c' ? 1 : 0.4 }}"
+              @click="changeThemeColor('#e74c3c')"
+            ></div>
+            <div
+              class="color-option"
+              style="background-color: #27ae60; opacity: {{ themeColor === '#27ae60' ? 1 : 0.4 }}"
+              @click="changeThemeColor('#27ae60')"
+            ></div>
+            <div
+              class="color-option"
+              style="background-color: #9b59b6; opacity: {{ themeColor === '#9b59b6' ? 1 : 0.4 }}"
+              @click="changeThemeColor('#9b59b6')"
+            ></div>
+          </div>
+        </div>
+      </scroll>
     </div>
     <img
       if="{{ global.screenShape == 'rect' }}"
@@ -82,6 +121,7 @@ export default {
     date: "",
     on_index: true,
     IFStaringDay: false,
+    themeColor: "#3184d0",
     cache: "",
     callback_uri: "/pages/index",
     event_id: "0",
@@ -109,6 +149,7 @@ export default {
       this.date = cache.date
       this.on_index = cache.on_index
       this.IFStaringDay = cache.IFStaringDay
+      this.themeColor = cache.themeColor || "#3184d0"
     } else if (this.date == "") {
       // 初始化默认日期
       const _date = new Date()
@@ -124,7 +165,8 @@ export default {
       event_name: this.event_name,
       date: this.date,
       on_index: this.on_index,
-      IFStaringDay: this.IFStaringDay
+      IFStaringDay: this.IFStaringDay,
+      themeColor: this.themeColor
     }
   },
 
@@ -166,6 +208,10 @@ export default {
     this.IFStaringDay = !this.IFStaringDay
   },
 
+  changeThemeColor(color) {
+    this.themeColor = color
+  },
+
   normalizeBoolean(value) {
     if (value === "true") return true
     if (value === "false") return false
@@ -189,7 +235,8 @@ export default {
       name: this.event_name,
       date: this.date,
       on_index: this.on_index,
-      IFStaringDay: this.IFStaringDay
+      IFStaringDay: this.IFStaringDay,
+      themeColor: this.themeColor
     }
 
     file.readText({
@@ -265,13 +312,13 @@ export default {
 .new-page {
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   color: white;
   background-color: black;
 }
 
 .padding {
-  height: 32px;
+  margin-top: 116px;
+  margin-bottom: 86px;
 }
 
 .line {
@@ -310,10 +357,32 @@ marquee {
   justify-content: space-between;
 }
 
-@media (shape: rect) {
-  .padding {
-    height: 0;
-  }
+.color-picker-container {
+  width: 85%;
+}
+
+.color-picker {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.color-option {
+  width: 28px;
+  height: 28px;
+  border-radius: 100%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  margin-bottom: 20px;
+}
+
+.box {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
 }
 
 @media (device-type: band) and (shape: rect) {
@@ -321,8 +390,20 @@ marquee {
     width: 83%;
   }
 
-  .button {
+  .button,
+  .color-picker-container {
     width: 75%;
+  }
+
+  .padding {
+    margin-top: 92px;
+    margin-bottom: 16px;
+  }
+
+  .color-option {
+    width: 36px;
+    height: 36px;
+    margin-bottom: 0;
   }
 }
 
@@ -331,22 +412,40 @@ marquee {
     width: 75%;
   }
 
-  .button {
+  .button,
+  .color-picker-container {
     width: 70%;
+  }
+
+  .padding {
+    margin-top: 102px;
+    margin-bottom: 32px;
+  }
+
+  .color-option {
+    width: 36px;
+    height: 36px;
   }
 }
 
 @media (device-type: watch) and (shape: circle) {
   .padding {
-    height: 48px;
+    margin-top: 92px;
+    margin-bottom: 84px;
   }
 
   .line {
     width: 70%;
   }
 
-  .button {
+  .button,
+  .color-picker-container {
     width: 65%;
+  }
+
+  .color-option {
+    width: 36px;
+    height: 36px;
   }
 }
 </style>

@@ -25,5 +25,6 @@
   "showOnHome": "Show on Home",
   "includeStartDay": "Include Start Day",
   "eventNameRequired": "Event name is required",
-  "saveSuccess": "Event saved successfully!"
+  "saveSuccess": "Event saved successfully!",
+  "themeColor": "Theme Color"
 }
