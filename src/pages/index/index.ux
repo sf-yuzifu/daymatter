@@ -26,8 +26,8 @@
               {{ $item.name }}
             </marquee>
           </div>
-          <div class="countdown-body">
-            <text class="countdown-days">{{ $item.days }}</text>
+          <div class="countdown-body" @click="toggleDisplayMode($idx)">
+            <text class="countdown-days" style="font-size: {{ $item.fontSize }}px;">{{ $item.displayText }}</text>
           </div>
           <div class="countdown-footer">
             <text class="countdown-date">{{ $t("targetDate", {date: $item.date}) }}</text>
@@ -62,7 +62,9 @@ export default {
     time: "",
     events: [],
     is_no_event: true,
-    allEvents: 0
+    allEvents: 0,
+    displayModes: ["days", "weeks", "months", "years"],
+    currentDisplayModeIndex: 0
   },
 
   onInit() {
@@ -108,8 +110,9 @@ export default {
     this.completed()
   },
 
-  formatEvent(event) {
+  formatEvent(event, mode) {
     const diff = global.dateDiff(event.date)
+    const accurateDiff = global.getDateDiffAccurate(event.date)
     let name = event.name
     let days
     let already = true
@@ -117,19 +120,170 @@ export default {
 
     if (diff > 0 || (diff === 0 && event.IFStaringDay)) {
       name = name + this.$t("already")
-      days = String(diff > 0 ? (event.IFStaringDay ? diff + 1 : diff) : 1)
+      days = diff > 0 ? (event.IFStaringDay ? diff + 1 : diff) : 1
     } else if (diff === 0) {
-      days = this.$t("today")
+      days = 0
     } else {
       name = name + this.$t("remaining")
-      days = String(-diff)
+      days = -diff
       already = false
     }
 
     // 根据事件状态调整主题色色调
     themeColor = global.adjustThemeColor(themeColor, already)
 
-    return {name, days, date: event.date, already, themeColor}
+    // 根据显示模式生成显示文本和字体大小
+    const displayInfo = this.getDisplayInfo(days, accurateDiff, mode, already)
+
+    return {
+      name,
+      days: String(days),
+      accurateDiff,
+      displayText: displayInfo.text,
+      fontSize: displayInfo.fontSize,
+      date: event.date,
+      already,
+      themeColor
+    }
+  },
+
+  getDisplayInfo(days, accurateDiff, mode, isToday) {
+    if (isToday) {
+      return { text: this.$t("today"), fontSize: this.calculateFontSize(2) }
+    }
+
+    // 使用准确的日期差值
+    const { years: accYears, months: accMonths, days: accDays } = accurateDiff || { years: 0, months: 0, days: 0 }
+
+    // 检查当前模式是否能显示有意义的更大单位（使用准确的年/月）
+    const canShowMode = {
+      days: () => true,
+      weeks: () => Math.floor(days / 7) >= 1,
+      months: () => accMonths > 0 || accYears > 0,
+      years: () => accYears > 0
+    }
+
+    // 如果不能显示当前模式，回退到纯天数
+    if (!canShowMode[mode] || !canShowMode[mode]()) {
+      const text = days + this.$t("days")
+      return {
+        text: text,
+        fontSize: this.calculateFontSize(text.length)
+      }
+    }
+
+    const modeHandlers = {
+      days: () => ({
+        text: days,
+        length: 1
+      }),
+      weeks: () => {
+        const weeks = Math.floor(days / 7)
+        const remainingDays = days % 7
+        const text = remainingDays > 0
+          ? `${weeks}${this.$t("weeks")}${remainingDays}${this.$t("days")}`
+          : `${weeks}${this.$t("weeks")}`
+        return { text, length: text.length }
+      },
+      months: () => {
+        // 使用准确的月份和天数
+        const totalMonths = accYears * 12 + accMonths
+        const text = accDays > 0
+          ? `${totalMonths}${this.$t("months")}${accDays}${this.$t("days")}`
+          : `${totalMonths}${this.$t("months")}`
+        return { text, length: text.length }
+      },
+      years: () => {
+        // 使用准确的年、月、天
+        let text = `${accYears}${this.$t("years")}`
+        if (accMonths > 0) text += `${accMonths}${this.$t("months")}`
+        if (accDays > 0) text += `${accDays}${this.$t("days")}`
+        return { text, length: text.length }
+      }
+    }
+
+    const handler = modeHandlers[mode] || modeHandlers.days
+    const result = handler()
+    return {
+      text: result.text,
+      fontSize: this.calculateFontSize(result.length)
+    }
+  },
+
+  calculateFontSize(textLength) {
+    // 根据设备类型和文字长度计算字体大小
+    const deviceType = global.deviceType || 'watch'
+    const screenShape = global.screenShape || 'rect'
+    const isPillShaped = global.isPillShaped || false
+
+    // 基础字体大小配置
+    // 药丸手环 countdown-page 只有 178px，比其他设备小很多
+    const baseSizes = {
+      band: { rect: 76, pill: 56 },
+      watch: { rect: 92, circle: 92 }
+    }
+
+    let baseSize
+    if (deviceType === 'band' && isPillShaped) {
+      baseSize = baseSizes.band.pill
+    } else {
+      baseSize = baseSizes[deviceType]?.[screenShape] || 92
+    }
+
+    // 根据文字长度调整字体大小
+    const lengthFactors = [
+      { max: 3, factor: 0.9 },    // 1-3个字符：90%
+      { max: 5, factor: 0.75 },   // 4-5个字符：75%
+      { max: 7, factor: 0.56 },    // 6-7个字符：56%
+      { max: 9, factor: 0.48 },   // 8-9个字符：48%
+      { max: 12, factor: 0.38 },  // 10-12个字符：38%
+      { max: 99, factor: 0.3 }    // 超过12个字符：30%
+    ]
+
+    const factor = lengthFactors.find(f => textLength <= f.max)?.factor || 0.35
+    return Math.floor(baseSize * factor)
+  },
+
+  toggleDisplayMode(index) {
+    // 获取当前事件的信息（用于判断能否切换到某个模式）
+    const currentEvent = this.events[index]
+    const days = parseInt(currentEvent.days)
+    const accurateDiff = currentEvent.accurateDiff
+    const isToday = currentEvent.displayText === this.$t("today")
+
+    // 尝试切换到下一个模式，如果无法显示则继续尝试
+    let attempts = 0
+    let newMode
+    do {
+      this.currentDisplayModeIndex = (this.currentDisplayModeIndex + 1) % this.displayModes.length
+      newMode = this.displayModes[this.currentDisplayModeIndex]
+      attempts++
+    } while (!this.canShowMode(days, accurateDiff, newMode, isToday) && attempts < this.displayModes.length)
+
+    // 重新格式化所有事件
+    this.events = this.events.map(event => {
+      const eventDays = parseInt(event.days)
+      const eventAccurateDiff = event.accurateDiff
+      const eventIsToday = event.displayText === this.$t("today")
+      const displayInfo = this.getDisplayInfo(eventDays, eventAccurateDiff, newMode, eventIsToday)
+      return {
+        ...event,
+        displayText: displayInfo.text,
+        fontSize: displayInfo.fontSize
+      }
+    })
+  },
+
+  canShowMode(days, accurateDiff, mode, isToday) {
+    if (isToday) return true
+    const { years, months } = accurateDiff || { years: 0, months: 0 }
+    switch (mode) {
+      case 'days': return true
+      case 'weeks': return Math.floor(days / 7) >= 1
+      case 'months': return months > 0 || years > 0
+      case 'years': return years > 0
+      default: return true
+    }
   },
 
   completed() {
@@ -138,7 +292,8 @@ export default {
       success: (data) => {
         const events = JSON.parse(data.text)
         this.allEvents = events.length
-        this.events = events.filter((e) => e.on_index).map((e) => this.formatEvent(e))
+        const currentMode = this.displayModes[this.currentDisplayModeIndex]
+        this.events = events.filter((e) => e.on_index).map((e) => this.formatEvent(e, currentMode))
         this.is_no_event = this.events.length === 0
       },
       fail: (data, code) => console.log(`handling fail, code = ${code}`)
