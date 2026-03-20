@@ -4,25 +4,6 @@
     <text class="title" if="{{ global.screenShape == 'rect' }}">
       {{ extend == "true" ? $t("addEvent") : $t("editEvent") }}
     </text>
-    <img
-      if="{{ extend != 'true' && global.screenShape == 'rect' }}"
-      class="top leftButton"
-      src="/common/del_rect.png"
-      @click="deleteEvent"
-    />
-    <img
-      elif="{{ extend != 'true' && global.screenShape != 'rect' }}"
-      class="top"
-      src="/common/del.png"
-      @click="deleteEvent"
-    />
-    <img
-      elif="{{ global.screenShape == 'rect' }}"
-      class="top leftButton"
-      src="/common/back_rect.png"
-      @click="routeBack"
-    />
-    <img else class="top" src="/common/back.png" @click="routeBack" />
     <div class="box padding">
       <scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
         <div class="line" style="margin-bottom: 10px">
@@ -52,7 +33,7 @@
         <div class="line button" style="margin-bottom: 8px">
           <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}">{{ $t("showOnHome") }}</marquee>
           <img
-            style="height: 40px"
+            style="height: 48px"
             @click="changeDisplayOnIndex"
             src="/common/{{ on_index }}.png"
           />
@@ -62,7 +43,7 @@
             {{ $t("includeStartDay") }}
           </marquee>
           <img
-            style="height: 40px"
+            style="height: 48px"
             @click="changeDisplayIFStaringDay"
             src="/common/{{ IFStaringDay }}.png"
           />
@@ -99,6 +80,25 @@
         </div>
       </scroll>
     </div>
+    <img
+      if="{{ extend != 'true' && global.screenShape == 'rect' }}"
+      class="top leftButton"
+      src="/common/del_rect.png"
+      @click="deleteEvent"
+    />
+    <img
+      elif="{{ extend != 'true' && global.screenShape != 'rect' }}"
+      class="top"
+      src="/common/del.png"
+      @click="deleteEvent"
+    />
+    <img
+      elif="{{ global.screenShape == 'rect' }}"
+      class="top leftButton"
+      src="/common/back_rect.png"
+      @click="routeBack"
+    />
+    <img else class="top" src="/common/back.png" @click="routeBack" />
     <img
       if="{{ global.screenShape == 'rect' }}"
       class="top rightButton"
@@ -352,29 +352,32 @@ marquee {
 .button {
   width: 85%;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
   justify-content: space-between;
 }
 
 .color-picker-container {
   width: 85%;
+  align-items: center;
 }
 
 .color-picker {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   justify-content: space-between;
   width: 100%;
   margin-top: 8px;
+  margin-bottom: 20px;
 }
 
 .color-option {
-  width: 28px;
-  height: 28px;
+  width: 48px;
+  height: 48px;
   border-radius: 100%;
+  margin-bottom: 10px;
   border: 2px solid rgba(255, 255, 255, 0.3);
-  margin-bottom: 20px;
 }
 
 .box {
@@ -395,15 +398,22 @@ marquee {
     width: 75%;
   }
 
+  .color-picker-container {
+    align-items: flex-start;
+  }
+
+  .button {
+    flex-direction: row;
+  }
+
   .padding {
     margin-top: 92px;
     margin-bottom: 16px;
   }
 
   .color-option {
-    width: 36px;
-    height: 36px;
-    margin-bottom: 0;
+    width: 42px;
+    height: 42px;
   }
 }
 
@@ -417,14 +427,22 @@ marquee {
     width: 70%;
   }
 
+  .button {
+    flex-direction: row;
+  }
+
+  .color-picker-container {
+    align-items: flex-start;
+  }
+
   .padding {
     margin-top: 102px;
     margin-bottom: 32px;
   }
 
   .color-option {
-    width: 36px;
-    height: 36px;
+    width: 48px;
+    height: 48px;
   }
 }
 
@@ -443,9 +461,17 @@ marquee {
     width: 65%;
   }
 
+  .button {
+    flex-direction: row;
+  }
+
+  .color-picker-container {
+    align-items: flex-start;
+  }
+
   .color-option {
-    width: 36px;
-    height: 36px;
+    width: 48px;
+    height: 48px;
   }
 }
 </style>
