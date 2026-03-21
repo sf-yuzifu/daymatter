@@ -113,7 +113,7 @@ export default {
 
   formatEvent(event, mode) {
     const diff = global.dateDiff(event.date)
-    const accurateDiff = global.getDateDiffAccurate(event.date)
+    let accurateDiff = global.getDateDiffAccurate(event.date)
     let name = event.name
     let days
     let already = true
@@ -122,6 +122,13 @@ export default {
     if (diff > 0 || (diff === 0 && event.IFStaringDay)) {
       name = name + this.$t("already")
       days = diff > 0 ? (event.IFStaringDay ? diff + 1 : diff) : 1
+      // IFStaringDay 启用时，accurateDiff 的天数也需要加 1
+      if (event.IFStaringDay && diff > 0) {
+        accurateDiff = {
+          ...accurateDiff,
+          days: accurateDiff.days + 1
+        }
+      }
     } else if (diff === 0) {
       days = 0
     } else {
