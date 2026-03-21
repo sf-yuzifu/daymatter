@@ -1,5 +1,6 @@
 <template>
   <div class="index-page">
+    <img class="bg" src="/common/bg.png" />
     <text class="time">{{ time }}</text>
     <text class="title" if="{{ global.screenShape == 'rect' }}">{{ $t("appName") }}</text>
     <img
@@ -402,6 +403,15 @@ export default {
   align-items: center;
   color: white;
   background-color: black;
+}
+
+.bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .countdown-swiper {
