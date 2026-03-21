@@ -117,6 +117,7 @@ export default {
     let name = event.name
     let days
     let already = true
+    let isToday = false
     let themeColor = event.themeColor
 
     if (diff > 0 || (diff === 0 && event.IFStaringDay)) {
@@ -131,6 +132,7 @@ export default {
       }
     } else if (diff === 0) {
       days = 0
+      isToday = true
     } else {
       name = name + this.$t("remaining")
       days = -diff
@@ -141,7 +143,7 @@ export default {
     themeColor = global.adjustThemeColor(themeColor, already)
 
     // 根据显示模式生成显示文本和字体大小
-    const displayInfo = this.getDisplayInfo(days, accurateDiff, mode, already)
+    const displayInfo = this.getDisplayInfo(days, accurateDiff, mode, isToday)
 
     return {
       name,
