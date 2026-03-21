@@ -29,5 +29,7 @@
   "includeStartDay": "包含起始日",
   "eventNameRequired": "事件名称不能为空",
   "saveSuccess": "事件保存成功！",
-  "themeColor": "主题色"
+  "themeColor": "主题色",
+  "bgUpdateSuccess": "背景更新成功！",
+  "bgSaveFail": "背景保存失败，错误码: {code}"
 }

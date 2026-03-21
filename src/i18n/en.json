@@ -29,5 +29,7 @@
   "includeStartDay": "Include Start Day",
   "eventNameRequired": "Event name is required",
   "saveSuccess": "Event saved successfully!",
-  "themeColor": "Theme Color"
+  "themeColor": "Theme Color",
+  "bgUpdateSuccess": "Background updated!",
+  "bgSaveFail": "Failed to save background, error code: {code}"
 }

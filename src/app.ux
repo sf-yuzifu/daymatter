@@ -26,7 +26,7 @@ global.getDateDiffAccurate = (targetDate) => {
 
   // 确保日期是有效的
   if (isNaN(today.getTime()) || isNaN(target.getTime())) {
-    return { years: 0, months: 0, days: 0, totalDays: 0 }
+    return {years: 0, months: 0, days: 0, totalDays: 0}
   }
 
   // 判断哪个日期在前
@@ -57,7 +57,7 @@ global.getDateDiffAccurate = (targetDate) => {
   // 计算总天数差（用于判断事件状态）
   const totalDays = Math.floor((today.getTime() - target.getTime()) / (1000 * 60 * 60 * 24))
 
-  return { years, months, days, totalDays }
+  return {years, months, days, totalDays}
 }
 
 global.getTime = function () {
@@ -88,6 +88,39 @@ global.adjustThemeColor = (baseColor, already) => {
   }
 
   return baseColor
+}
+
+global.base64ToArrayBuffer = (base64) => {
+  base64 = base64.replace(/[\s\r\n]/g, "")
+  const len = base64.length
+  if (len === 0) return new ArrayBuffer(0)
+
+  const b64lookup = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+  let paddingCount = 0
+  if (base64.charAt(len - 1) === "=") paddingCount++
+  if (base64.charAt(len - 2) === "=") paddingCount++
+
+  const bufferLength = (len * 3) / 4 - paddingCount
+  const bytes = new Uint8Array(bufferLength)
+
+  let p = 0
+  for (let i = 0; i < len; i += 4) {
+    const encoded1 = b64lookup.indexOf(base64[i])
+    const encoded2 = b64lookup.indexOf(base64[i + 1])
+    const encoded3 = b64lookup.indexOf(base64[i + 2])
+    const encoded4 = b64lookup.indexOf(base64[i + 3])
+
+    if (encoded1 < 0 || encoded2 < 0) continue
+
+    bytes[p++] = (encoded1 << 2) | (encoded2 >> 4)
+    if (encoded3 !== -1 && encoded3 !== 64 && p < bufferLength) {
+      bytes[p++] = ((encoded2 & 15) << 4) | (encoded3 >> 2)
+    }
+    if (encoded4 !== -1 && encoded4 !== 64 && p < bufferLength) {
+      bytes[p++] = ((encoded3 & 3) << 6) | (encoded4 & 63)
+    }
+  }
+  return bytes.buffer
 }
 
 export default {}

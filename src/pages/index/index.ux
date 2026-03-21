@@ -1,6 +1,6 @@
 <template>
   <div class="index-page">
-    <img class="bg" src="/common/bg.png" />
+    <img class="bg" src="{{ bgImage }}" />
     <text class="time">{{ time }}</text>
     <text class="title" if="{{ global.screenShape == 'rect' }}">{{ $t("appName") }}</text>
     <img
@@ -28,7 +28,9 @@
             </marquee>
           </div>
           <div class="countdown-body" @click="toggleDisplayMode($idx)">
-            <text class="countdown-days" style="font-size: {{ $item.fontSize }}px;">{{ $item.displayText }}</text>
+            <text class="countdown-days" style="font-size: {{ $item.fontSize }}px;">
+              {{ $item.displayText }}
+            </text>
           </div>
           <div class="countdown-footer">
             <text class="countdown-date">{{ $t("targetDate", {date: $item.date}) }}</text>
@@ -65,7 +67,8 @@ export default {
     is_no_event: true,
     allEvents: 0,
     displayModes: ["days", "weeks", "months", "years"],
-    currentDisplayModeIndex: 0
+    currentDisplayModeIndex: 0,
+    bgImage: ""
   },
 
   onInit() {
@@ -94,7 +97,8 @@ export default {
         getAllEvent: () => this.handleGetAllEvent(),
         addEvent: () => this.handleAddEvent(parsedData),
         changeEvent: () => this.handleChangeEvent(parsedData),
-        deleteEvent: () => this.handleDeleteEvent(parsedData)
+        deleteEvent: () => this.handleDeleteEvent(parsedData),
+        addBG: () => this.handleAddBG(parsedData)
       }
 
       const handler = handlers[parsedData.type]
@@ -104,6 +108,7 @@ export default {
 
   onShow() {
     this.time = global.getTime()
+    this.loadBackground()
   },
 
   onReady() {
@@ -159,11 +164,15 @@ export default {
 
   getDisplayInfo(days, accurateDiff, mode, isToday) {
     if (isToday) {
-      return { text: this.$t("today"), fontSize: this.calculateFontSize(2) }
+      return {text: this.$t("today"), fontSize: this.calculateFontSize(2)}
     }
 
     // 使用准确的日期差值
-    const { years: accYears, months: accMonths, days: accDays } = accurateDiff || { years: 0, months: 0, days: 0 }
+    const {
+      years: accYears,
+      months: accMonths,
+      days: accDays
+    } = accurateDiff || {years: 0, months: 0, days: 0}
 
     // 检查当前模式是否能显示有意义的更大单位（使用准确的年/月）
     const canShowMode = {
@@ -190,25 +199,27 @@ export default {
       weeks: () => {
         const weeks = Math.floor(days / 7)
         const remainingDays = days % 7
-        const text = remainingDays > 0
-          ? `${weeks}${this.$t("weeks")}${remainingDays}${this.$t("days")}`
-          : `${weeks}${this.$t("weeks")}`
-        return { text, length: text.length }
+        const text =
+          remainingDays > 0
+            ? `${weeks}${this.$t("weeks")}${remainingDays}${this.$t("days")}`
+            : `${weeks}${this.$t("weeks")}`
+        return {text, length: text.length}
       },
       months: () => {
         // 使用准确的月份和天数
         const totalMonths = accYears * 12 + accMonths
-        const text = accDays > 0
-          ? `${totalMonths}${this.$t("months")}${accDays}${this.$t("days")}`
-          : `${totalMonths}${this.$t("months")}`
-        return { text, length: text.length }
+        const text =
+          accDays > 0
+            ? `${totalMonths}${this.$t("months")}${accDays}${this.$t("days")}`
+            : `${totalMonths}${this.$t("months")}`
+        return {text, length: text.length}
       },
       years: () => {
         // 使用准确的年、月、天
         let text = `${accYears}${this.$t("years")}`
         if (accMonths > 0) text += `${accMonths}${this.$t("months")}`
         if (accDays > 0) text += `${accDays}${this.$t("days")}`
-        return { text, length: text.length }
+        return {text, length: text.length}
       }
     }
 
@@ -222,19 +233,19 @@ export default {
 
   calculateFontSize(textLength) {
     // 根据设备类型和文字长度计算字体大小
-    const deviceType = global.deviceType || 'watch'
-    const screenShape = global.screenShape || 'rect'
+    const deviceType = global.deviceType || "watch"
+    const screenShape = global.screenShape || "rect"
     const isPillShaped = global.isPillShaped || false
 
     // 基础字体大小配置
     // 药丸手环 countdown-page 只有 178px，比其他设备小很多
     const baseSizes = {
-      band: { rect: 76, pill: 56 },
-      watch: { rect: 92, circle: 92 }
+      band: {rect: 76, pill: 56},
+      watch: {rect: 92, circle: 92}
     }
 
     let baseSize
-    if (deviceType === 'band' && isPillShaped) {
+    if (deviceType === "band" && isPillShaped) {
       baseSize = baseSizes.band.pill
     } else {
       baseSize = baseSizes[deviceType]?.[screenShape] || 92
@@ -242,15 +253,15 @@ export default {
 
     // 根据文字长度调整字体大小
     const lengthFactors = [
-      { max: 3, factor: 0.9 },    // 1-3个字符：90%
-      { max: 5, factor: 0.75 },   // 4-5个字符：75%
-      { max: 7, factor: 0.56 },    // 6-7个字符：56%
-      { max: 9, factor: 0.48 },   // 8-9个字符：48%
-      { max: 12, factor: 0.38 },  // 10-12个字符：38%
-      { max: 99, factor: 0.3 }    // 超过12个字符：30%
+      {max: 3, factor: 0.9}, // 1-3个字符：90%
+      {max: 5, factor: 0.75}, // 4-5个字符：75%
+      {max: 7, factor: 0.56}, // 6-7个字符：56%
+      {max: 9, factor: 0.48}, // 8-9个字符：48%
+      {max: 12, factor: 0.38}, // 10-12个字符：38%
+      {max: 99, factor: 0.3} // 超过12个字符：30%
     ]
 
-    const factor = lengthFactors.find(f => textLength <= f.max)?.factor || 0.35
+    const factor = lengthFactors.find((f) => textLength <= f.max)?.factor || 0.35
     return Math.floor(baseSize * factor)
   },
 
@@ -268,10 +279,13 @@ export default {
       this.currentDisplayModeIndex = (this.currentDisplayModeIndex + 1) % this.displayModes.length
       newMode = this.displayModes[this.currentDisplayModeIndex]
       attempts++
-    } while (!this.canShowMode(days, accurateDiff, newMode, isToday) && attempts < this.displayModes.length)
+    } while (
+      !this.canShowMode(days, accurateDiff, newMode, isToday) &&
+      attempts < this.displayModes.length
+    )
 
     // 重新格式化所有事件
-    this.events = this.events.map(event => {
+    this.events = this.events.map((event) => {
       const eventDays = parseInt(event.days)
       const eventAccurateDiff = event.accurateDiff
       const eventIsToday = event.displayText === this.$t("today")
@@ -286,13 +300,18 @@ export default {
 
   canShowMode(days, accurateDiff, mode, isToday) {
     if (isToday) return true
-    const { years, months } = accurateDiff || { years: 0, months: 0 }
+    const {years, months} = accurateDiff || {years: 0, months: 0}
     switch (mode) {
-      case 'days': return true
-      case 'weeks': return Math.floor(days / 7) >= 1
-      case 'months': return months > 0 || years > 0
-      case 'years': return years > 0
-      default: return true
+      case "days":
+        return true
+      case "weeks":
+        return Math.floor(days / 7) >= 1
+      case "months":
+        return months > 0 || years > 0
+      case "years":
+        return years > 0
+      default:
+        return true
     }
   },
 
@@ -373,6 +392,49 @@ export default {
       if (data.index >= 0 && data.index < events.length) {
         events.splice(data.index, 1)
         this.writeEvents(events, "deleteSuccess")
+      }
+    })
+  },
+
+  handleAddBG(data) {
+    const {type, bgBase64} = data
+    if (!bgBase64) {
+      showToast({message: "No image data", duration: 2000})
+      return
+    }
+
+    const fileUri = "internal://files/bg.png"
+
+    try {
+      const arrayBuffer = global.base64ToArrayBuffer(bgBase64)
+      const uint8Array = new Uint8Array(arrayBuffer)
+
+      file.writeArrayBuffer({
+        uri: fileUri,
+        buffer: uint8Array,
+        success: () => {
+          this.bgImage = fileUri
+          showToast({message: this.$t("bgUpdateSuccess"), duration: 2000})
+        },
+        fail: (d, code) => {
+          showToast({message: this.$t("bgSaveFail", {code}), duration: 2000})
+        }
+      })
+    } catch (e) {
+      console.error("Save background error:", e)
+      showToast({message: this.$t("bgSaveFail"), duration: 2000})
+    }
+  },
+
+  loadBackground() {
+    const fileUri = "internal://files/bg.png"
+    file.access({
+      uri: fileUri,
+      success: () => {
+        this.bgImage = fileUri
+      },
+      fail: () => {
+        this.bgImage = ""
       }
     })
   },
