@@ -1,6 +1,10 @@
 <template>
   <div class="index-page">
-    <img class="bg" src="{{ bgImage }}" />
+    <img
+      class="bg"
+      style="width: {{ global.screenSize.width }};height: {{ global.screenSize.height }};"
+      src="{{ bgImage }}"
+    />
     <text class="time">{{ time }}</text>
     <text class="title" if="{{ global.screenShape == 'rect' }}">{{ $t("appName") }}</text>
     <img
@@ -68,7 +72,7 @@ export default {
     allEvents: 0,
     displayModes: ["days", "weeks", "months", "years"],
     currentDisplayModeIndex: 0,
-    bgImage: ""
+    bgImage: "internal://files/bg.png"
   },
 
   onInit() {
@@ -403,35 +407,59 @@ export default {
       return
     }
 
-    const fileUri = "internal://files/bg.png"
+    const timestamp = Date.now()
+    const newFileUri = `internal://files/bg_${timestamp}.png`
+    const oldFileUri = this.bgImage
 
-    try {
-      const arrayBuffer = global.base64ToArrayBuffer(bgBase64)
-      const uint8Array = new Uint8Array(arrayBuffer)
+    const saveBackground = () => {
+      try {
+        const arrayBuffer = global.base64ToArrayBuffer(bgBase64)
+        const uint8Array = new Uint8Array(arrayBuffer)
 
-      file.writeArrayBuffer({
-        uri: fileUri,
-        buffer: uint8Array,
-        success: () => {
-          this.bgImage = fileUri
-          showToast({message: this.$t("bgUpdateSuccess"), duration: 2000})
-        },
-        fail: (d, code) => {
-          showToast({message: this.$t("bgSaveFail", {code}), duration: 2000})
-        }
+        file.writeArrayBuffer({
+          uri: newFileUri,
+          buffer: uint8Array,
+          success: () => {
+            this.bgImage = newFileUri
+            showToast({message: this.$t("bgUpdateSuccess"), duration: 2000})
+          },
+          fail: (d, code) => {
+            showToast({message: this.$t("bgSaveFail", {code}), duration: 2000})
+          }
+        })
+      } catch (e) {
+        console.error("Save background error:", e)
+        showToast({message: this.$t("bgSaveFail"), duration: 2000})
+      }
+    }
+
+    if (oldFileUri && oldFileUri.startsWith("internal://files/bg_")) {
+      file.delete({
+        uri: oldFileUri,
+        success: saveBackground,
+        fail: saveBackground
       })
-    } catch (e) {
-      console.error("Save background error:", e)
-      showToast({message: this.$t("bgSaveFail"), duration: 2000})
+    } else {
+      saveBackground()
     }
   },
 
   loadBackground() {
-    const fileUri = "internal://files/bg.png"
-    file.access({
-      uri: fileUri,
-      success: () => {
-        this.bgImage = fileUri
+    file.list({
+      uri: "internal://files/",
+      success: (data) => {
+        const bgFiles = data.fileList
+          .filter(f => f.uri && f.uri.match(/bg_\d+\.png$/))
+          .sort((a, b) => {
+            const timeA = parseInt(a.uri.match(/bg_(\d+)\.png/)[1])
+            const timeB = parseInt(b.uri.match(/bg_(\d+)\.png/)[1])
+            return timeB - timeA
+          })
+        if (bgFiles.length > 0) {
+          this.bgImage = bgFiles[0].uri
+        } else {
+          this.bgImage = ""
+        }
       },
       fail: () => {
         this.bgImage = ""
@@ -472,6 +500,7 @@ export default {
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  overflow: hidden;
   color: white;
   background-color: black;
 }
@@ -480,9 +509,6 @@ export default {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 
 .countdown-swiper {
