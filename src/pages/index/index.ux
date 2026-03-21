@@ -72,7 +72,7 @@ export default {
     allEvents: 0,
     displayModes: ["days", "weeks", "months", "years"],
     currentDisplayModeIndex: 0,
-    bgImage: "internal://files/bg.png"
+    bgImage: ""
   },
 
   onInit() {
