@@ -2,7 +2,7 @@
   "package": "com.yzf.daymatter",
   "name": "倒数日",
   "versionName": "2.1",
-  "versionCode": 21000,
+  "versionCode": 21001,
   "minPlatformVersion": 1000,
   "icon": "/common/logo.png",
   "deviceTypeList": [

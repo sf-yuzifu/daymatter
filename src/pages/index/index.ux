@@ -72,7 +72,7 @@ export default {
     allEvents: 0,
     displayModes: ["days", "weeks", "months", "years"],
     currentDisplayModeIndex: 0,
-    bgImage: ""
+    bgImage: "/common/blank.png"
   },
 
   onInit() {
@@ -458,11 +458,11 @@ export default {
         if (bgFiles.length > 0) {
           this.bgImage = bgFiles[0].uri
         } else {
-          this.bgImage = ""
+          this.bgImage = "/common/blank.png"
         }
       },
       fail: () => {
-        this.bgImage = ""
+        this.bgImage = "/common/blank.png"
       }
     })
   },
