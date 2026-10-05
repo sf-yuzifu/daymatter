@@ -113,11 +113,11 @@ export default {
   onShow() {
     this.time = global.getTime()
     this.loadBackground()
+    this.completed()
   },
 
   onReady() {
     router.clear()
-    this.completed()
   },
 
   formatEvent(event, mode) {

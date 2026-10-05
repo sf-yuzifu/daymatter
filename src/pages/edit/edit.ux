@@ -122,70 +122,93 @@ export default {
     on_index: true,
     IFStaringDay: false,
     themeColor: "#3184d0",
-    cache: "",
     callback_uri: "/pages/index",
     event_id: "0",
     time: ""
   },
 
   routeBack() {
-    router.replace({
-      uri: this.callback_uri
-    })
+    if (router.getLength() > 1) {
+      router.back({path: this.callback_uri})
+    } else {
+      router.replace({uri: this.callback_uri})
+    }
   },
 
-  onShow() {
-    this.time = global.getTime()
-  },
-
-  onReady() {
-    // 处理从子页面返回的数据
-    if (this.cache) {
-      const cache = JSON.parse(this.cache)
-      this.event_id = cache.event_id
-      this.callback_uri = cache.callback_uri
-      this.extend = cache.extend
-      this.event_name = cache.event_name
-      this.date = cache.date
-      this.on_index = cache.on_index
-      this.IFStaringDay = cache.IFStaringDay
-      this.themeColor = cache.themeColor || "#3184d0"
-    } else if (this.date == "") {
-      // 初始化默认日期
+  onInit() {
+    // 只用标量标记当前子页请求，不把编辑页对象存入全局。
+    global.__daymatterEditSequence = (global.__daymatterEditSequence || 0) + 1
+    this._editSessionId = String(global.__daymatterEditSequence)
+    this._editRequestSequence = 0
+    this._pendingField = ""
+    this._pendingRequestId = ""
+    if (this.date == "") {
       const _date = new Date()
       this.date = _date.getFullYear() + "-" + (_date.getMonth() + 1) + "-" + _date.getDate()
     }
   },
 
-  getCache() {
-    return {
-      event_id: this.event_id,
-      extend: this.extend,
-      callback_uri: this.callback_uri,
-      event_name: this.event_name,
-      date: this.date,
-      on_index: this.on_index,
-      IFStaringDay: this.IFStaringDay,
-      themeColor: this.themeColor
+  onShow() {
+    this.time = global.getTime()
+    if (this._pendingField === "event_name") {
+      if (global.__daymatterImeOwner === this._pendingRequestId) {
+        const result = global.__imeResult
+        this.clearImeResult()
+        // 返回键取消时保留原名称，确认只更新草稿，不立即写盘。
+        if (result && result.confirmed === true && typeof result.text === "string") {
+          this.event_name = result.text
+        }
+      }
+    } else if (this._pendingField === "date") {
+      const result = global.__daymatterDateResult
+      if (result && result.requestId === this._pendingRequestId) {
+        if (typeof result.date === "string") this.date = result.date
+        global.__daymatterDateResult = null
+      }
     }
+    this._pendingField = ""
+    this._pendingRequestId = ""
+  },
+
+  onDestroy() {
+    this.clearImeResult()
+    const result = global.__daymatterDateResult
+    if (result && result.requestId === this._pendingRequestId) {
+      global.__daymatterDateResult = null
+    }
+    this._pendingField = ""
+    this._pendingRequestId = ""
+  },
+
+  clearImeResult() {
+    if (!this._pendingRequestId || global.__daymatterImeOwner !== this._pendingRequestId) return
+    global.__imeText = ""
+    global.__imeLabel = ""
+    global.__imeResult = null
+    global.__daymatterImeOwner = null
   },
 
   editEventName() {
-    router.push({
-      uri: "/pages/input",
-      params: {
-        cache: JSON.stringify(this.getCache()),
-        field: "event_name"
-      }
-    })
+    if (this._pendingField) return
+    this._pendingField = "event_name"
+    this._pendingRequestId = this._editSessionId + ":" + ++this._editRequestSequence
+    global.__daymatterImeOwner = this._pendingRequestId
+    global.__imeText = this.event_name
+    global.__imeLabel = this.$t("eventName")
+    global.__imeResult = null
+    router.push({uri: "/pages/ime"})
   },
 
   editDate() {
+    if (this._pendingField) return
+    this._pendingField = "date"
+    this._pendingRequestId = this._editSessionId + ":" + ++this._editRequestSequence
+    global.__daymatterDateResult = null
     router.push({
       uri: "/pages/datepicker",
       params: {
-        cache: JSON.stringify(this.getCache()),
-        field: "date"
+        date: this.date,
+        requestId: this._pendingRequestId
       }
     })
   },
@@ -262,11 +285,11 @@ export default {
       uri: "internal://files/events.json",
       text: JSON.stringify(events),
       success: () => {
-        router.replace({uri: this.callback_uri})
         if (this.on_index) {
           this.saveDateToFile()
         }
         showToast({message: this.$t("saveSuccess")})
+        this.routeBack()
       },
       fail: (data, code) => this.showErrorToast(code)
     })
@@ -291,15 +314,15 @@ export default {
           uri: "internal://files/events.json",
           text: JSON.stringify(events),
           success: () => {
-            router.replace({uri: this.callback_uri})
             showToast({message: this.$t("deleteSuccess")})
+            this.routeBack()
           },
           fail: (data, code) => this.showErrorToast(code)
         })
       },
       fail: () => {
         // 文件不存在，直接返回
-        router.replace({uri: this.callback_uri})
+        this.routeBack()
       }
     })
   }

@@ -10,7 +10,7 @@
 
 - **倒数日管理** - 添加、编辑、删除倒数日事件
 - **精美UI界面** - 采用[无源流沙](https://www.bandbbs.cn/threads/14584/)设计的UI风格
-- **便捷输入** - 集成[喵喵输入法组件](https://github.com/NEORUAA/Vela_input_method)，支持多种输入模式
+- **便捷输入** - 沿用[腕上漫画](https://github.com/sf-yuzifu/bandcomic)新版页面化键盘，基于[喵喵输入法](https://github.com/NEORUAA/Vela_input_method)，支持多种输入模式与多屏适配
 - **表盘联动** - 对接倒数日表盘，实时同步数据
 - **多语言支持** - 支持简体中文、繁体中文、英文等多语言
 - **性能优化** - 内存占用优化，运行更流畅
@@ -49,21 +49,25 @@ npm run release
 yarn release
 ```
 
+### 键盘与编辑流程回归
+```bash
+npm run test:ime
+```
+该检查运行页面脚本，覆盖键盘确认 / 取消、草稿保留、资源路径及编辑往返流程；实际触控、渲染和内存表现需在设备上验证。键盘采用腕上漫画的新版独立页面，点击输入行确认，系统返回取消，事件仍在编辑页点击保存后写入。
+
 ## 📁 项目结构
 
 ```
 daymatter/
 ├── src/                    # 源代码目录
 │   ├── common/            # 公共资源（图片、样式、字体）
-│   ├── components/        # 组件
-│   │   └── InputMethod/   # 输入法组件
 │   ├── i18n/              # 国际化文件
 │   ├── pages/             # 页面
 │   │   ├── index/         # 首页
 │   │   ├── list/          # 列表页
 │   │   ├── edit/          # 编辑页
 │   │   ├── datepicker/    # 日期选择器
-│   │   ├── input/         # 输入页
+│   │   ├── ime/           # 新版独立键盘页及完整输入法资源
 │   │   └── about/         # 关于页
 │   ├── app.ux             # 应用入口
 │   ├── manifest.json      # 应用配置

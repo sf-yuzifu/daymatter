@@ -64,9 +64,11 @@ export default {
   },
 
   routeBack() {
-    router.replace({
-      uri: "/pages/index"
-    })
+    if (router.getLength() > 1) {
+      router.back({path: "/pages/index"})
+    } else {
+      router.replace({uri: "/pages/index"})
+    }
   },
 
   formatEvent(event) {

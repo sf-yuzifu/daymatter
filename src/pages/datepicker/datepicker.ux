@@ -37,8 +37,7 @@ import router from "@system.router"
 export default {
   private: {
     time: "",
-    cache: "",
-    field: "",
+    requestId: "",
     date: "",
     currentYear: 2024,
     currentMonth: 1,
@@ -63,11 +62,7 @@ export default {
     this.yearRange = years
 
     // 初始化日期
-    let initDate
-    if (this.cache) {
-      const cache = JSON.parse(this.cache)
-      initDate = cache[this.field] || ""
-    }
+    let initDate = this.date
     
     if (!initDate) {
       initDate = currentYear + "-" + (now.getMonth() + 1) + "-" + now.getDate()
@@ -187,12 +182,8 @@ export default {
   },
 
   saveEvent() {
-    const cache = JSON.parse(this.cache)
-    cache[this.field] = this.date
-    router.replace({
-      uri: "/pages/edit",
-      params: { cache: JSON.stringify(cache) }
-    })
+    global.__daymatterDateResult = {requestId: this.requestId, date: this.date}
+    router.back()
   },
 
   routeBack() {
@@ -293,4 +284,3 @@ export default {
   }
 }
 </style>
-</content>
