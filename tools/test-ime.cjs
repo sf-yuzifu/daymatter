@@ -150,6 +150,79 @@ test("新版路由和所有静态 / 动态图片路径可解析，旧组件资�
   }
 })
 
+test("P-08: 全项目优化后图片与资源完整性校验（无损解码、去重断言、manifest 图标、字体与动态路径）", () => {
+  const {PNG} = require("pngjs")
+
+  // 1. 去重与无引用资源清理断言
+  assert.equal(fs.existsSync(path.join(imeDir, "assets/horizontal/space.png")), false, "去重后的 horizontal/space.png 不应存在")
+  assert.equal(fs.existsSync(path.join(imeDir, "assets/horizontal/down2.png")), false, "去重后的 horizontal/down2.png 不应存在")
+  assert.equal(fs.existsSync(path.join(imeDir, "assets/arc/sign.png")), false, "无引用的 arc/sign.png 不应存在")
+  assert.ok(fs.existsSync(path.join(imeDir, "assets/arc/space.png")), "复用目标 arc/space.png 必须存在")
+  assert.ok(fs.existsSync(path.join(imeDir, "assets/arc/down2.png")), "复用目标 arc/down2.png 必须存在")
+
+  // 2. manifest 图标与字体文件存在性与大小写验证
+  const manifestIconPath = path.join(root, "src", manifest.icon.replace(/^\//, ""))
+  assert.ok(fs.existsSync(manifestIconPath), "manifest 图标文件不存在: " + manifest.icon)
+  assert.ok(fs.readdirSync(path.dirname(manifestIconPath)).includes(path.basename(manifestIconPath)), "manifest 图标大小写不匹配")
+
+  const fontPath = path.join(root, "src/common/iconfont.ttf")
+  assert.ok(fs.existsSync(fontPath), "iconfont 字体文件不存在")
+  assert.ok(fs.statSync(fontPath).size > 0, "iconfont 字体文件为空")
+
+  // 3. 全页面 UX 文件的静态与动态图片引用校验
+  const pagesDir = path.join(root, "src/pages")
+  const pageDirs = fs.readdirSync(pagesDir, {withFileTypes: true})
+    .filter((d) => d.isDirectory())
+    .map((d) => path.join(pagesDir, d.name, d.name + ".ux"))
+  const allUxFiles = [...pageDirs, path.join(root, "src/app.ux")]
+
+  let totalReferencesVerified = 0
+  for (const uxFile of allUxFiles) {
+    if (!fs.existsSync(uxFile)) continue
+    const content = fs.readFileSync(uxFile, "utf8")
+    for (const match of content.matchAll(/src="([^"]+\.png)"/g)) {
+      const src = match[1]
+      let variants = [src]
+      if (src.includes("{{ lang }}")) {
+        variants = ["cn", "en"].map((lang) => src.replace(/\{\{\s*lang\s*\}\}/g, lang))
+      } else if (src.includes("{{ on_index }}") || src.includes("{{ IFStaringDay }}")) {
+        variants = ["true", "false"].map((bool) => src.replace(/\{\{\s*(?:on_index|IFStaringDay)\s*\}\}/g, bool))
+      } else if (src.includes("{{ bgImage }}")) {
+        variants = ["/common/blank.png"]
+      }
+
+      for (const variant of variants) {
+        const resolved = variant.startsWith("/")
+          ? path.join(root, "src", variant.slice(1))
+          : path.resolve(path.dirname(uxFile), variant)
+        assert.ok(fs.existsSync(resolved), `页面 ${path.basename(uxFile)} 中的图片不存在: ${variant} -> ${resolved}`)
+        assert.ok(fs.readdirSync(path.dirname(resolved)).includes(path.basename(resolved)), `图片大小写不匹配: ${variant}`)
+        totalReferencesVerified++
+      }
+    }
+  }
+  assert.ok(totalReferencesVerified > 0, "必须核查到有效的图片引用")
+
+  // 4. 全项目 PNG 均可使用 pngjs 正常解码，且尺寸大于 0
+  let pngCount = 0
+  function checkPngs(dir) {
+    for (const file of fs.readdirSync(dir)) {
+      const full = path.join(dir, file)
+      if (fs.statSync(full).isDirectory()) checkPngs(full)
+      else if (file.endsWith(".png")) {
+        const buf = fs.readFileSync(full)
+        assert.ok(buf.length > 0, "PNG 文件为空: " + full)
+        const decoded = PNG.sync.read(buf)
+        assert.ok(decoded.width > 0 && decoded.height > 0, "PNG 解码尺寸非法: " + full)
+        assert.equal(decoded.data.length, decoded.width * decoded.height * 4, "解码 RGBA 缓冲区大小不匹配: " + full)
+        pngCount++
+      }
+    }
+  }
+  checkPngs(path.join(root, "src"))
+  assert.equal(pngCount, 70, "优化后的 PNG 文件数量应为 70")
+})
+
 test("原名称和本地化标题进入新版键盘，确认只改名称草稿", () => {
   const h = createHarness()
   const editor = h.openEditor()
