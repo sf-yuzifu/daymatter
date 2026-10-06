@@ -2,6 +2,7 @@
   <div class="index-page">
     <img
       class="bg"
+      if="{{ contentVisible && bgImage }}"
       style="width: {{ global.screenSize.width }};height: {{ global.screenSize.height }};"
       src="{{ bgImage }}"
     />
@@ -24,7 +25,7 @@
       @click="routeBack"
     />
     <swiper
-      if="{{ !is_no_event }}"
+      if="{{ contentVisible && !is_no_event }}"
       index="{{ swiperIndex }}"
       indicator="false"
       class="countdown-swiper"
@@ -55,7 +56,7 @@
         </div>
       </div>
     </swiper>
-    <div id="empty" if="{{ is_no_event }}">
+    <div id="empty" if="{{ contentVisible && is_no_event }}">
       <img src="/common/empty.png" />
       <text id="emp">{{ $t("empty") }}</text>
     </div>
@@ -74,6 +75,7 @@ import router from "@system.router"
 import file from "@system.file"
 import {showToast} from "@system.prompt"
 import interconnect from "@system.interconnect"
+import interconnectHub from "../../components/interconnectHub"
 
 const DISPLAY_MODES = ["days", "weeks", "months", "years"]
 
@@ -114,7 +116,7 @@ function isNameOverflow(name, fontSize, availableWidth) {
   return textWidth > availableWidth
 }
 
-let connect, isOnMessageRegistered
+let connect
 
 export default {
   private: {
@@ -122,8 +124,9 @@ export default {
     events: [],
     slots: [],
     is_no_event: true,
-    bgImage: "/common/blank.png",
+    bgImage: "",
     pageVisible: false,
+    contentVisible: false,
     activeSourceIndex: -1,
     swiperIndex: 0
   },
@@ -133,50 +136,69 @@ export default {
     this.currentDisplayModeIndex = 0
     this._currentSlot = 0
     this._currentSource = 0
-    connect = interconnect.instance()
-    // 如果 interconnect 不可用，直接返回
-    if (!connect) {
+    this._destroyed = false
+    this._needsRefresh = false
+    this._messageHandler = null
+    connect = interconnectHub.getConnection(interconnect)
+    if (!connect) return
+    // 订阅应用级分发：处理器只在页面存活期间挂载，销毁时解除
+    this._messageHandler = (message) => this.handleInterconnectMessage(message)
+    interconnectHub.subscribeMessage(this._messageHandler)
+  },
+
+  handleInterconnectMessage(message) {
+    if (this._destroyed) return
+    let parsedData
+    try {
+      parsedData = JSON.parse(message.data)
+    } catch (e) {
+      console.error("JSON parse error:", e)
       return
     }
-    if (isOnMessageRegistered) {
-      return
+
+    showToast({message: parsedData.type, duration: 200})
+
+    const handlers = {
+      getAllEvent: () => this.handleGetAllEvent(),
+      addEvent: () => this.handleAddEvent(parsedData),
+      changeEvent: () => this.handleChangeEvent(parsedData),
+      deleteEvent: () => this.handleDeleteEvent(parsedData),
+      addBG: () => this.handleAddBG(parsedData)
     }
-    isOnMessageRegistered = true
 
-    connect.onmessage = (message) => {
-      let parsedData
-      try {
-        parsedData = JSON.parse(message.data)
-      } catch (e) {
-        console.error("JSON parse error:", e)
-        return
-      }
-
-      showToast({message: parsedData.type, duration: 200})
-
-      const handlers = {
-        getAllEvent: () => this.handleGetAllEvent(),
-        addEvent: () => this.handleAddEvent(parsedData),
-        changeEvent: () => this.handleChangeEvent(parsedData),
-        deleteEvent: () => this.handleDeleteEvent(parsedData),
-        addBG: () => this.handleAddBG(parsedData)
-      }
-
-      const handler = handlers[parsedData.type]
-      if (handler) handler()
-    }
+    const handler = handlers[parsedData.type]
+    if (handler) handler()
   },
 
   onShow() {
     this.pageVisible = true
+    this.contentVisible = true
     this.time = global.getTime()
     this.loadBackground()
     this.completed()
   },
 
   onHide() {
-    // 离开页面立即停止跑马灯，重新显示时按需恢复
+    // 离开页面立即停止跑马灯并释放重内容节点；卡片位置由 _currentSource 保留
     this.pageVisible = false
+    this.contentVisible = false
+    this.events = []
+    this.slots = []
+    this.activeSourceIndex = -1
+  },
+
+  onDestroy() {
+    this._destroyed = true
+    if (this._messageHandler) {
+      interconnectHub.unsubscribeMessage(this._messageHandler)
+      this._messageHandler = null
+    }
+    this.events = []
+    this.slots = []
+    this.bgImage = ""
+    this.activeSourceIndex = -1
+    this._needsRefresh = false
+    if (typeof global.tryRunGC === "function") global.tryRunGC()
   },
 
   onReady() {
@@ -369,6 +391,12 @@ export default {
     file.readText({
       uri: "internal://files/events.json",
       success: (data) => {
+        if (this._destroyed) return
+        if (!this.pageVisible) {
+          // 隐藏页只标记需要刷新，不在隐藏 UI 上重建
+          this._needsRefresh = true
+          return
+        }
         let events
         try {
           events = JSON.parse(data.text)
@@ -382,30 +410,46 @@ export default {
         this.events = events
           .filter((e) => e.on_index)
           .map((e, i) => this.formatEvent(e, currentMode, i, nameMetrics))
+        this._needsRefresh = false
         this.setupSlots()
       },
-      fail: (data, code) => console.error(`handling fail, code = ${code}`)
+      fail: (data, code) => {
+        if (this._destroyed) return
+        console.error(`handling fail, code = ${code}`)
+      }
     })
   },
 
   setupSlots() {
-    // 首页最多保留三个槽位：当前、下一个、上一个（循环）
+    // 首页最多保留三个槽位：当前、下一个、上一个（循环），并恢复上次浏览的卡片
     const total = this.events.length
     this.is_no_event = total === 0
-    this._currentSlot = 0
-    this._currentSource = 0
     this.swiperIndex = 0
     if (total === 0) {
       this.slots = []
       this.activeSourceIndex = -1
+      this._currentSlot = 0
+      this._currentSource = 0
       return
     }
+    let source = this._currentSource
+    if (source < 0) source = 0
+    if (source >= total) source = total - 1
+    this._currentSource = source
     if (total <= 3) {
       this.slots = this.events.slice(0, total)
+      this._currentSlot = source
+      this.swiperIndex = source
     } else {
-      this.slots = [this.events[0], this.events[1], this.events[total - 1]]
+      this.slots = [
+        this.events[source],
+        this.events[(source + 1) % total],
+        this.events[(source - 1 + total) % total]
+      ]
+      this._currentSlot = 0
+      this.swiperIndex = 0
     }
-    this.activeSourceIndex = 0
+    this.activeSourceIndex = source
     this.resumeMarquee()
   },
 
@@ -460,15 +504,20 @@ export default {
     file.readText({
       uri: "internal://files/events.json",
       success: (data) => {
+        if (this._destroyed) return
         let events
         try {
           events = JSON.parse(data.text)
         } catch (e) {
           events = []
         }
+        if (!Array.isArray(events)) events = []
         successCallback(events)
       },
-      fail: () => successCallback([])
+      fail: () => {
+        if (this._destroyed) return
+        successCallback([])
+      }
     })
   },
 
@@ -477,26 +526,41 @@ export default {
       uri: "internal://files/events.json",
       text: JSON.stringify(events),
       success: () => {
+        if (this._destroyed) return
         showToast({message: this.$t(successMsgKey), duration: 2000})
-        this.completed()
+        if (this.pageVisible) {
+          this.completed()
+        } else {
+          // 隐藏页只标记需要刷新，等 onShow 再统一重建
+          this._needsRefresh = true
+        }
       },
       fail: (data, code) => {
+        if (this._destroyed) return
         showToast({message: this.$t("saveFail", {code})})
       }
     })
   },
 
   handleGetAllEvent() {
+    if (this._destroyed) return
     this.readEvents((events) => {
       connect.send({
         data: {data: events},
-        success: () => showToast({message: this.$t("syncSuccess"), duration: 2000}),
-        fail: () => showToast({message: this.$t("syncFail"), duration: 2000})
+        success: () => {
+          if (this._destroyed) return
+          showToast({message: this.$t("syncSuccess"), duration: 2000})
+        },
+        fail: () => {
+          if (this._destroyed) return
+          showToast({message: this.$t("syncFail"), duration: 2000})
+        }
       })
     })
   },
 
   handleAddEvent(data) {
+    if (this._destroyed) return
     this.readEvents((events) => {
       const eventData = {
         name: data.name,
@@ -511,6 +575,7 @@ export default {
   },
 
   handleChangeEvent(data) {
+    if (this._destroyed) return
     this.readEvents((events) => {
       const {index} = data
       if (index >= 0 && index < events.length) {
@@ -528,6 +593,7 @@ export default {
   },
 
   handleDeleteEvent(data) {
+    if (this._destroyed) return
     this.readEvents((events) => {
       if (data.index >= 0 && data.index < events.length) {
         events.splice(data.index, 1)
@@ -537,6 +603,7 @@ export default {
   },
 
   handleAddBG(data) {
+    if (this._destroyed) return
     const {bgBase64} = data
     if (!bgBase64) {
       showToast({message: "No image data", duration: 2000})
@@ -548,6 +615,7 @@ export default {
     const oldFileUri = this.bgImage
 
     const saveBackground = () => {
+      if (this._destroyed) return
       try {
         const arrayBuffer = global.base64ToArrayBuffer(bgBase64)
         const uint8Array = new Uint8Array(arrayBuffer)
@@ -556,10 +624,16 @@ export default {
           uri: newFileUri,
           buffer: uint8Array,
           success: () => {
-            this.bgImage = newFileUri
+            if (this._destroyed) return
+            if (this.pageVisible) {
+              this.bgImage = newFileUri
+            } else {
+              this._needsRefresh = true
+            }
             showToast({message: this.$t("bgUpdateSuccess"), duration: 2000})
           },
           fail: (d, code) => {
+            if (this._destroyed) return
             showToast({message: this.$t("bgSaveFail", {code}), duration: 2000})
           }
         })
@@ -584,21 +658,20 @@ export default {
     file.list({
       uri: "internal://files/",
       success: (data) => {
-        const bgFiles = data.fileList
+        if (this._destroyed) return
+        const bgFiles = (data.fileList || [])
           .filter(f => f.uri && f.uri.match(/bg_\d+\.png$/))
           .sort((a, b) => {
             const timeA = parseInt(a.uri.match(/bg_(\d+)\.png/)[1])
             const timeB = parseInt(b.uri.match(/bg_(\d+)\.png/)[1])
             return timeB - timeA
           })
-        if (bgFiles.length > 0) {
-          this.bgImage = bgFiles[0].uri
-        } else {
-          this.bgImage = "/common/blank.png"
-        }
+        // 无自定义背景时留空，直接用黑色底色，不创建 blank.png 背景节点
+        this.bgImage = bgFiles.length > 0 ? bgFiles[0].uri : ""
       },
       fail: () => {
-        this.bgImage = "/common/blank.png"
+        if (this._destroyed) return
+        this.bgImage = ""
       }
     })
   },

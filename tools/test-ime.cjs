@@ -28,6 +28,10 @@ function createHarness() {
     maxDepth: 0,
     replacements: 0,
     files: new Map([["internal://files/events.json", "[]"]]),
+    bgFiles: [],
+    connection: null,
+    deferReads: false,
+    deferWrites: false,
     global: {
       screenShape: "pill-shaped",
       screenSize: {width: 192, height: 490},
@@ -42,6 +46,10 @@ function createHarness() {
   const dict = loadModule(fs.readFileSync(path.join(imeDir, "assets/dic.js"), "utf8"), {}, "dict")
   const SimpleInputMethod = loadModule(
     fs.readFileSync(path.join(imeDir, "assets/dicUtil.js"), "utf8"), {dict}, "SimpleInputMethod"
+  )
+  // 每个 harness 持有自己的应用级互联中心实例（与页面脚本共享同一份）
+  const interconnectHub = loadModule(
+    fs.readFileSync(path.join(root, "src/components/interconnectHub.js"), "utf8"), {}, "unused"
   )
   const current = () => state.pages[state.pages.length - 1]
   const show = () => { if (current().onShow) current().onShow() }
@@ -63,7 +71,22 @@ function createHarness() {
           console: {log() {}, error() {}},
           vibrator: {vibrate(options) { state.vibrations.push(options) }},
           device: {getInfo({success}) { success({screenWidth: state.global.screenSize.width}) }},
-          interconnect: {instance: () => null}
+          interconnect: {
+            instance() {
+              if (!state.connection) {
+                state.connection = {
+                  onmessage: null,
+                  sent: [],
+                  send(options) {
+                    state.connection.sent.push(options)
+                    if (options.success) options.success()
+                  }
+                }
+              }
+              return state.connection
+            }
+          },
+          interconnectHub
         }, "unused")
         state.definitions.set(route, definition)
       }
@@ -105,18 +128,40 @@ function createHarness() {
     },
     getLength: () => state.pages.length
   }
+  const readQueue = []
+  const writeQueue = []
   const file = {
     readText({uri, success, fail}) {
-      if (state.files.has(uri)) success({text: state.files.get(uri)})
-      else if (fail) fail("not found", 301)
+      const run = () => {
+        if (state.files.has(uri)) success({text: state.files.get(uri)})
+        else if (fail) fail("not found", 301)
+      }
+      if (state.deferReads) readQueue.push(run)
+      else run()
     },
     writeText({uri, text, success}) {
-      state.files.set(uri, text)
-      state.writes.push(uri)
+      const run = () => {
+        state.files.set(uri, text)
+        state.writes.push(uri)
+        if (success) success()
+      }
+      if (state.deferWrites) writeQueue.push(run)
+      else run()
+    },
+    writeArrayBuffer({uri, success}) {
+      state.files.set(uri, "[buffer]")
       if (success) success()
     },
-    list({success}) { success({fileList: []}) }
+    delete({uri, success}) {
+      state.files.delete(uri)
+      if (success) success()
+    },
+    list({success}) {
+      success({fileList: state.bgFiles.map((uri) => ({uri}))})
+    }
   }
+  state.flushReads = () => { while (readQueue.length) readQueue.shift()() }
+  state.flushWrites = () => { while (writeQueue.length) writeQueue.shift()() }
   state.router = router
   state.current = current
   state.openEditor = (params = {}) => {
@@ -980,4 +1025,197 @@ test("C-19: 跑马灯仅在当前可见且名称超宽时启用，隐藏 / 离�
   editor.onHide()
   assert.equal(editor.pageVisible, false, "编辑页离开时停止跑马灯")
   assert.equal(home.pageVisible, false, "进入子页面时首页跑马灯也停止")
+})
+
+test("C-02: 首页 / 列表 / 编辑 / 键盘 / 日期连续 30 次往返页面栈有界", () => {
+  const h = createHarness()
+  seedEvents(h, 3)
+  const home = h.router.push({uri: "/pages/index"})
+  for (let i = 0; i < 30; i++) {
+    home.routeMore()
+    const list = h.current()
+    list.routeEditEvent(i % 3)
+    const editor = h.current()
+    editor.editEventName()
+    h.current().context = "名称" + i
+    h.current().finish(true)
+    editor.editDate()
+    h.current().saveEvent()
+    editor.routeBack()
+    assert.equal(h.current(), list, "编辑返回必须回到列表")
+    list.routeBack()
+    assert.equal(h.current(), home, "列表返回必须回到首页")
+    assert.equal(h.pages.length, 1, "连续往返不得堆积页面")
+  }
+  assert.equal(h.maxDepth, 4, "峰值深度固定为首页 / 列表 / 编辑 / 子页")
+})
+
+test("C-06: 互联消息由应用级单例分发，页面销毁解除订阅，隐藏页只标记刷新", () => {
+  const h = createHarness()
+  seedEvents(h, 1)
+  const home = h.router.push({uri: "/pages/index"})
+  const conn = h.connection
+  assert.ok(conn, "首页必须建立应用级连接")
+  assert.equal(typeof conn.onmessage, "function", "单例连接只安装分发器")
+
+  // 隐藏页收到插件新增：写盘但不重建隐藏 UI
+  home.routeMore()
+  const list = h.current()
+  assert.equal(home.pageVisible, false)
+  assert.equal(home.events.length, 0)
+  conn.onmessage({
+    data: JSON.stringify({
+      type: "addEvent", name: "插件新增", date: "2026-12-01",
+      on_index: true, IFStaringDay: false, themeColor: "#3184d0"
+    })
+  })
+  assert.equal(JSON.parse(h.files.get("internal://files/events.json")).length, 2, "插件新增必须写入文件")
+  assert.equal(home.events.length, 0, "隐藏页不得重建展示数据")
+  assert.equal(home._needsRefresh, true, "隐藏页只标记需要刷新")
+
+  // 返回首页后按最新数据重建
+  list.routeBack()
+  assert.equal(h.current(), home)
+  assert.ok(home.events.some((e) => e.name.includes("插件新增")))
+  assert.equal(home._needsRefresh, false)
+
+  // 页面销毁后解除订阅：分发器不再持有旧页面
+  home.onDestroy()
+  const before = h.files.get("internal://files/events.json")
+  conn.onmessage({data: JSON.stringify({type: "deleteEvent", index: 0})})
+  assert.equal(h.files.get("internal://files/events.json"), before, "销毁后不得再处理旧页面订阅")
+
+  // 新首页实例重新订阅后可正常处理
+  const fresh = h.router.push({uri: "/pages/index"})
+  assert.notEqual(fresh, home)
+  conn.onmessage({data: JSON.stringify({type: "deleteEvent", index: 0})})
+  assert.equal(JSON.parse(h.files.get("internal://files/events.json")).length, 1)
+})
+
+test("C-05: 页面销毁后停止在途回调，迟到结果不重建 / 不导航", () => {
+  const h = createHarness()
+  seedEvents(h, 1)
+  const home = h.router.push({uri: "/pages/index"})
+  home.routeMore()
+  const list = h.current()
+  list.routeEditEvent(0)
+  const editor = h.current()
+
+  // 保存写盘在途时页面销毁：文件写入完成，但不得再触发返回 / 提示
+  editor.event_name = "在途保存"
+  h.deferWrites = true
+  editor.saveEvent()
+  const pagesBefore = h.pages.length
+  editor.onDestroy()
+  h.flushWrites()
+  h.deferWrites = false
+  assert.equal(h.pages.length, pagesBefore, "迟到回调不得再触发页面导航")
+  assert.equal(h.current(), editor)
+  assert.equal(JSON.parse(h.files.get("internal://files/events.json"))[0].name, "在途保存", "文件写入仍应完成")
+
+  // 列表读取回调迟到：销毁后不得写入已释放的页面数据
+  h.deferReads = true
+  const list2 = h.router.push({uri: "/pages/list"})
+  assert.equal(list2._allEvents.length, 0)
+  list2.onDestroy()
+  h.deferReads = false
+  h.flushReads()
+  assert.equal(list2._allEvents.length, 0, "销毁后的迟到读取不得写回页面")
+  assert.equal(list2.events.length, 0)
+})
+
+test("C-03/C-04: 隐藏页先释放重内容再创建新页，返回恢复卡片位置 / 页码 / 草稿", () => {
+  const h = createHarness()
+  seedEvents(h, 12)
+  const home = h.router.push({uri: "/pages/index"})
+  home.onSwiperChange({index: 1})
+  assert.equal(home.activeSourceIndex, 1)
+
+  // 首页 → 列表：旧页释放先于新页显示
+  home.routeMore()
+  const list = h.current()
+  assert.equal(home.pageVisible, false)
+  assert.equal(home.contentVisible, false)
+  assert.equal(home.events.length, 0, "隐藏首页必须释放展示数据")
+  assert.equal(list.contentVisible, true, "新页面创建时旧页已释放")
+
+  // 列表翻页 → 编辑：列表释放、页码保留
+  list.changePage(2)
+  assert.equal(list.page, 2)
+  list.routeEditEvent(10)
+  const editor = h.current()
+  assert.equal(list.contentVisible, false)
+  assert.equal(list.events.length, 0)
+  assert.equal(list._allEvents.length, 0)
+
+  // 编辑 → 键盘：表单释放、草稿与请求归属保留
+  editor.event_name = "草稿名称"
+  editor.editEventName()
+  const ime = h.current()
+  assert.equal(editor.contentVisible, false, "编辑页隐藏时释放表单节点")
+  assert.equal(editor.event_name, "草稿名称", "草稿必须保留")
+  assert.equal(h.global.__daymatterImeOwner, editor._pendingRequestId, "输入请求归属保持不变")
+  ime.context = "确认后的名称"
+  ime.finish(true)
+  assert.equal(h.current(), editor)
+  assert.equal(editor.contentVisible, true, "返回后恢复表单")
+  assert.equal(editor.event_name, "确认后的名称")
+
+  // 返回列表：恢复页码与存储下标
+  editor.routeBack()
+  assert.equal(h.current(), list)
+  assert.equal(list.contentVisible, true)
+  assert.equal(list.page, 2)
+  assert.equal(list.events[0].storageIndex, 10)
+
+  // 返回首页：恢复原卡片位置
+  list.routeBack()
+  assert.equal(h.current(), home)
+  assert.equal(home.contentVisible, true)
+  assert.equal(home.activeSourceIndex, 1)
+  assert.equal(home._currentSource, 1)
+})
+
+test("C-26: 无自定义背景时不创建背景节点，有背景时按需创建并兼容旧文件", () => {
+  const indexSource = fs.readFileSync(path.join(root, "src/pages/index/index.ux"), "utf8")
+  assert.ok(indexSource.includes('if="{{ contentVisible && bgImage }}"'), "背景节点必须按需创建")
+  assert.ok(fs.existsSync(path.join(root, "src/common/blank.png")), "保留背景兼容文件")
+
+  const h = createHarness()
+  seedEvents(h, 1)
+  const home = h.router.push({uri: "/pages/index"})
+  assert.equal(home.bgImage, "", "无自定义背景必须留空，使用黑色底色")
+
+  h.bgFiles = ["internal://files/bg_1700000000000.png"]
+  home.onShow()
+  assert.equal(home.bgImage, "internal://files/bg_1700000000000.png", "有背景时按需引用")
+})
+
+test("C-25: runGC 仅在宿主持有时低频调用，不在高频路径触发", () => {
+  const gcSource = fs.readFileSync(path.join(root, "src/components/gcGuard.js"), "utf8")
+  const runCalls = []
+  const gcGlobal = {
+    runGC() {
+      runCalls.push(1)
+    }
+  }
+  const gcModule = loadModule(gcSource, {global: gcGlobal}, "unused")
+  const guard = gcModule.createGcGuard()
+  assert.equal(guard(), true, "宿主可用时执行一次")
+  assert.equal(guard(), false, "短时间内重复调用必须被节流")
+  assert.equal(runCalls.length, 1)
+  assert.equal(guard(), false)
+  assert.equal(runCalls.length, 1)
+
+  const noGcModule = loadModule(gcSource, {global: {}}, "unused")
+  assert.equal(noGcModule.createGcGuard()(), false, "宿主无 runGC 时必须安全跳过")
+
+  // 只在页面销毁路径调用，且不得新增常驻高频计时器
+  for (const file of ["src/pages/index/index.ux", "src/pages/list/list.ux", "src/pages/ime/ime.ux"]) {
+    const source = fs.readFileSync(path.join(root, file), "utf8")
+    assert.ok(source.includes("global.tryRunGC"), file + " 必须在销毁路径按需调用 GC")
+    assert.ok(!source.includes("setInterval"), file + " 不得新增常驻高频计时器")
+  }
+  const appSource = fs.readFileSync(path.join(root, "src/app.ux"), "utf8")
+  assert.ok(appSource.includes("createGcGuard"), "app.ux 必须安装低频 GC 守卫")
 })

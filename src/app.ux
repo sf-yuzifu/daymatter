@@ -1,7 +1,11 @@
 <script>
 import device from "@system.device"
+import gcGuard from "./components/gcGuard"
 
 let screenSize = {width: 0, height: 0}
+
+// 低频 GC 守卫：页面释放大块数据后按需调用，宿主持有 runGC 时才真正执行
+global.tryRunGC = gcGuard.createGcGuard()
 
 device.getInfo({
   success: function (deviceRet) {

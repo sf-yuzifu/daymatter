@@ -17,7 +17,7 @@
     <img else class="top" src="/common/back.png" @click="routeBack" />
     <text class="count" if="{{ global.isPillShaped }}">{{ $t("eventCount", {count: count}) }}</text>
     <div class="box">
-      <list class="event-list" bounces="true">
+      <list class="event-list" bounces="true" if="{{ contentVisible }}">
         <list-item
           for="{{ events }}"
           type="event"
@@ -100,12 +100,14 @@ export default {
     events: [],
     time: "",
     page: 1,
-    totalPages: 1
+    totalPages: 1,
+    contentVisible: false
   },
 
   onInit() {
     // 原始事件快照只保存在非响应式属性，展示数组只保留当前页
     this._allEvents = []
+    this._destroyed = false
   },
 
   onBackPress() {
@@ -165,6 +167,7 @@ export default {
   },
 
   onShow() {
+    this.contentVisible = true
     this.time = global.getTime()
     // 从编辑 / 新增返回时恢复原页；列表销毁重建也由模块级变量兜底
     const restorePage = pendingListPage
@@ -172,6 +175,7 @@ export default {
     file.readText({
       uri: "internal://files/events.json",
       success: (data) => {
+        if (this._destroyed || !this.contentVisible) return
         let events
         try {
           events = JSON.parse(data.text)
@@ -183,10 +187,25 @@ export default {
         this.showPage(restorePage > 0 ? restorePage : this.page)
       },
       fail: () => {
+        if (this._destroyed || !this.contentVisible) return
         this._allEvents = []
         this.showPage(1)
       }
     })
+  },
+
+  onHide() {
+    // 隐藏时释放列表节点与展示数据，页码 / 原始下标在重新显示时重新校验
+    this.contentVisible = false
+    this._allEvents = []
+    this.events = []
+  },
+
+  onDestroy() {
+    this._destroyed = true
+    this._allEvents = []
+    this.events = []
+    if (typeof global.tryRunGC === "function") global.tryRunGC()
   },
 
   showPage(targetPage) {

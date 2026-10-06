@@ -4,7 +4,7 @@
     <text class="title" if="{{ global.screenShape == 'rect' }}">
       {{ extend == "true" ? $t("addEvent") : $t("editEvent") }}
     </text>
-    <div class="box padding">
+    <div class="box padding" if="{{ contentVisible }}">
       <scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
         <div class="line" style="margin-bottom: 10px">
           <text style="margin-left: 14px">{{ $t("eventName") }}</text>
@@ -129,7 +129,8 @@ export default {
     callback_uri: "/pages/index",
     event_id: "0",
     time: "",
-    pageVisible: false
+    pageVisible: false,
+    contentVisible: false
   },
 
   routeBack() {
@@ -147,6 +148,8 @@ export default {
     this._editRequestSequence = 0
     this._pendingField = ""
     this._pendingRequestId = ""
+    this._destroyed = false
+    this._saving = false
     if (this.date == "") {
       const _date = new Date()
       this.date = _date.getFullYear() + "-" + (_date.getMonth() + 1) + "-" + _date.getDate()
@@ -155,6 +158,7 @@ export default {
 
   onShow() {
     this.pageVisible = true
+    this.contentVisible = true
     this.time = global.getTime()
     if (this._pendingField === "event_name") {
       if (global.__daymatterImeOwner === this._pendingRequestId) {
@@ -177,11 +181,13 @@ export default {
   },
 
   onHide() {
-    // 离开页面时移除跑马灯节点，停止滚动
+    // 离开页面时移除跑马灯与表单节点，停止滚动；草稿数据保留在 this 中
     this.pageVisible = false
+    this.contentVisible = false
   },
 
   onDestroy() {
+    this._destroyed = true
     this.clearImeResult()
     const result = global.__daymatterDateResult
     if (result && result.requestId === this._pendingRequestId) {
@@ -189,6 +195,8 @@ export default {
     }
     this._pendingField = ""
     this._pendingRequestId = ""
+    this.event_name = ""
+    this._saving = false
   },
 
   clearImeResult() {
@@ -257,11 +265,13 @@ export default {
   },
 
   saveEvent() {
+    if (this._saving) return
     if (this.event_name == "") {
       showToast({message: this.$t("eventNameRequired")})
       return
     }
 
+    this._saving = true
     this.on_index = this.normalizeBoolean(this.on_index)
     this.IFStaringDay = this.normalizeBoolean(this.IFStaringDay)
 
@@ -276,7 +286,14 @@ export default {
     file.readText({
       uri: "internal://files/events.json",
       success: (data) => {
-        let events = JSON.parse(data.text)
+        if (this._destroyed) return
+        let events
+        try {
+          events = JSON.parse(data.text)
+        } catch (e) {
+          events = []
+        }
+        if (!Array.isArray(events)) events = []
         if (this.extend == "true") {
           events.push(event)
         } else {
@@ -285,6 +302,7 @@ export default {
         this.writeEvents(events)
       },
       fail: () => {
+        if (this._destroyed) return
         // 文件不存在时，创建新数组
         this.writeEvents([event])
       }
@@ -296,13 +314,18 @@ export default {
       uri: "internal://files/events.json",
       text: JSON.stringify(events),
       success: () => {
+        if (this._destroyed) return
         if (this.on_index) {
           this.saveDateToFile()
         }
         showToast({message: this.$t("saveSuccess")})
         this.routeBack()
       },
-      fail: (data, code) => this.showErrorToast(code)
+      fail: (data, code) => {
+        if (this._destroyed) return
+        this._saving = false
+        this.showErrorToast(code)
+      }
     })
   },
 
@@ -311,27 +334,45 @@ export default {
       uri: "internal://files/date.txt",
       text: `${this.event_name},${this.date},${this.IFStaringDay}`,
       success: () => {},
-      fail: (data, code) => this.showErrorToast(code)
+      fail: (data, code) => {
+        if (this._destroyed) return
+        this.showErrorToast(code)
+      }
     })
   },
 
   deleteEvent() {
+    if (this._saving) return
+    this._saving = true
     file.readText({
       uri: "internal://files/events.json",
       success: (data) => {
-        let events = JSON.parse(data.text)
+        if (this._destroyed) return
+        let events
+        try {
+          events = JSON.parse(data.text)
+        } catch (e) {
+          events = []
+        }
+        if (!Array.isArray(events)) events = []
         events.splice(Number(this.event_id), 1)
         file.writeText({
           uri: "internal://files/events.json",
           text: JSON.stringify(events),
           success: () => {
+            if (this._destroyed) return
             showToast({message: this.$t("deleteSuccess")})
             this.routeBack()
           },
-          fail: (data, code) => this.showErrorToast(code)
+          fail: (data, code) => {
+            if (this._destroyed) return
+            this._saving = false
+            this.showErrorToast(code)
+          }
         })
       },
       fail: () => {
+        if (this._destroyed) return
         // 文件不存在，直接返回
         this.routeBack()
       }

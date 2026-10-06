@@ -997,6 +997,7 @@ export default {
     this.lastWaitingStr = "";
     // 非响应式查词缓存：拼音 -> 候选数组，相同拼音直接复用，避免重复查词与分割
     this._searchCache = {};
+    this._destroyed = false;
     // 不变配置移出响应式数据：输入类型、屏幕类型与候选索引表仅在初始化时赋值一次
     this.keyboardtype = "QWERTY";
     this.screentype = global.screenShape || "circle";
@@ -1026,12 +1027,14 @@ export default {
     this._searchCache = {};
   },
   onDestroy() {
+    this._destroyed = true;
     // 页面销毁时释放查词缓存、候选与展开分组，不遗留输入历史
     this.clearSearchCache();
     this.resultList = [];
     this.resultList2 = [];
     this.waitingList = [];
     this.lastWaitingStr = "";
+    if (typeof global.tryRunGC === "function") global.tryRunGC();
   },
   addAllTxt(txt) {
     // 原 $emit("complete")：增量回传已输入文本，现直接维护页面自身 context
@@ -1300,6 +1303,7 @@ export default {
     }
     device.getInfo({
       success: (data) => {
+        if (this._destroyed) return;
         this.screenWidth = data.screenWidth;
       },
     });
