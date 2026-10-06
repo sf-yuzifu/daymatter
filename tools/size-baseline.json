@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "artifact": {
+    "file": "dist/com.yzf.daymatter.release.2.1.rpk",
+    "sha256": "d9c20208d53ca901688d567e163293b75a7ff96ec0418748ec3198da29ef0c2d",
+    "bytes": 203199,
+    "files": 91,
+    "rawBytes": 265473,
+    "compressedBytes": 184538,
+    "containerOverheadBytes": 18661
+  },
+  "application": {
+    "package": "com.yzf.daymatter",
+    "versionName": "2.1",
+    "versionCode": 21001
+  },
+  "build": {
+    "configuredReleaseCommand": "aiot release --enable-custom-component --enable-jsc",
+    "commandSource": "package.json scripts.release at analysis time",
+    "embedded": {
+      "toolkit": "2.0.5",
+      "timeStamp": "2026-10-05T15:52:54.271Z",
+      "node": "v26.9.0",
+      "platform": "win32",
+      "arch": "x64",
+      "component": true
+    },
+    "signingCertificate": {
+      "path": "sign/certificate.pem",
+      "sha256": "24e9389a1b447e316bcb5054ead31cf99385e5ea9d6221c1bf958a42b9bd0837",
+      "embeddedMatch": true
+    }
+  },
+  "categories": {
+    "font": {
+      "files": 1,
+      "rawBytes": 1752,
+      "compressedBytes": 864
+    },
+    "i18n": {
+      "files": 5,
+      "rawBytes": 5612,
+      "compressedBytes": 2680
+    },
+    "jsc": {
+      "files": 7,
+      "rawBytes": 127561,
+      "compressedBytes": 52280
+    },
+    "manifest": {
+      "files": 2,
+      "rawBytes": 2391,
+      "compressedBytes": 877
+    },
+    "metadata": {
+      "files": 2,
+      "rawBytes": 6476,
+      "compressedBytes": 5862
+    },
+    "other": {
+      "files": 1,
+      "rawBytes": 2,
+      "compressedBytes": 4
+    },
+    "png": {
+      "files": 73,
+      "rawBytes": 121679,
+      "compressedBytes": 121971
+    }
+  },
+  "directories": {
+    "META-INF": {
+      "files": 2,
+      "rawBytes": 6476,
+      "compressedBytes": 5862
+    },
+    "app.jsc": {
+      "files": 1,
+      "rawBytes": 4621,
+      "compressedBytes": 2422
+    },
+    "common": {
+      "files": 18,
+      "rawBytes": 79907,
+      "compressedBytes": 79088
+    },
+    "config-watch.json": {
+      "files": 1,
+      "rawBytes": 2,
+      "compressedBytes": 4
+    },
+    "i18n": {
+      "files": 5,
+      "rawBytes": 5612,
+      "compressedBytes": 2680
+    },
+    "manifest-watch.json": {
+      "files": 1,
+      "rawBytes": 1094,
+      "compressedBytes": 385
+    },
+    "manifest.json": {
+      "files": 1,
+      "rawBytes": 1297,
+      "compressedBytes": 492
+    },
+    "pages/about": {
+      "files": 1,
+      "rawBytes": 8345,
+      "compressedBytes": 3077
+    },
+    "pages/datepicker": {
+      "files": 1,
+      "rawBytes": 8416,
+      "compressedBytes": 3525
+    },
+    "pages/edit": {
+      "files": 1,
+      "rawBytes": 13946,
+      "compressedBytes": 4981
+    },
+    "pages/ime": {
+      "files": 57,
+      "rawBytes": 109932,
+      "compressedBytes": 71380
+    },
+    "pages/index": {
+      "files": 1,
+      "rawBytes": 16432,
+      "compressedBytes": 6903
+    },
+    "pages/list": {
+      "files": 1,
+      "rawBytes": 9393,
+      "compressedBytes": 3739
+    }
+  }
+}

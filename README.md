@@ -55,6 +55,33 @@ npm run test:ime
 ```
 该检查运行页面脚本，覆盖键盘确认 / 取消、草稿保留、资源路径及编辑往返流程；实际触控、渲染和内存表现需在设备上验证。键盘采用腕上漫画的新版独立页面，点击输入行确认，系统返回取消，事件仍在编辑页点击保存后写入。
 
+### 无损图片优化
+```bash
+# 检查并无损优化 src/ 下的 PNG 图片（保证 RGBA 像素 100% 一致）
+npm run optimize:png
+
+# 仅检查可优化空间，不改写文件
+node tools/optimize-png.cjs --check
+```
+
+### 包体基线与逐项优化验收
+```bash
+# 分析当前版本的已有 release RPK
+npm run analyze:size
+
+# 对照固定的优化前基线；差值为负数表示缩小
+npm run analyze:size -- --baseline tools/size-baseline.json
+
+# 指定其他发布包
+npm run analyze:size -- dist/com.yzf.daymatter.release.2.1.rpk --baseline tools/size-baseline.json
+
+# 输出纯 JSON，便于记录分析结果
+node tools/analyze-size.cjs --json
+```
+命令只读取已有产物，输出完整包体、资源分类 / 目录的压缩与未压缩体积、文件数、产物 SHA-256、构建元数据及可核实的签名证书指纹。
+
+`tools/size-baseline.json` 固定记录优化前的 `2.1 / 21001` 发布包。优化后保持同一构建命令和签名方式，再与该基线对照。报告中的 release 命令来自分析时的项目配置，历史构建信息来自 RPK；配置变化会单独列出。未压缩体积与图片文件体积均不代表真实运行内存。
+
 ## 📁 项目结构
 
 ```
