@@ -67,22 +67,23 @@ global.getTime = function () {
   return hour + ":" + minute
 }
 
+const THEME_COLOR_MAP = Object.freeze({
+  "#3184d0": Object.freeze(["#f78803", "#3184d0"]),
+  "#f78803": Object.freeze(["#fdb763", "#f78803"]),
+  "#e74c3c": Object.freeze(["#e74c3c", "#f29f97"]),
+  "#27ae60": Object.freeze(["#104627", "#27ae60"]),
+  "#9b59b6": Object.freeze(["#532c64", "#9b59b6"])
+})
+
+const B64_LOOKUP = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
 global.adjustThemeColor = (baseColor, already) => {
   // 如果没有设置主题色，使用默认颜色
   if (!baseColor) {
     return already ? "#f78803" : "#3184d0"
   }
 
-  // 色调映射表：基础色 -> [已过去色调, 未到来色调]
-  const colorMap = {
-    "#3184d0": ["#f78803", "#3184d0"],
-    "#f78803": ["#fdb763", "#f78803"],
-    "#e74c3c": ["#e74c3c", "#f29f97"],
-    "#27ae60": ["#104627", "#27ae60"],
-    "#9b59b6": ["#532c64", "#9b59b6"]
-  }
-
-  const colors = colorMap[baseColor]
+  const colors = THEME_COLOR_MAP[baseColor]
   if (colors) {
     return already ? colors[0] : colors[1]
   }
@@ -95,7 +96,6 @@ global.base64ToArrayBuffer = (base64) => {
   const len = base64.length
   if (len === 0) return new ArrayBuffer(0)
 
-  const b64lookup = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
   let paddingCount = 0
   if (base64.charAt(len - 1) === "=") paddingCount++
   if (base64.charAt(len - 2) === "=") paddingCount++
@@ -105,10 +105,10 @@ global.base64ToArrayBuffer = (base64) => {
 
   let p = 0
   for (let i = 0; i < len; i += 4) {
-    const encoded1 = b64lookup.indexOf(base64[i])
-    const encoded2 = b64lookup.indexOf(base64[i + 1])
-    const encoded3 = b64lookup.indexOf(base64[i + 2])
-    const encoded4 = b64lookup.indexOf(base64[i + 3])
+    const encoded1 = B64_LOOKUP.indexOf(base64[i])
+    const encoded2 = B64_LOOKUP.indexOf(base64[i + 1])
+    const encoded3 = B64_LOOKUP.indexOf(base64[i + 2])
+    const encoded4 = B64_LOOKUP.indexOf(base64[i + 3])
 
     if (encoded1 < 0 || encoded2 < 0) continue
 

@@ -49,7 +49,18 @@
 import router from "@system.router"
 import file from "@system.file"
 
-const extraFontSize = global.screenShape == "rect" || global.screenShape == "circle" ? 8 : 0
+function getExtraFontSize() {
+  const shape = global.screenShape
+  return shape === "rect" || shape === "circle" ? 8 : 0
+}
+
+function calculateListFontSize(days, todayStr) {
+  if (days === todayStr) return 26
+  const len = String(days).length
+  if (len < 3) return 30
+  if (len === 3) return 28
+  return 20
+}
 
 export default {
   private: {
@@ -73,7 +84,6 @@ export default {
 
   formatEvent(event) {
     let days,
-      font_size,
       display_name = event.name,
       already = true
 
@@ -99,20 +109,7 @@ export default {
       already = false
     }
 
-    const days_length = String(days).length
-    if (days_length == 5) {
-      font_size = 20
-    } else if (days == this.$t("today")) {
-      font_size = 26
-    } else if (days_length < 3) {
-      font_size = 30
-    } else if (days_length == 3) {
-      font_size = 28
-    } else {
-      font_size = 20
-    }
-
-    font_size = font_size + extraFontSize
+    const font_size = calculateListFontSize(days, this.$t("today")) + getExtraFontSize()
 
     return {
       name: event.name,
