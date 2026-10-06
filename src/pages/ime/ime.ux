@@ -948,6 +948,9 @@ const KEYS = Object.freeze({
 
 const MAX_CANDIDATE_LENGTH = 5;
 
+// 查词结果缓存上限：保持有界，避免累积输入历史占用内存
+const SEARCH_CACHE_LIMIT = 20;
+
 export default {
   private: {
     // 页面化改造（原自定义组件 InputMethod）：props 改 private/启动参数，
@@ -976,6 +979,8 @@ export default {
     this.keys = KEYS;
     this.vibratemode = "";
     this.lastWaitingStr = "";
+    // 非响应式查词缓存：拼音 -> 候选数组，相同拼音直接复用，避免重复查词与分割
+    this._searchCache = {};
     // 调用方通过 global 传入初始文本与输入行标题（保持与调用页一致的 UI）
     this.context = global.__imeText || "";
     this.label = global.__imeLabel || "";
@@ -998,6 +1003,17 @@ export default {
     this.finish(false);
     return true;
   },
+  clearSearchCache() {
+    this._searchCache = {};
+  },
+  onDestroy() {
+    // 页面销毁时释放查词缓存、候选与展开分组，不遗留输入历史
+    this.clearSearchCache();
+    this.resultList = [];
+    this.resultList2 = [];
+    this.waitingList = [];
+    this.lastWaitingStr = "";
+  },
   addAllTxt(txt) {
     // 原 $emit("complete")：增量回传已输入文本，现直接维护页面自身 context
     this.context += txt;
@@ -1007,8 +1023,9 @@ export default {
     this.cval = "";
     this.addAllTxt(txt);
     this.clearWaiting();
-    this.resetReslutList();
     this.downFlag = "";
+    this.resultList2 = [];
+    this.resetReslutList();
   },
   onBtnClick(sign) {
     this.onVibrate();
@@ -1024,6 +1041,7 @@ export default {
         } else {
           this.lang = "cn";
         }
+        this.clearSearchCache();
         this.cval = "";
         this.clearWaiting();
         this.resetReslutList();
@@ -1045,6 +1063,11 @@ export default {
         break;
       case "down":
         this.downFlag = this.downFlag === "down" ? "" : "down";
+        if (this.downFlag === "down") {
+          this.setResultListAll();
+        } else {
+          this.resultList2 = [];
+        }
         break;
       case "select":
         if (this.lastWaitingStr != sign && this.lastWaitingStr) {
@@ -1063,6 +1086,7 @@ export default {
         break;
       case "switchNum":
         this.numFlag = true;
+        this.clearSearchCache();
         this.cval = "";
         this.clearWaiting();
         this.resetReslutList();
@@ -1138,22 +1162,43 @@ export default {
     this.getResultByWord(this.cval + watingStr);
   },
   setResultListAll() {
-    this.resultList2 = [];
+    if (this.downFlag !== "down" || !this.resultList || this.resultList.length === 0) {
+      this.resultList2 = [];
+      return;
+    }
+    const list = this.resultList;
+    const array2 = [];
     let array = [];
-    for (let i = 0; i < this.resultList.length; i++) {
-      array.push(this.resultList[i]);
+    for (let i = 0; i < list.length; i++) {
+      array.push(list[i]);
       if (array.length === MAX_CANDIDATE_LENGTH) {
-        this.resultList2.push(array);
+        array2.push(array);
         array = [];
       }
     }
-    if (array.length > 0 && array.length < MAX_CANDIDATE_LENGTH) {
-      this.resultList2.push(array);
+    if (array.length > 0) {
+      array2.push(array);
     }
+    this.resultList2 = array2;
   },
   getResultByWord(val) {
+    const cached = this._searchCache[val];
+    if (cached) {
+      // 拼音未变化时直接复用缓存结果，跳过重复查词与字符串分割
+      this.resultList = cached;
+      this.setResultListAll();
+      return;
+    }
     const that = this;
     doSearchDic(val, function (data) {
+      const keys = Object.keys(that._searchCache);
+      if (keys.length >= SEARCH_CACHE_LIMIT) {
+        // 缓存保持有界：超过上限时清理较早的一半查询结果
+        for (let i = 0; i < keys.length; i += 2) {
+          delete that._searchCache[keys[i]];
+        }
+      }
+      that._searchCache[val] = data;
       that.resultList = data;
       that.setResultListAll();
     });

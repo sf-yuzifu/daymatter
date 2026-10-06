@@ -444,3 +444,73 @@ test("C-20: 首页切换显示单位时原地修改属性，严格保留事件�
   assert.ok(home.events[0].displayText, "更新了展示文本")
   assert.ok(home.events[0].fontSize > 0, "更新了字号大小")
 })
+
+test("C-08: 键盘候选列表按需构建：打字时不构建 2D 数组，展开时按需切片，收起立即释放", () => {
+  const h = createHarness()
+  const editor = h.openEditor({event_name: ""})
+  editor.editEventName()
+  const ime = h.current()
+
+  // 输入拼音 "ni"
+  ime.onSelect("N")
+  ime.onSelect("I")
+
+  // 首行候选应正常呈现
+  assert.ok(ime.resultList.includes("你"), "resultList 中必须包含候选汉字")
+  // 在未展开下拉面板时，resultList2 必须保持为空，避免在每次按键时构建庞大的响应式 2D 数组
+  assert.equal(ime.resultList2.length, 0, "普通输入阶段 resultList2 必须按需延迟构建（保持为空）")
+  assert.equal(ime.downFlag, "", "默认处于未展开状态")
+
+  // 点击展开按钮，展开更多候选
+  ime.onBtnClick("down")
+  assert.equal(ime.downFlag, "down", "处于展开状态")
+  assert.ok(ime.resultList2.length > 0, "展开状态下按需生成 resultList2 二维分组")
+  assert.ok(ime.resultList2[0].includes("你"), "第一行分组中包含候选汉字")
+
+  // 再次点击收起
+  ime.onBtnClick("down")
+  assert.equal(ime.downFlag, "", "恢复收起状态")
+  assert.equal(ime.resultList2.length, 0, "收起状态立即释放二维数组与关联观察者")
+})
+
+test("C-09: 相同拼音复用查词缓存；缓存有界，切换模式与销毁时释放", () => {
+  const h = createHarness()
+  const editor = h.openEditor({event_name: ""})
+  editor.editEventName()
+  const ime = h.current()
+
+  // 输入 "n" 记录首次查词结果
+  ime.onSelect("N")
+  const firstResult = ime.resultList
+  assert.ok(firstResult.length > 0, "拼音 n 应有候选结果")
+  assert.equal(Object.keys(ime._searchCache).length, 1, "首次查词写入缓存")
+
+  // 继续输入 "ni"，属于不同拼音，结果应为独立数组
+  ime.onSelect("I")
+  const secondResult = ime.resultList
+  assert.ok(secondResult.length > 0, "拼音 ni 应有候选结果")
+  assert.equal(Object.keys(ime._searchCache).length, 2)
+
+  // 退格回到 "n"，必须命中缓存并复用同一数组引用（未重复查词与分割）
+  ime.onBtnClick("D")
+  assert.equal(ime.resultList, firstResult, "相同拼音必须复用缓存结果，保持同一数组引用")
+
+  // 缓存有界：连续查询大量拼音后不得超过上限
+  for (let i = 0; i < 30; i++) {
+    ime.getResultByWord("bound" + i)
+  }
+  assert.ok(Object.keys(ime._searchCache).length <= 20, "查词缓存必须有界，不得超过 SEARCH_CACHE_LIMIT")
+
+  // 切换语言模式：缓存按需释放
+  ime.onBtnClick("lang")
+  assert.equal(Object.keys(ime._searchCache).length, 0, "切换语言后释放查词缓存")
+  ime.onBtnClick("lang")
+
+  // 重新查询后页面销毁：缓存与候选数据全部释放
+  ime.getResultByWord("n")
+  assert.ok(Object.keys(ime._searchCache).length > 0)
+  ime.onDestroy()
+  assert.equal(Object.keys(ime._searchCache).length, 0, "页面销毁后查词缓存必须释放")
+  assert.equal(ime.resultList.length, 0, "页面销毁后候选列表必须释放")
+  assert.equal(ime.resultList2.length, 0, "页面销毁后候选分组必须释放")
+})
