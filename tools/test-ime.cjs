@@ -514,3 +514,105 @@ test("C-09: 相同拼音复用查词缓存；缓存有界，切换模式与销�
   assert.equal(ime.resultList.length, 0, "页面销毁后候选列表必须释放")
   assert.equal(ime.resultList2.length, 0, "页面销毁后候选分组必须释放")
 })
+
+test("C-10: 不变配置移出响应式数据；相同查询不重复清空 / 重建候选数组", () => {
+  const h = createHarness()
+  const editor = h.openEditor({event_name: ""})
+  editor.editEventName()
+  const ime = h.current()
+
+  // 不变配置不应留在 private 响应式视图模型中
+  const imeDefinition = h.definitions.get("pages/ime")
+  for (const key of ["keyboardtype", "screentype", "cvalList"]) {
+    assert.equal(key in imeDefinition.private, false, key + " 不应留在 private 响应式数据中")
+    assert.ok(ime[key] !== undefined, key + " 必须在 onInit 后可用")
+  }
+  assert.equal(ime.keyboardtype, "QWERTY")
+  assert.equal(ime.screentype, "pill-shaped")
+  assert.equal(ime.cvalList.length, 5)
+  assert.ok(Object.isFrozen(ime.keys.full[0]), "冻结按键矩阵继续继承")
+
+  // 相同拼音重复触发查询时，候选数组引用保持不变（不重复清空 / 重建）
+  ime.onSelect("N")
+  const resultRef = ime.resultList
+  ime.resetReslutList()
+  assert.equal(ime.resultList, resultRef, "相同拼音重复查询必须复用同一候选数组")
+})
+
+test("C-11: 候选行仅在查询变化时即时归位，节点保护与选择操作无回归", () => {
+  const h = createHarness()
+  const editor = h.openEditor({event_name: ""})
+  editor.editEventName()
+  const ime = h.current()
+  const scrollCalls = []
+  ime.$element = (id) => ({ scrollTo: (options) => scrollCalls.push({id, ...options}) })
+
+  ime.onSelect("N")
+  assert.equal(scrollCalls.length, 1, "查询变化时归位一次")
+  assert.equal(scrollCalls[0].id, "cvalWaiting")
+  assert.equal(scrollCalls[0].left, 0)
+  assert.equal(scrollCalls[0].top, 0)
+  assert.equal(scrollCalls[0].behavior, "instant", "使用即时滚动避免逐按键平滑动画")
+
+  ime.resetReslutList()
+  assert.equal(scrollCalls.length, 1, "查询未变化时不重复归位")
+
+  ime.onSelect("I")
+  assert.equal(scrollCalls.length, 2, "查询再次变化后继续归位")
+
+  // 节点不存在时保留存在性保护，不抛错且候选查询正常
+  ime.$element = () => null
+  ime.onSelect("N")
+  assert.ok(ime.resultList.length > 0, "节点缺失不影响候选查询")
+
+  // 选择候选字后查询归零，键盘状态可继续使用
+  ime.onRsSelect("你")
+  assert.equal(ime.cval, "")
+  assert.equal(ime.downFlag, "")
+  assert.equal(ime.resultList2.length, 0)
+})
+
+test("C-12: 滚动反馈只更新当前屏幕分支且值变化才写入", () => {
+  const h = createHarness()
+  const editor = h.openEditor({event_name: ""})
+  editor.editEventName()
+  const ime = h.current()
+
+  // rect 分支只更新 percent67，不动 percent66
+  ime.screentype = "rect"
+  ime.percent67 = 52
+  ime.percent66 = 7
+  ime.handelScroll({scrollX: 100})
+  assert.ok(ime.percent67 > 52, "rect 分支必须更新 percent67")
+  assert.equal(ime.percent66, 7, "rect 分支不得更新 percent66")
+
+  // pill-shaped 分支只更新 percent66，不动 percent67
+  ime.screentype = "pill-shaped"
+  const frozen67 = ime.percent67
+  ime.percent66 = 0
+  ime.handelScroll({scrollX: 100})
+  assert.ok(ime.percent66 > 0, "pill-shaped 分支必须更新 percent66")
+  assert.equal(ime.percent67, frozen67, "pill-shaped 分支不得更新 percent67")
+
+  // circle 分支两者都不更新
+  ime.screentype = "circle"
+  const frozen66 = ime.percent66
+  ime.handelScroll({scrollX: 200})
+  assert.equal(ime.percent66, frozen66, "circle 分支不得更新 percent66")
+  assert.equal(ime.percent67, frozen67, "circle 分支不得更新 percent67")
+
+  // 值未变化时不写入响应式字段
+  ime.screentype = "rect"
+  let writes = 0
+  Object.defineProperty(ime, "percent67", {
+    get: () => 68,
+    set: () => {
+      writes++
+    },
+    configurable: true,
+  })
+  ime.handelScroll({scrollX: 100})
+  assert.equal(writes, 0, "计算值未变化时不得写入响应式字段")
+  ime.handelScroll({scrollX: 200})
+  assert.equal(writes, 1, "值真正变化时才写入一次")
+})

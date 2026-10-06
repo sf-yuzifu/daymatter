@@ -957,8 +957,6 @@ export default {
     // $emit 事件改直接维护自身 context，完成/取消经 global.__imeResult 回传
     context: "",
     label: "",
-    keyboardtype: "QWERTY",
-    screentype: "circle",
     cval: "",
     resultList: [],
     resultList2: [],
@@ -968,7 +966,6 @@ export default {
     lang: "cn",
     numFlag: false,
     upperFlag: false,
-    cvalList: [0, 1, 2, 3, 4],
     percent67: 52,
     percent66: 0,
     // 针对screenShape为rect的设备，会自动获取screenWidth并绑定到根div
@@ -981,10 +978,13 @@ export default {
     this.lastWaitingStr = "";
     // 非响应式查词缓存：拼音 -> 候选数组，相同拼音直接复用，避免重复查词与分割
     this._searchCache = {};
+    // 不变配置移出响应式数据：输入类型、屏幕类型与候选索引表仅在初始化时赋值一次
+    this.keyboardtype = "QWERTY";
+    this.screentype = global.screenShape || "circle";
+    this._lastResetWord = "";
     // 调用方通过 global 传入初始文本与输入行标题（保持与调用页一致的 UI）
     this.context = global.__imeText || "";
     this.label = global.__imeLabel || "";
-    this.screentype = global.screenShape || "circle";
     const tempCvalList = [];
     for (let i = 0; i < MAX_CANDIDATE_LENGTH; i++) {
       tempCvalList.push(i);
@@ -1140,30 +1140,37 @@ export default {
     this.lastWaitingStr = "";
   },
   resetReslutList() {
-    if (this.screentype !== "circle") {
+    let watingStr = "";
+    if (this.lastWaitingStr && this.lastWaitingStr[this.waitingIndex]) {
+      watingStr = this.lastWaitingStr[this.waitingIndex];
+    }
+    const searchWord = this.cval + watingStr;
+    // 仅在查询内容真正变化时归位候选行，保留节点存在性保护并使用即时滚动
+    if (this.screentype !== "circle" && searchWord !== this._lastResetWord) {
+      this._lastResetWord = searchWord;
       const el = this.$element("cvalWaiting");
       if (el && typeof el.scrollTo === "function") {
         el.scrollTo({
           top: 0,
           left: 0,
-          behavior: "smooth",
+          behavior: "instant",
         });
       }
     }
-    let watingStr = "";
-    if (this.lastWaitingStr && this.lastWaitingStr[this.waitingIndex]) {
-      watingStr = this.lastWaitingStr[this.waitingIndex];
-    }
-    if (!(this.cval + watingStr) || this.lang !== "cn") {
-      this.resultList = [];
+    if (!searchWord || this.lang !== "cn") {
+      if (this.resultList.length > 0) {
+        this.resultList = [];
+      }
       this.setResultListAll();
       return;
     }
-    this.getResultByWord(this.cval + watingStr);
+    this.getResultByWord(searchWord);
   },
   setResultListAll() {
     if (this.downFlag !== "down" || !this.resultList || this.resultList.length === 0) {
-      this.resultList2 = [];
+      if (this.resultList2.length > 0) {
+        this.resultList2 = [];
+      }
       return;
     }
     const list = this.resultList;
@@ -1184,9 +1191,11 @@ export default {
   getResultByWord(val) {
     const cached = this._searchCache[val];
     if (cached) {
-      // 拼音未变化时直接复用缓存结果，跳过重复查词与字符串分割
-      this.resultList = cached;
-      this.setResultListAll();
+      // 拼音未变化时直接复用缓存结果，跳过重复查词、赋值与分组重建
+      if (this.resultList !== cached) {
+        this.resultList = cached;
+        this.setResultListAll();
+      }
       return;
     }
     const that = this;
@@ -1242,10 +1251,20 @@ export default {
     }
   },
   handelScroll(event) {
-    const percentTemp67 = (event.scrollX / 636) * 100 + 52.8;
-    this.percent67 = parseInt(percentTemp67 <= 100 ? percentTemp67 : 100);
-    const percentTemp66 = (event.scrollX / 633) * 100;
-    this.percent66 = parseInt(percentTemp66 <= 100 ? percentTemp66 : 100);
+    // 只更新当前屏幕分支实际使用的进度值；值未变化时不触发响应式更新
+    if (this.screentype === "rect") {
+      const percentTemp67 = (event.scrollX / 636) * 100 + 52.8;
+      const percent67 = parseInt(percentTemp67 <= 100 ? percentTemp67 : 100);
+      if (this.percent67 !== percent67) {
+        this.percent67 = percent67;
+      }
+    } else if (this.screentype === "pill-shaped") {
+      const percentTemp66 = (event.scrollX / 633) * 100;
+      const percent66 = parseInt(percentTemp66 <= 100 ? percentTemp66 : 100);
+      if (this.percent66 !== percent66) {
+        this.percent66 = percent66;
+      }
+    }
   },
   pushCval() {
     this.onVibrate();
