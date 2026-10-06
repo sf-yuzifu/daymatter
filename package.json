@@ -6,12 +6,12 @@
   "email": "yzf@yzf.moe",
   "license": "GPL-3.0-or-later",
   "engines": {
-    "node": ">=8.10"
+    "node": ">=18.10"
   },
   "scripts": {
     "start": "aiot start --watch",
     "build": "aiot build",
-    "release": "aiot release --enable-jsc --drop-console log,debug,info",
+    "release": "aiot release --enable-jsc --drop-console log,debug,info --optimize-css-attr",
     "analyze:size": "node tools/analyze-size.cjs",
     "optimize:png": "node tools/optimize-png.cjs",
     "test:ime": "node --test tools/test-ime.cjs",
