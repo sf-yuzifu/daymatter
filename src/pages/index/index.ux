@@ -139,6 +139,7 @@ export default {
     this._destroyed = false
     this._needsRefresh = false
     this._messageHandler = null
+    this._protocolRequests = []
     this._ticker = global.createMinuteTicker((dateChanged) => this.handleMinuteTick(dateChanged))
     connect = interconnectHub.getConnection(interconnect)
     if (!connect) return
@@ -157,8 +158,36 @@ export default {
       return
     }
 
-    showToast({message: parsedData.type, duration: 200})
-
+    if (parsedData && parsedData.type === "hello") {
+      this._pluginSession = typeof parsedData.sessionId === "string" ? parsedData.sessionId : ""
+      this._pluginProtocolV2 = parsedData.protocolVersion >= 2
+      this._pluginCapabilities = Array.isArray(parsedData.capabilities) ? parsedData.capabilities : []
+      this.sendProtocolResponse({type: "capabilities", protocolVersion: 2, sessionId: this._pluginSession,
+        capabilities: ["stableId", "mutationResult", "requestId", "themeColor", "primaryId", "revision", "backgroundJpeg"]})
+      return
+    }
+    if (parsedData && parsedData.type === "capabilities") {
+      this._pluginSession = typeof parsedData.sessionId === "string" ? parsedData.sessionId : this._pluginSession
+      this._pluginProtocolV2 = parsedData.protocolVersion >= 2
+      this._pluginCapabilities = Array.isArray(parsedData.capabilities) ? parsedData.capabilities : []
+      return
+    }
+    if (parsedData && parsedData.type === "getRequestResult") {
+      const prior = (this._protocolRequests || []).find((item) => item.requestId === parsedData.requestId)
+      if (prior && prior.sessionId === parsedData.sessionId && prior.deviceId === parsedData.deviceId) this.sendProtocolResponse(prior)
+      else if (!prior) {
+        this._activeProtocolRequest = {requestId: parsedData.requestId, sessionId: parsedData.sessionId, deviceId: parsedData.deviceId}
+        this.handleGetAllEvent()
+      }
+      return
+    }
+    if (parsedData && parsedData.type === "mutationResult") return
+    const requestId = parsedData && parsedData.requestId
+    if (requestId && this._pluginSession && parsedData.sessionId !== this._pluginSession) return
+    if (requestId && this._protocolRequests.some((item) => item.requestId === requestId)) {
+      this.sendProtocolResponse(this._protocolRequests.find((item) => item.requestId === requestId))
+      return
+    }
     const handlers = {
       getAllEvent: () => this.handleGetAllEvent(),
       addEvent: () => this.handleAddEvent(parsedData),
@@ -168,7 +197,30 @@ export default {
     }
 
     const handler = handlers[parsedData.type]
-    if (handler) handler()
+    if (handler) {
+      if (requestId && ["addEvent", "changeEvent", "deleteEvent"].includes(parsedData.type)) {
+        if (!this._pluginProtocolV2 || !this._pluginCapabilities || !this._pluginCapabilities.includes("requestId") || !parsedData.deviceId) return
+        this._activeProtocolRequest = {requestId: requestId, sessionId: parsedData.sessionId, deviceId: parsedData.deviceId}
+      }
+      handler()
+    }
+  },
+
+  sendProtocolResponse(payload) {
+    if (connect && payload) connect.send({data: payload})
+  },
+
+  finishProtocolRequest(error, result) {
+    const request = this._activeProtocolRequest
+    if (!request || !request.requestId) return
+    this._activeProtocolRequest = null
+    const response = {type: "mutationResult", requestId: request.requestId, sessionId: request.sessionId,
+      deviceId: request.deviceId, ok: !error || error.code === "WATCHFACE_FAIL",
+      revision: result && result.revision, code: error && error.code ? error.code : ""}
+    this._protocolRequests = (this._protocolRequests || []).filter((item) => item.requestId !== request.requestId)
+    this._protocolRequests.push(response)
+    if (this._protocolRequests.length > 32) this._protocolRequests.shift()
+    this.sendProtocolResponse(response)
   },
 
   onShow() {
@@ -544,15 +596,23 @@ export default {
 
   handleGetAllEvent() {
     if (this._destroyed) return
+    const request = this._activeProtocolRequest
+    this._activeProtocolRequest = null
     global.eventStore.read((error, result) => {
       if (this._destroyed) return
       if (error) {
         showToast({message: this.$t("syncFail"), duration: 2000})
         return
       }
+      const responseData = {data: result.events, primaryId: result.primaryId, revision: result.revision}
+      if (request) {
+        responseData.requestId = request.requestId
+        responseData.sessionId = request.sessionId
+        responseData.deviceId = request.deviceId
+      }
       connect.send({
         // 同时给出稳定 ID / 主事件 / 修订号，插件按 ID 操作并可显示表盘主事件（E-02 / E-11）
-        data: {data: result.events, primaryId: result.primaryId, revision: result.revision},
+        data: responseData,
         success: () => {
           if (this._destroyed) return
           showToast({message: this.$t("syncSuccess"), duration: 2000})
@@ -577,24 +637,29 @@ export default {
     if (this._destroyed) return
     if (error) {
       if (error.code !== "WATCHFACE_FAIL") {
+        this.finishProtocolRequest(error, result)
         this.showEventError(error)
         return
       }
+      this.finishProtocolRequest(error, result)
       this.afterMutation(messageKey)
       showToast({message: this.$t("watchfaceSyncFail"), duration: 2000})
       return
     }
     const eventId = result && result.event ? result.event.id : null
     if (wanted === null || !eventId) {
+      this.finishProtocolRequest(null, result)
       this.afterMutation(messageKey)
       return
     }
     global.eventStore.setPrimary(wanted ? eventId : "", (primaryError) => {
       if (this._destroyed) return
       if (primaryError && primaryError.code !== "WATCHFACE_FAIL") {
+        this.finishProtocolRequest(primaryError, result)
         this.showEventError(primaryError)
         return
       }
+      this.finishProtocolRequest(primaryError, result)
       this.afterMutation(messageKey)
       if (primaryError) showToast({message: this.$t("watchfaceSyncFail"), duration: 2000})
     })

@@ -1236,6 +1236,32 @@ test("D-12/D-14: 插件按稳定 ID 修改 / 删除，未提供字段保留", ()
   assert.equal(home.is_no_event, true, "删除后首页应刷新为空")
 })
 
+test("E-05/E-06/E-07/E-09: 协议握手、同请求幂等回执与原请求查询", () => {
+  const h = createHarness()
+  h.router.push({uri: "/pages/index"})
+  const conn = h.connection
+  conn.onmessage({data: JSON.stringify({type: "hello", protocolVersion: 2, sessionId: "s-1", capabilities: ["requestId"]})})
+  const helloReply = conn.sent.at(-1).data
+  assert.equal(helloReply.type, "capabilities")
+  assert.equal(helloReply.sessionId, "s-1")
+
+  const request = {type: "addEvent", requestId: "req-unique-1", sessionId: "s-1", deviceId: "watch-1", name: "含\"引号\" 🎂", date: "2026-12-01", on_index: true, IFStaringDay: false}
+  conn.onmessage({data: JSON.stringify(request)})
+  assert.equal(readStoreEvents(h).length, 1)
+  const result = conn.sent.map((item) => item.data).find((item) => item.type === "mutationResult")
+  assert.equal(result.ok, true)
+  assert.equal(result.requestId, request.requestId)
+  assert.equal(typeof result.revision, "number")
+
+  conn.onmessage({data: JSON.stringify(request)})
+  assert.equal(readStoreEvents(h).length, 1, "重复 requestId 只能执行一次")
+  const before = conn.sent.length
+  conn.onmessage({data: JSON.stringify({type: "getRequestResult", requestId: request.requestId, sessionId: "s-1", deviceId: "watch-1"})})
+  assert.equal(conn.sent[before].data.requestId, request.requestId, "查询返回原结果而不重放新增")
+  conn.onmessage({data: JSON.stringify({...request, requestId: "req-old-session", sessionId: "stale"})})
+  assert.equal(readStoreEvents(h).length, 1, "迟到旧 session 不得修改数据")
+})
+
 test("D-16: 保存失败保留草稿与页面，重复点击只提交一次", () => {
   const h = createHarness()
   const editor = h.router.push({uri: "/pages/edit", params: {extend: "true", callback_uri: "/pages/index"}})
