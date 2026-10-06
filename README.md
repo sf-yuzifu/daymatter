@@ -64,6 +64,12 @@ npm run optimize:png
 node tools/optimize-png.cjs --check
 ```
 
+### 图片尺寸与解码预算复核
+```bash
+# 检查全部图片的物理分辨率与页面组件显示尺寸比值、解码内存占用
+npm run check:budget
+```
+
 ### 包体基线与逐项优化验收
 ```bash
 # 分析当前版本的已有 release RPK
