@@ -299,7 +299,7 @@ export default {
     file.writeText({
       uri: "internal://files/date.txt",
       text: `${this.event_name},${this.date},${this.IFStaringDay}`,
-      success: () => console.log("date saved"),
+      success: () => {},
       fail: (data, code) => this.showErrorToast(code)
     })
   },

@@ -9,9 +9,9 @@
     "node": ">=8.10"
   },
   "scripts": {
-    "start": "aiot start --watch --enable-custom-component",
-    "build": "aiot build --enable-custom-component",
-    "release": "aiot release --enable-custom-component --enable-jsc",
+    "start": "aiot start --watch",
+    "build": "aiot build",
+    "release": "aiot release --enable-jsc --drop-console log,debug,info",
     "analyze:size": "node tools/analyze-size.cjs",
     "optimize:png": "node tools/optimize-png.cjs",
     "test:ime": "node --test tools/test-ime.cjs",

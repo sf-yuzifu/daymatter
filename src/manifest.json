@@ -32,7 +32,7 @@
     }
   ],
   "config": {
-    "logLevel": "log",
+    "logLevel": "error",
     "designWidth": "device-width"
   },
   "router": {

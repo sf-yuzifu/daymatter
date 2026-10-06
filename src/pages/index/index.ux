@@ -329,7 +329,7 @@ export default {
         this.events = events.filter((e) => e.on_index).map((e) => this.formatEvent(e, currentMode))
         this.is_no_event = this.events.length === 0
       },
-      fail: (data, code) => console.log(`handling fail, code = ${code}`)
+      fail: (data, code) => console.error(`handling fail, code = ${code}`)
     })
   },
 
