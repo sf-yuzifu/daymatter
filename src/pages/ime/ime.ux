@@ -555,7 +555,7 @@
                 </text>
                 <img
                   static
-                  src="./assets/horizontal/space.png"
+                  src="./assets/arc/space.png"
                   style="width: 60px; height: 60px"
                   @click="onBtnClick('space')"
                 />
@@ -651,7 +651,7 @@
             <img
               if="{{ resultList.length > 0 }}"
               style="position: absolute; right: 8px; width: 60px; height: 40px"
-              src="./assets/horizontal/down2.png"
+              src="./assets/arc/down2.png"
               @click="onBtnClick('down')"
             />
           </div>
