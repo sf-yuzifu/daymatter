@@ -375,7 +375,13 @@ export default {
 
   handleAddEvent(data) {
     this.readEvents((events) => {
-      const {type, ...eventData} = data
+      const eventData = {
+        name: data.name,
+        date: data.date,
+        on_index: data.on_index,
+        IFStaringDay: data.IFStaringDay,
+        themeColor: data.themeColor
+      }
       events.push(eventData)
       this.writeEvents(events, "addSuccess")
     })
@@ -383,9 +389,16 @@ export default {
 
   handleChangeEvent(data) {
     this.readEvents((events) => {
-      const {type, index, ...eventData} = data
+      const {index} = data
       if (index >= 0 && index < events.length) {
-        events[index] = eventData
+        events[index] = {
+          ...events[index],
+          name: data.name !== undefined ? data.name : events[index].name,
+          date: data.date !== undefined ? data.date : events[index].date,
+          on_index: data.on_index !== undefined ? data.on_index : events[index].on_index,
+          IFStaringDay: data.IFStaringDay !== undefined ? data.IFStaringDay : events[index].IFStaringDay,
+          themeColor: data.themeColor !== undefined ? data.themeColor : events[index].themeColor
+        }
         this.writeEvents(events, "changeSuccess")
       }
     })
@@ -401,7 +414,7 @@ export default {
   },
 
   handleAddBG(data) {
-    const {type, bgBase64} = data
+    const {bgBase64} = data
     if (!bgBase64) {
       showToast({message: "No image data", duration: 2000})
       return
@@ -535,7 +548,7 @@ export default {
   align-items: center;
 }
 
-#empty #emp {
+#emp {
   font-weight: bold;
   margin-top: 12px;
 }

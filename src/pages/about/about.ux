@@ -138,10 +138,6 @@ export default {
   align-items: center;
 }
 
-.sub {
-  color: #666;
-}
-
 .re {
   color: #999;
 }

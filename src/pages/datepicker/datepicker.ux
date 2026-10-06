@@ -34,6 +34,8 @@
 <script>
 import router from "@system.router"
 
+const ORIGINAL_MONTH_RANGE = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
+
 export default {
   private: {
     time: "",
@@ -47,7 +49,6 @@ export default {
     yearRange: [],
     monthRange: [],
     dayRange: [],
-    originalMonthRange: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"],
     yearIndex: 0
   },
 
@@ -81,7 +82,7 @@ export default {
     if (this.yearIndex === -1) this.yearIndex = 50 // 默认当前年
     
     // 初始化循环的月份范围（前后各加一份实现循环效果）
-    this.monthRange = [...this.originalMonthRange, ...this.originalMonthRange, ...this.originalMonthRange]
+    this.monthRange = [...ORIGINAL_MONTH_RANGE, ...ORIGINAL_MONTH_RANGE, ...ORIGINAL_MONTH_RANGE]
     
     // 初始化日期范围
     this.updateDayRange()
@@ -108,57 +109,6 @@ export default {
 
   onShow() {
     this.time = global.getTime()
-  },
-
-  generateCalendar() {
-    const days = []
-    const firstDay = new Date(this.currentYear, this.currentMonth - 1, 1)
-    const lastDay = new Date(this.currentYear, this.currentMonth, 0)
-    const prevLastDay = new Date(this.currentYear, this.currentMonth - 1, 0)
-    
-    const startWeekDay = firstDay.getDay() // 0-6
-    const totalDays = lastDay.getDate()
-    const prevTotalDays = prevLastDay.getDate()
-    
-    // 上个月的日期
-    for (let i = startWeekDay - 1; i >= 0; i--) {
-      days.push({
-        day: prevTotalDays - i,
-        isCurrentMonth: false,
-        isSelected: false,
-        isToday: false
-      })
-    }
-    
-    // 当前月的日期
-    const today = new Date()
-    for (let i = 1; i <= totalDays; i++) {
-      const isToday = this.currentYear === today.getFullYear() && 
-                      this.currentMonth === today.getMonth() + 1 && 
-                      i === today.getDate()
-      const isSelected = this.currentYear === this.selectedYear && 
-                         this.currentMonth === this.selectedMonth && 
-                         i === this.selectedDay
-      days.push({
-        day: i,
-        isCurrentMonth: true,
-        isSelected: isSelected,
-        isToday: isToday
-      })
-    }
-    
-    // 下个月的日期（补齐网格）
-    const remainingCells = 42 - days.length // 6行 x 7列 = 42
-    for (let i = 1; i <= remainingCells; i++) {
-      days.push({
-        day: i,
-        isCurrentMonth: false,
-        isSelected: false,
-        isToday: false
-      })
-    }
-    
-    this.calendarDays = days
   },
 
   onYearChange(e) {
