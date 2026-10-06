@@ -551,7 +551,8 @@ export default {
         return
       }
       connect.send({
-        data: {data: result.events},
+        // 同时给出稳定 ID / 主事件 / 修订号，插件按 ID 操作并可显示表盘主事件（E-02 / E-11）
+        data: {data: result.events, primaryId: result.primaryId, revision: result.revision},
         success: () => {
           if (this._destroyed) return
           showToast({message: this.$t("syncSuccess"), duration: 2000})
