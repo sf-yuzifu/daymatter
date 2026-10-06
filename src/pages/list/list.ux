@@ -75,7 +75,7 @@
 
 <script>
 import router from "@system.router"
-import file from "@system.file"
+import {showToast} from "@system.prompt"
 
 function getExtraFontSize() {
   const shape = global.screenShape
@@ -146,6 +146,7 @@ export default {
 
     return {
       name: event.name,
+      id: event.id,
       display_name,
       date: event.date,
       days,
@@ -169,25 +170,17 @@ export default {
     // 从编辑 / 新增返回时恢复原页；列表销毁重建也由模块级变量兜底
     const restorePage = pendingListPage
     pendingListPage = 0
-    file.readText({
-      uri: "internal://files/events.json",
-      success: (data) => {
-        if (this._destroyed || !this.contentVisible) return
-        let events
-        try {
-          events = JSON.parse(data.text)
-        } catch (e) {
-          events = []
-        }
-        if (!Array.isArray(events)) events = []
-        this._allEvents = events
-        this.showPage(restorePage > 0 ? restorePage : this.page)
-      },
-      fail: () => {
-        if (this._destroyed || !this.contentVisible) return
+    global.eventStore.read((error, result) => {
+      if (this._destroyed || !this.contentVisible) return
+      if (error) {
+        // 读取失败不覆盖原数据，仅提示；页面保持空列表
         this._allEvents = []
         this.showPage(1)
+        showToast({message: this.$t("loadFail"), duration: 2000})
+        return
       }
+      this._allEvents = result.events
+      this.showPage(restorePage > 0 ? restorePage : this.page)
     })
   },
 
@@ -251,7 +244,7 @@ export default {
       uri: "/pages/edit",
       params: {
         extend: "false",
-        event_id: String(storageIndex),
+        event_id: event.id !== undefined ? String(event.id) : String(storageIndex),
         event_name: event.name,
         date: event.date,
         on_index: event.on_index,

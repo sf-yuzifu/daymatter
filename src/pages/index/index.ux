@@ -395,35 +395,27 @@ export default {
   },
 
   completed() {
-    file.readText({
-      uri: "internal://files/events.json",
-      success: (data) => {
-        if (this._destroyed) return
-        if (!this.pageVisible) {
-          // 隐藏页只标记需要刷新，不在隐藏 UI 上重建
-          this._needsRefresh = true
-          return
-        }
-        let events
-        try {
-          events = JSON.parse(data.text)
-        } catch (e) {
-          events = []
-        }
-        if (!Array.isArray(events)) events = []
-        this.allEvents = events.length
-        const currentMode = DISPLAY_MODES[this.currentDisplayModeIndex]
-        const nameMetrics = getNameMetrics()
-        this.events = events
-          .filter((e) => e.on_index)
-          .map((e, i) => this.formatEvent(e, currentMode, i, nameMetrics))
-        this._needsRefresh = false
-        this.setupSlots()
-      },
-      fail: (data, code) => {
-        if (this._destroyed) return
-        console.error(`handling fail, code = ${code}`)
+    global.eventStore.read((error, result) => {
+      if (this._destroyed) return
+      if (error) {
+        // 读取失败不覆盖、不重建；仅在可见时提示
+        if (this.pageVisible) showToast({message: this.$t("loadFail"), duration: 2000})
+        return
       }
+      if (!this.pageVisible) {
+        // 隐藏页只标记需要刷新，不在隐藏 UI 上重建
+        this._needsRefresh = true
+        return
+      }
+      const events = result.events
+      this.allEvents = events.length
+      const currentMode = DISPLAY_MODES[this.currentDisplayModeIndex]
+      const nameMetrics = getNameMetrics()
+      this.events = events
+        .filter((e) => e.on_index)
+        .map((e, i) => this.formatEvent(e, currentMode, i, nameMetrics))
+      this._needsRefresh = false
+      this.setupSlots()
     })
   },
 
@@ -507,53 +499,59 @@ export default {
     }
   },
 
-  readEvents(successCallback) {
-    file.readText({
-      uri: "internal://files/events.json",
-      success: (data) => {
-        if (this._destroyed) return
-        let events
-        try {
-          events = JSON.parse(data.text)
-        } catch (e) {
-          events = []
-        }
-        if (!Array.isArray(events)) events = []
-        successCallback(events)
-      },
-      fail: () => {
-        if (this._destroyed) return
-        successCallback([])
-      }
-    })
+  afterMutation(successKey) {
+    if (this._destroyed) return
+    showToast({message: this.$t(successKey), duration: 2000})
+    if (this.pageVisible) {
+      this.completed()
+    } else {
+      // 隐藏页只标记需要刷新，等 onShow 再统一重建
+      this._needsRefresh = true
+    }
   },
 
-  writeEvents(events, successMsgKey) {
-    file.writeText({
-      uri: "internal://files/events.json",
-      text: JSON.stringify(events),
-      success: () => {
-        if (this._destroyed) return
-        showToast({message: this.$t(successMsgKey), duration: 2000})
-        if (this.pageVisible) {
-          this.completed()
-        } else {
-          // 隐藏页只标记需要刷新，等 onShow 再统一重建
-          this._needsRefresh = true
-        }
-      },
-      fail: (data, code) => {
-        if (this._destroyed) return
-        showToast({message: this.$t("saveFail", {code})})
-      }
-    })
+  showEventError(error) {
+    if (this._destroyed) return
+    const code = error && error.code
+    if (code === "NAME_REQUIRED") {
+      showToast({message: this.$t("eventNameRequired"), duration: 2000})
+      return
+    }
+    if (code === "DATE_INVALID") {
+      showToast({message: this.$t("dateInvalid"), duration: 2000})
+      return
+    }
+    if (code === "EVENT_LIMIT") {
+      showToast({message: this.$t("tooManyEvents"), duration: 2000})
+      return
+    }
+    if (code === "NOT_FOUND") {
+      showToast({message: this.$t("eventNotFound"), duration: 2000})
+      return
+    }
+    if (
+      code === "NAME_TOO_LONG" ||
+      code === "INVALID_BOOLEAN" ||
+      code === "INVALID_COLOR" ||
+      code === "INVALID_EVENT"
+    ) {
+      showToast({message: this.$t("invalidEvent"), duration: 2000})
+      return
+    }
+    const causeCode = error && error.cause ? error.cause.code : code
+    showToast({message: this.$t("saveFail", {code: causeCode}), duration: 2000})
   },
 
   handleGetAllEvent() {
     if (this._destroyed) return
-    this.readEvents((events) => {
+    global.eventStore.read((error, result) => {
+      if (this._destroyed) return
+      if (error) {
+        showToast({message: this.$t("syncFail"), duration: 2000})
+        return
+      }
       connect.send({
-        data: {data: events},
+        data: {data: result.events},
         success: () => {
           if (this._destroyed) return
           showToast({message: this.$t("syncSuccess"), duration: 2000})
@@ -568,59 +566,56 @@ export default {
 
   handleAddEvent(data) {
     if (this._destroyed) return
-    this.readEvents((events) => {
-      // 插件消息统一归一到 YYYY-MM-DD，非法日期拒绝写入
-      const normalizedDate = global.dateUtils.normalizeDate(data.date)
-      if (!normalizedDate) {
-        showToast({message: this.$t("dateInvalid"), duration: 2000})
+    global.eventStore.add(data, (error) => {
+      if (this._destroyed) return
+      if (error) {
+        this.showEventError(error)
         return
       }
-      const eventData = {
-        name: data.name,
-        date: normalizedDate,
-        on_index: data.on_index,
-        IFStaringDay: data.IFStaringDay,
-        themeColor: data.themeColor
-      }
-      events.push(eventData)
-      this.writeEvents(events, "addSuccess")
+      this.afterMutation("addSuccess")
     })
   },
 
   handleChangeEvent(data) {
     if (this._destroyed) return
-    this.readEvents((events) => {
-      const {index} = data
-      if (index >= 0 && index < events.length) {
-        let nextDate = events[index].date
-        if (data.date !== undefined) {
-          nextDate = global.dateUtils.normalizeDate(data.date)
-          if (!nextDate) {
-            showToast({message: this.$t("dateInvalid"), duration: 2000})
-            return
-          }
-        }
-        events[index] = {
-          ...events[index],
-          name: data.name !== undefined ? data.name : events[index].name,
-          date: nextDate,
-          on_index: data.on_index !== undefined ? data.on_index : events[index].on_index,
-          IFStaringDay: data.IFStaringDay !== undefined ? data.IFStaringDay : events[index].IFStaringDay,
-          themeColor: data.themeColor !== undefined ? data.themeColor : events[index].themeColor
-        }
-        this.writeEvents(events, "changeSuccess")
+    // 只提交消息里出现的字段，未提供的字段由存储层原样保留
+    const patch = {
+      name: data.name,
+      date: data.date,
+      on_index: data.on_index,
+      IFStaringDay: data.IFStaringDay,
+      themeColor: data.themeColor
+    }
+    const onDone = (error) => {
+      if (this._destroyed) return
+      if (error) {
+        this.showEventError(error)
+        return
       }
-    })
+      this.afterMutation("changeSuccess")
+    }
+    if (data.id !== undefined) {
+      global.eventStore.update(String(data.id), patch, onDone)
+    } else {
+      global.eventStore.updateByIndex(data.index, patch, onDone)
+    }
   },
 
   handleDeleteEvent(data) {
     if (this._destroyed) return
-    this.readEvents((events) => {
-      if (data.index >= 0 && data.index < events.length) {
-        events.splice(data.index, 1)
-        this.writeEvents(events, "deleteSuccess")
+    const onDone = (error) => {
+      if (this._destroyed) return
+      if (error) {
+        this.showEventError(error)
+        return
       }
-    })
+      this.afterMutation("deleteSuccess")
+    }
+    if (data.id !== undefined) {
+      global.eventStore.remove(String(data.id), onDone)
+    } else {
+      global.eventStore.remove(data.index, onDone)
+    }
   },
 
   handleAddBG(data) {

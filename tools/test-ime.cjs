@@ -27,11 +27,14 @@ function createHarness() {
     vibrations: [],
     maxDepth: 0,
     replacements: 0,
-    files: new Map([["internal://files/events.json", "[]"]]),
+    files: new Map([
+      ["internal://files/events.json", JSON.stringify({version: 2, revision: 0, events: []})]
+    ]),
     bgFiles: [],
     connection: null,
     deferReads: false,
     deferWrites: false,
+    failWrites: false,
     readCounts: new Map(),
     global: {
       screenShape: "pill-shaped",
@@ -186,14 +189,43 @@ function createHarness() {
       if (state.deferReads) readQueue.push(run)
       else run()
     },
-    writeText({uri, text, success}) {
+    writeText({uri, text, success, fail}) {
       const run = () => {
+        if (state.failWrites) {
+          if (fail) fail("io error", 300)
+          return
+        }
         state.files.set(uri, text)
         state.writes.push(uri)
         if (success) success()
       }
       if (state.deferWrites) writeQueue.push(run)
       else run()
+    },
+    move({srcUri, dstUri, success, fail}) {
+      const run = () => {
+        if (state.failWrites) {
+          if (fail) fail("io error", 300)
+          return
+        }
+        if (!state.files.has(srcUri)) {
+          if (fail) fail("not found", 301)
+          return
+        }
+        state.files.set(dstUri, state.files.get(srcUri))
+        state.files.delete(srcUri)
+        state.writes.push(dstUri)
+        if (success) success({uri: dstUri})
+      }
+      if (state.deferWrites) writeQueue.push(run)
+      else run()
+    },
+    access({uri, success, fail}) {
+      if (state.files.has(uri)) {
+        if (success) success({})
+      } else if (fail) {
+        fail("not found", 300)
+      }
     },
     writeArrayBuffer({uri, success}) {
       state.files.set(uri, "[buffer]")
@@ -207,6 +239,14 @@ function createHarness() {
       success({fileList: state.bgFiles.map((uri) => ({uri}))})
     }
   }
+  const eventStoreModule = loadModule(
+    fs.readFileSync(path.join(root, "src/components/eventStore.js"), "utf8"), {}, "unused"
+  )
+  state.global.eventStore = eventStoreModule.createEventStore({
+    file: file,
+    dateUtils: dateUtils,
+    now: () => clock.now
+  })
   state.flushReads = () => { while (readQueue.length) readQueue.shift()() }
   state.flushWrites = () => { while (writeQueue.length) writeQueue.shift()() }
   state.router = router
@@ -224,6 +264,12 @@ function createHarness() {
 function otherFields(page) {
   return JSON.stringify([page.date, page.themeColor, page.on_index, page.IFStaringDay,
     page.event_id, page.extend, page.callback_uri])
+}
+
+// 事件文件兼容新旧格式：迁移前数组 / 迁移后 {version, revision, events}
+function readStoreEvents(h) {
+  const parsed = JSON.parse(h.files.get("internal://files/events.json"))
+  return Array.isArray(parsed) ? parsed : parsed.events
 }
 
 test("新版路由和所有静态 / 动态图片路径可解析，旧组件资源已收口", () => {
@@ -926,7 +972,7 @@ test("C-27: 编辑 / 删除使用原始存储下标，返回恢复原页，删�
   list.routeEditEvent(list.events[0].storageIndex)
   const editor = h.current()
   assert.equal(editor.uri, "/pages/edit")
-  assert.equal(editor.event_id, "20", "编辑必须映射回原始存储下标")
+  assert.equal(editor.event_id, readStoreEvents(h)[20].id, "编辑必须映射到第 21 条的稳定 ID")
   assert.equal(editor.event_name, "事件20")
 
   // 编辑保存返回后恢复原页
@@ -1138,7 +1184,7 @@ test("C-06: 互联消息由应用级单例分发，页面销毁解除订阅，�
       on_index: true, IFStaringDay: false, themeColor: "#3184d0"
     })
   })
-  assert.equal(JSON.parse(h.files.get("internal://files/events.json")).length, 2, "插件新增必须写入文件")
+  assert.equal(readStoreEvents(h).length, 2, "插件新增必须写入文件")
   assert.equal(home.events.length, 0, "隐藏页不得重建展示数据")
   assert.equal(home._needsRefresh, true, "隐藏页只标记需要刷新")
 
@@ -1158,7 +1204,60 @@ test("C-06: 互联消息由应用级单例分发，页面销毁解除订阅，�
   const fresh = h.router.push({uri: "/pages/index"})
   assert.notEqual(fresh, home)
   conn.onmessage({data: JSON.stringify({type: "deleteEvent", index: 0})})
-  assert.equal(JSON.parse(h.files.get("internal://files/events.json")).length, 1)
+  assert.equal(readStoreEvents(h).length, 1)
+})
+
+test("D-12/D-14: 插件按稳定 ID 修改 / 删除，未提供字段保留", () => {
+  const h = createHarness()
+  const home = h.router.push({uri: "/pages/index"})
+  const conn = h.connection
+  conn.onmessage({
+    data: JSON.stringify({
+      type: "addEvent", name: "稳定事件", date: "2026-12-01",
+      on_index: true, IFStaringDay: false, themeColor: "#e74c3c"
+    })
+  })
+  let events = readStoreEvents(h)
+  assert.equal(events.length, 1)
+  const id = events[0].id
+  assert.ok(typeof id === "string" && id.length > 0, "新增事件必须分配稳定 ID")
+
+  // 只带名称的修改：日期 / 主题色 / 开关必须保留
+  conn.onmessage({data: JSON.stringify({type: "changeEvent", id: id, name: "改名"})})
+  events = readStoreEvents(h)
+  assert.equal(events[0].name, "改名")
+  assert.equal(events[0].date, "2026-12-01")
+  assert.equal(events[0].themeColor, "#e74c3c")
+  assert.equal(events[0].on_index, true)
+
+  // 按稳定 ID 删除
+  conn.onmessage({data: JSON.stringify({type: "deleteEvent", id: id})})
+  assert.equal(readStoreEvents(h).length, 0)
+  assert.equal(home.is_no_event, true, "删除后首页应刷新为空")
+})
+
+test("D-16: 保存失败保留草稿与页面，重复点击只提交一次", () => {
+  const h = createHarness()
+  const editor = h.router.push({uri: "/pages/edit", params: {extend: "true", callback_uri: "/pages/index"}})
+  editor.event_name = "草稿名称"
+
+  // 写盘失败：停留编辑页、保留草稿、复位在途标记
+  h.failWrites = true
+  editor.saveEvent()
+  assert.equal(h.current(), editor, "保存失败不得离开编辑页")
+  assert.equal(editor.event_name, "草稿名称", "保存失败必须保留草稿")
+  assert.equal(editor._saving, false, "失败后必须复位在途守卫")
+  h.failWrites = false
+
+  // 在途保存期间重复点击只提交一次
+  h.deferWrites = true
+  editor.saveEvent()
+  editor.saveEvent()
+  assert.equal(editor._saving, true, "在途保存必须阻止重复提交")
+  h.flushWrites()
+  h.deferWrites = false
+  const added = readStoreEvents(h).filter((e) => e.name === "草稿名称")
+  assert.equal(added.length, 1, "重复点击不得重复新增")
 })
 
 test("C-05: 页面销毁后停止在途回调，迟到结果不重建 / 不导航", () => {
@@ -1180,7 +1279,7 @@ test("C-05: 页面销毁后停止在途回调，迟到结果不重建 / 不导�
   h.deferWrites = false
   assert.equal(h.pages.length, pagesBefore, "迟到回调不得再触发页面导航")
   assert.equal(h.current(), editor)
-  assert.equal(JSON.parse(h.files.get("internal://files/events.json"))[0].name, "在途保存", "文件写入仍应完成")
+  assert.equal(readStoreEvents(h)[0].name, "在途保存", "文件写入仍应完成")
 
   // 列表读取回调迟到：销毁后不得写入已释放的页面数据
   h.deferReads = true

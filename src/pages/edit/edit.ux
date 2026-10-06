@@ -295,61 +295,65 @@ export default {
     this.date = normalizedDate
 
     this._saving = true
-    this.on_index = this.normalizeBoolean(this.on_index)
-    this.IFStaringDay = this.normalizeBoolean(this.IFStaringDay)
-
-    const event = {
+    const payload = {
       name: this.event_name,
       date: this.date,
-      on_index: this.on_index,
-      IFStaringDay: this.IFStaringDay,
+      on_index: this.normalizeBoolean(this.on_index),
+      IFStaringDay: this.normalizeBoolean(this.IFStaringDay),
       themeColor: this.themeColor
     }
 
-    file.readText({
-      uri: "internal://files/events.json",
-      success: (data) => {
-        if (this._destroyed) return
-        let events
-        try {
-          events = JSON.parse(data.text)
-        } catch (e) {
-          events = []
-        }
-        if (!Array.isArray(events)) events = []
-        if (this.extend == "true") {
-          events.push(event)
-        } else {
-          events[Number(this.event_id)] = event
-        }
-        this.writeEvents(events)
-      },
-      fail: () => {
-        if (this._destroyed) return
-        // 文件不存在时，创建新数组
-        this.writeEvents([event])
+    const onDone = (error) => {
+      if (this._destroyed) return
+      if (error) {
+        // 保存失败保留当前草稿与页面，不虚报成功（D-16）
+        this._saving = false
+        this.showEventError(error)
+        return
       }
-    })
+      if (payload.on_index) {
+        this.saveDateToFile()
+      }
+      showToast({message: this.$t("saveSuccess")})
+      this.routeBack()
+    }
+
+    if (this.extend == "true") {
+      global.eventStore.add(payload, onDone)
+    } else {
+      global.eventStore.update(String(this.event_id), payload, onDone)
+    }
   },
 
-  writeEvents(events) {
-    file.writeText({
-      uri: "internal://files/events.json",
-      text: JSON.stringify(events),
-      success: () => {
-        if (this._destroyed) return
-        if (this.on_index) {
-          this.saveDateToFile()
-        }
-        showToast({message: this.$t("saveSuccess")})
-        this.routeBack()
-      },
-      fail: (data, code) => {
-        if (this._destroyed) return
-        this._saving = false
-        this.showErrorToast(code)
-      }
-    })
+  showEventError(error) {
+    const code = error && error.code
+    if (code === "NAME_REQUIRED") {
+      showToast({message: this.$t("eventNameRequired")})
+      return
+    }
+    if (code === "DATE_INVALID") {
+      showToast({message: this.$t("dateInvalid")})
+      return
+    }
+    if (code === "EVENT_LIMIT") {
+      showToast({message: this.$t("tooManyEvents")})
+      return
+    }
+    if (code === "NOT_FOUND") {
+      showToast({message: this.$t("eventNotFound")})
+      return
+    }
+    if (
+      code === "NAME_TOO_LONG" ||
+      code === "INVALID_BOOLEAN" ||
+      code === "INVALID_COLOR" ||
+      code === "INVALID_EVENT"
+    ) {
+      showToast({message: this.$t("invalidEvent")})
+      return
+    }
+    const causeCode = error && error.cause ? error.cause.code : code
+    this.showErrorToast(causeCode)
   },
 
   saveDateToFile() {
@@ -367,38 +371,15 @@ export default {
   deleteEvent() {
     if (this._saving) return
     this._saving = true
-    file.readText({
-      uri: "internal://files/events.json",
-      success: (data) => {
-        if (this._destroyed) return
-        let events
-        try {
-          events = JSON.parse(data.text)
-        } catch (e) {
-          events = []
-        }
-        if (!Array.isArray(events)) events = []
-        events.splice(Number(this.event_id), 1)
-        file.writeText({
-          uri: "internal://files/events.json",
-          text: JSON.stringify(events),
-          success: () => {
-            if (this._destroyed) return
-            showToast({message: this.$t("deleteSuccess")})
-            this.routeBack()
-          },
-          fail: (data, code) => {
-            if (this._destroyed) return
-            this._saving = false
-            this.showErrorToast(code)
-          }
-        })
-      },
-      fail: () => {
-        if (this._destroyed) return
-        // 文件不存在，直接返回
-        this.routeBack()
+    global.eventStore.remove(String(this.event_id), (error) => {
+      if (this._destroyed) return
+      if (error) {
+        this._saving = false
+        this.showEventError(error)
+        return
       }
+      showToast({message: this.$t("deleteSuccess")})
+      this.routeBack()
     })
   }
 }

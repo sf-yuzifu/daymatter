@@ -1,8 +1,10 @@
 <script>
 import device from "@system.device"
+import file from "@system.file"
 import gcGuard from "./components/gcGuard"
 import minuteTicker from "./components/minuteTicker"
 import dateUtils from "./components/dateUtils"
+import eventStoreFactory from "./components/eventStore"
 
 let screenSize = {width: 0, height: 0}
 
@@ -14,6 +16,9 @@ global.createMinuteTicker = minuteTicker.createMinuteTicker
 
 // 日期工具：显式解析与日历日算法，页面统一通过 global.dateUtils 使用
 global.dateUtils = dateUtils
+
+// 事件存储：腕端与插件消息统一走同一读写 / 校验 / 原子提交入口
+global.eventStore = eventStoreFactory.createEventStore({file: file, dateUtils: dateUtils})
 
 // 设备信息就绪前的默认形态：胶囊 / 跑道屏是设计基准
 global.screenShape = "pill-shaped"

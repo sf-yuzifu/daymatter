@@ -179,7 +179,7 @@ test("入口一致性：app.ux 暴露 dateUtils，日期写入与插件消息使
 
   const indexSource = fs.readFileSync(path.join(root, "src/pages/index/index.ux"), "utf8")
   assert.ok(indexSource.includes("getEventStatus"), "首页必须使用统一状态算法")
-  assert.ok(indexSource.includes("normalizeDate"), "插件消息必须归一日期")
+  assert.ok(indexSource.includes("global.eventStore"), "首页读写必须走统一存储")
 
   const listSource = fs.readFileSync(path.join(root, "src/pages/list/list.ux"), "utf8")
   assert.ok(listSource.includes("getEventStatus"), "列表必须使用统一状态算法")
