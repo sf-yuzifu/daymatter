@@ -11,6 +11,10 @@ global.tryRunGC = gcGuard.createGcGuard()
 // 前台分钟级时钟：页面可见时启动、隐藏停止，跨午夜上报日期变化
 global.createMinuteTicker = minuteTicker.createMinuteTicker
 
+// 设备信息就绪前的默认形态：胶囊 / 跑道屏是设计基准
+global.screenShape = "pill-shaped"
+global.isPillShaped = true
+
 device.getInfo({
   success: function (deviceRet) {
     screenSize.width = deviceRet.screenWidth
@@ -18,6 +22,7 @@ device.getInfo({
     global.screenShape = deviceRet.screenShape
     global.screenSize = screenSize
     global.deviceType = deviceRet.deviceType
+    // 非 rect / circle（含缺失与未知值）一律按胶囊基准，与页面 else 分支一致
     global.isPillShaped = deviceRet.screenShape !== "rect" && deviceRet.screenShape !== "circle"
   }
 })

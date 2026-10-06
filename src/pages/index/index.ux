@@ -98,7 +98,7 @@ const MARQUEE_CHAR_FACTOR = 0.6
 
 function getNameMetrics() {
   const deviceType = global.deviceType || "watch"
-  const screenShape = global.screenShape || "rect"
+  const screenShape = global.screenShape || "pill-shaped"
   if (deviceType === "watch") {
     return {fontSize: 28, width: 300 * 0.85}
   }
@@ -333,7 +333,7 @@ export default {
   calculateFontSize(textLength) {
     // 根据设备类型和文字长度计算字体大小
     const deviceType = global.deviceType || "watch"
-    const screenShape = global.screenShape || "rect"
+    const screenShape = global.screenShape || "pill-shaped"
     const isPillShaped = global.isPillShaped || false
 
     let baseSize

@@ -511,6 +511,28 @@ test("方屏 / 圆屏沿用源初始化，缺少候选节点的模式切换不�
   }
 })
 
+test("默认形态兜底：非 rect / circle（含缺失值）一律按胶囊基准", () => {
+  // 无上报值时键盘页必须落入胶囊分支
+  const h = createHarness()
+  h.global.screenShape = undefined
+  h.global.isPillShaped = true
+  const editor = h.openEditor()
+  editor.editEventName()
+  const ime = h.current()
+  assert.equal(ime.screentype, "pill-shaped", "未知 / 缺失形态必须按胶囊兜底")
+
+  // 入口行为：设备信息就绪前预置胶囊，回调按非 rect / circle 判定胶囊基准
+  const appSource = fs.readFileSync(path.join(root, "src/app.ux"), "utf8")
+  assert.ok(appSource.includes('global.screenShape = "pill-shaped"'), "设备信息就绪前必须预置胶囊默认形态")
+  assert.ok(
+    appSource.includes('global.isPillShaped = deviceRet.screenShape !== "rect" && deviceRet.screenShape !== "circle"'),
+    "胶囊基准必须按非 rect / circle 判定"
+  )
+  assert.ok(imeSource.includes('global.screenShape || "pill-shaped"'), "键盘页兜底必须是胶囊基准")
+  const indexSource = fs.readFileSync(path.join(root, "src/pages/index/index.ux"), "utf8")
+  assert.ok(!indexSource.includes('global.screenShape || "rect"'), "首页不得再回退到 rect")
+})
+
 test("C-20: 首页切换显示单位时原地修改属性，严格保留事件对象与数组引用", () => {
   const h = createHarness()
   h.files.set("internal://files/events.json", JSON.stringify([

@@ -1000,7 +1000,7 @@ export default {
     this._destroyed = false;
     // 不变配置移出响应式数据：输入类型、屏幕类型与候选索引表仅在初始化时赋值一次
     this.keyboardtype = "QWERTY";
-    this.screentype = global.screenShape || "circle";
+    this.screentype = global.screenShape || "pill-shaped";
     this._lastResetWord = "";
     // 调用方通过 global 传入初始文本与输入行标题（保持与调用页一致的 UI）
     this.context = global.__imeText || "";
