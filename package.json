@@ -18,6 +18,7 @@
     "test:ime": "node --test tools/test-ime.cjs",
     "test:date": "node --test tools/test-date.cjs",
     "test:store": "node --test tools/test-store.cjs",
+    "test:watchface": "node --test tools/test-watchface.cjs",
     "test:memory": "node --expose-gc --test tools/test-ime.cjs",
     "lint": "eslint --format codeframe --fix --ext .ux,.js src/"
   },

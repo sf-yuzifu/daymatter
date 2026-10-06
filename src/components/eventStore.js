@@ -1,5 +1,6 @@
 // 事件存储：统一读取、迁移、校验、增删改与原子提交（D-08～D-16）。
-// 数据文件 internal://files/events.json，格式 {version, revision, events:[{id,...}]}。
+// 数据文件 internal://files/events.json，格式
+// {version, revision, primaryId, watchfacePending, events:[{id,...}]}。
 // - 读：文件不存在 → 初始化空列表；JSON 损坏 / 类型错误 → 现场备份 .bad 后尝试从
 //   .bak / .tmp 恢复，恢复失败则拒绝读写，绝不把失败当空列表覆盖；
 //   I/O 错误 → 直接拒绝。
@@ -7,6 +8,9 @@
 //   失败回滚 .bak，保证旧有效数据不丢。
 // - 并发：同一文件的整个「读—改—写」周期在内存队列中串行执行。
 // - 身份：新事件分配持久稳定 ID；旧数据迁移 ID 由内容决定，重复读取保持一致。
+// - 表盘（D-17～D-20）：primaryId 与 on_index 相互独立；每次提交后按主事件维护
+//   internal://files/date.txt，失败只标记 watchfacePending 并报告分项结果，
+//   下次进入补写，不把两个文件当成天然原子提交。
 
 const DATA_VERSION = 2
 const MAX_EVENTS = 200
@@ -36,7 +40,12 @@ function createEventStore(options) {
   const tmpUri = uri + ".tmp"
   const badUri = uri + ".bad"
   const now = options.now || (() => Date.now())
+  const watchFace = options.watchFace || null
+  // 表盘名称兜底文案由注入方提供（$t("unnamedEvent")），保持模块无多语言依赖
+  const watchFaceFallbackName = options.watchFaceFallbackName || ""
   let sequence = 0
+  // 会话内是否已按当前数据维护过表盘文件（避免每次读取都写盘）
+  let watchFaceChecked = false
 
   // 文件级串行队列：前序失败不阻塞后续任务
   const pending = []
@@ -54,7 +63,8 @@ function createEventStore(options) {
     processing = true
     item.task(function (error, result) {
       processing = false
-      if (item.callback) item.callback(error || null, error ? undefined : result)
+      // 分项结果（WATCHFACE_FAIL）需要同时带回已提交的数据，故错误时也传 result
+      if (item.callback) item.callback(error || null, result)
       pump()
     })
   }
@@ -112,7 +122,15 @@ function createEventStore(options) {
   }
 
   function emptyState() {
-    return {version: DATA_VERSION, revision: 0, events: []}
+    return {version: DATA_VERSION, revision: 0, primaryId: "", watchfacePending: false, events: []}
+  }
+
+  // 主事件默认规则：文件中第一个「首页展示」的事件；都没有则不设主事件
+  function defaultPrimaryId(events) {
+    for (let i = 0; i < events.length; i++) {
+      if (events[i].on_index === true) return events[i].id
+    }
+    return ""
   }
 
   function migrationId(index, source) {
@@ -168,6 +186,8 @@ function createEventStore(options) {
     let eventsRaw
     let revision = 0
     let migrated = false
+    let rawPrimary
+    let rawPending
     if (Array.isArray(parsed)) {
       eventsRaw = parsed
       migrated = true
@@ -176,6 +196,8 @@ function createEventStore(options) {
       if (Number.isInteger(parsed.revision) && parsed.revision >= 0) revision = parsed.revision
       else migrated = true
       if (parsed.version !== DATA_VERSION) migrated = true
+      rawPrimary = parsed.primaryId
+      rawPending = parsed.watchfacePending
     } else {
       return null
     }
@@ -185,7 +207,38 @@ function createEventStore(options) {
       if (normalized.changed) migrated = true
       events.push(normalized.event)
     }
-    return {state: {version: DATA_VERSION, revision: revision, events: events}, migrated: migrated}
+
+    // 主事件：旧数据或失效引用按默认规则选定（D-17 明确规则）
+    let primaryId = ""
+    if (typeof rawPrimary === "string") {
+      if (rawPrimary === "") {
+        primaryId = ""
+      } else if (indexOfId(events, rawPrimary) >= 0) {
+        primaryId = rawPrimary
+      } else {
+        primaryId = defaultPrimaryId(events)
+        migrated = true
+      }
+    } else {
+      if (rawPrimary !== undefined) migrated = true
+      primaryId = defaultPrimaryId(events)
+      if (primaryId !== "") migrated = true
+    }
+
+    let watchfacePending = false
+    if (typeof rawPending === "boolean") watchfacePending = rawPending
+    else if (rawPending !== undefined) migrated = true
+
+    return {
+      state: {
+        version: DATA_VERSION,
+        revision: revision,
+        primaryId: primaryId,
+        watchfacePending: watchfacePending,
+        events: events
+      },
+      migrated: migrated
+    }
   }
 
   // 损坏现场复制为 .bad（保留主文件原位，后续读取仍会拒绝，不会当空列表覆盖）
@@ -303,6 +356,47 @@ function createEventStore(options) {
     })
   }
 
+  // 表盘文件维护（D-18 / D-20）：事件数据已提交后再维护 date.txt；
+  // 失败只标记 watchfacePending 并回报分项结果，两个文件不当成原子提交
+  function syncWatchFace(state, done) {
+    if (!watchFace) {
+      done(null, {skipped: true})
+      return
+    }
+    watchFace.sync(state, watchFaceFallbackName, (syncError, info) => {
+      if (!syncError) {
+        if (state.watchfacePending) {
+          // 补写成功：清标记并重新落盘（best-effort）
+          state.watchfacePending = false
+          commitState(state, () => done(null, {skipped: false}))
+          return
+        }
+        done(null, info || {skipped: false})
+        return
+      }
+      state.watchfacePending = true
+      commitState(state, () => done({code: "WATCHFACE_FAIL", cause: syncError}, {skipped: false}))
+    })
+  }
+
+  // 提交事件数据后维护表盘；payload 由调用方给出结果字段
+  function commitAndSync(state, buildPayload, done) {
+    commitState(state, (commitError) => {
+      if (commitError) {
+        done({code: "SAVE_FAIL", cause: commitError})
+        return
+      }
+      syncWatchFace(state, (syncError, info) => {
+        const payload = buildPayload ? buildPayload(state) : {}
+        if (syncError) {
+          done({code: "WATCHFACE_FAIL", cause: syncError.cause}, Object.assign({watchface: {ok: false}}, payload))
+          return
+        }
+        done(null, Object.assign({watchface: {ok: true, skipped: !!(info && info.skipped)}}, payload))
+      })
+    })
+  }
+
   function validateEventInput(input, partial) {
     if (!input || typeof input !== "object" || Array.isArray(input)) {
       return {ok: false, error: {code: "INVALID_EVENT"}}
@@ -370,7 +464,7 @@ function createEventStore(options) {
     return -1
   }
 
-  // 读取：返回 {events, revision, migrated}；旧数据会 best-effort 落盘升级
+  // 读取：返回 {events, revision, primaryId, migrated}；旧数据会 best-effort 落盘升级
   function read(callback) {
     loadState((error, result) => {
       if (error) {
@@ -378,9 +472,21 @@ function createEventStore(options) {
         return
       }
       if (result.migrated) {
-        enqueue((done) => commitState(result.state, done), () => {})
+        // 迁移（含主事件规则落定）后立即升级落盘并维护表盘文件
+        watchFaceChecked = true
+        enqueue((done) => commitAndSync(result.state, null, () => done(null)), () => {})
+      } else if (watchFace && (!watchFaceChecked || result.state.watchfacePending)) {
+        // 会话内首次读取维护一次表盘文件（内容未变则跳过写入）；
+        // 上次写入失败标记的待补写状态在本次进入重试（D-20）
+        watchFaceChecked = true
+        enqueue((done) => syncWatchFace(result.state, () => done(null)), () => {})
       }
-      callback(null, {events: result.state.events, revision: result.state.revision, migrated: result.migrated})
+      callback(null, {
+        events: result.state.events,
+        revision: result.state.revision,
+        primaryId: result.state.primaryId,
+        migrated: result.migrated
+      })
     })
   }
 
@@ -397,10 +503,11 @@ function createEventStore(options) {
         const event = buildEvent(result.state, input)
         result.state.events.push(event)
         result.state.revision += 1
-        commitState(result.state, (commitError) => {
-          if (commitError) return done({code: "SAVE_FAIL", cause: commitError})
-          done(null, {event: event, revision: result.state.revision, events: result.state.events})
-        })
+        commitAndSync(
+          result.state,
+          (state) => ({event: event, revision: state.revision, events: state.events, primaryId: state.primaryId}),
+          done
+        )
       })
     }, callback)
   }
@@ -418,10 +525,11 @@ function createEventStore(options) {
         if (index < 0) return done({code: "NOT_FOUND"})
         applyPatch(result.state.events[index], patch)
         result.state.revision += 1
-        commitState(result.state, (commitError) => {
-          if (commitError) return done({code: "SAVE_FAIL", cause: commitError})
-          done(null, {event: result.state.events[index], revision: result.state.revision, events: result.state.events})
-        })
+        commitAndSync(
+          result.state,
+          (state) => ({event: state.events[index], revision: state.revision, events: state.events, primaryId: state.primaryId}),
+          done
+        )
       })
     }, callback)
   }
@@ -439,12 +547,18 @@ function createEventStore(options) {
         if (index < 0 || index >= result.state.events.length) return done({code: "NOT_FOUND"})
         applyPatch(result.state.events[index], patch)
         result.state.revision += 1
-        commitState(result.state, (commitError) => {
-          if (commitError) return done({code: "SAVE_FAIL", cause: commitError})
-          done(null, {event: result.state.events[index], revision: result.state.revision, events: result.state.events})
-        })
+        commitAndSync(
+          result.state,
+          (state) => ({event: state.events[index], revision: state.revision, events: state.events, primaryId: state.primaryId}),
+          done
+        )
       })
     }, callback)
+  }
+
+  // 删除主事件时的替代规则：顺位第一个「首页展示」的事件接管，否则清空表盘
+  function dropPrimaryIfNeeded(state, removedId) {
+    if (state.primaryId === removedId) state.primaryId = defaultPrimaryId(state.events)
   }
 
   function removeById(id, callback) {
@@ -454,11 +568,13 @@ function createEventStore(options) {
         const index = indexOfId(result.state.events, id)
         if (index < 0) return done({code: "NOT_FOUND"})
         result.state.events.splice(index, 1)
+        dropPrimaryIfNeeded(result.state, id)
         result.state.revision += 1
-        commitState(result.state, (commitError) => {
-          if (commitError) return done({code: "SAVE_FAIL", cause: commitError})
-          done(null, {id: id, revision: result.state.revision, events: result.state.events})
-        })
+        commitAndSync(
+          result.state,
+          (state) => ({id: id, revision: state.revision, events: state.events, primaryId: state.primaryId}),
+          done
+        )
       })
     }, callback)
   }
@@ -472,11 +588,13 @@ function createEventStore(options) {
           if (index < 0 || index >= result.state.events.length) return done({code: "NOT_FOUND"})
           const id = result.state.events[index].id
           result.state.events.splice(index, 1)
+          dropPrimaryIfNeeded(result.state, id)
           result.state.revision += 1
-          commitState(result.state, (commitError) => {
-            if (commitError) return done({code: "SAVE_FAIL", cause: commitError})
-            done(null, {id: id, revision: result.state.revision, events: result.state.events})
-          })
+          commitAndSync(
+            result.state,
+            (state) => ({id: id, revision: state.revision, events: state.events, primaryId: state.primaryId}),
+            done
+          )
         })
       }, callback)
       return
@@ -484,12 +602,32 @@ function createEventStore(options) {
     removeById(index, callback)
   }
 
+  // 主事件切换（D-17 / D-18）：与 on_index 无关，传空串取消主事件
+  function setPrimary(id, callback) {
+    const target = id === undefined || id === null ? "" : String(id)
+    enqueue((done) => {
+      loadState((error, result) => {
+        if (error) return done(error)
+        const state = result.state
+        if (target !== "" && indexOfId(state.events, target) < 0) return done({code: "NOT_FOUND"})
+        state.primaryId = target
+        state.revision += 1
+        commitAndSync(
+          state,
+          (current) => ({revision: current.revision, events: current.events, primaryId: current.primaryId}),
+          done
+        )
+      })
+    }, callback)
+  }
+
   return {
     read: read,
     add: add,
     update: update,
     updateByIndex: updateByIndex,
-    remove: remove
+    remove: remove,
+    setPrimary: setPrimary
   }
 }
 

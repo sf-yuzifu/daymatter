@@ -564,15 +564,45 @@ export default {
     })
   },
 
-  handleAddEvent(data) {
+  // 插件消息里的表盘主事件标记：true / false 生效，缺省或非法值不改变主事件
+  readWatchfaceFlag(value) {
+    if (value === true || value === "true") return true
+    if (value === false || value === "false") return false
+    return null
+  },
+
+  // 分项结果：事件数据已提交但表盘文件失败时单独报告，不当作整体失败
+  finishPluginMutation(messageKey, error, result, wanted) {
     if (this._destroyed) return
-    global.eventStore.add(data, (error) => {
-      if (this._destroyed) return
-      if (error) {
+    if (error) {
+      if (error.code !== "WATCHFACE_FAIL") {
         this.showEventError(error)
         return
       }
-      this.afterMutation("addSuccess")
+      this.afterMutation(messageKey)
+      showToast({message: this.$t("watchfaceSyncFail"), duration: 2000})
+      return
+    }
+    const eventId = result && result.event ? result.event.id : null
+    if (wanted === null || !eventId) {
+      this.afterMutation(messageKey)
+      return
+    }
+    global.eventStore.setPrimary(wanted ? eventId : "", (primaryError) => {
+      if (this._destroyed) return
+      if (primaryError && primaryError.code !== "WATCHFACE_FAIL") {
+        this.showEventError(primaryError)
+        return
+      }
+      this.afterMutation(messageKey)
+      if (primaryError) showToast({message: this.$t("watchfaceSyncFail"), duration: 2000})
+    })
+  },
+
+  handleAddEvent(data) {
+    if (this._destroyed) return
+    global.eventStore.add(data, (error, result) => {
+      this.finishPluginMutation("addSuccess", error, result, this.readWatchfaceFlag(data.watchface))
     })
   },
 
@@ -586,13 +616,8 @@ export default {
       IFStaringDay: data.IFStaringDay,
       themeColor: data.themeColor
     }
-    const onDone = (error) => {
-      if (this._destroyed) return
-      if (error) {
-        this.showEventError(error)
-        return
-      }
-      this.afterMutation("changeSuccess")
+    const onDone = (error, result) => {
+      this.finishPluginMutation("changeSuccess", error, result, this.readWatchfaceFlag(data.watchface))
     }
     if (data.id !== undefined) {
       global.eventStore.update(String(data.id), patch, onDone)
@@ -604,12 +629,7 @@ export default {
   handleDeleteEvent(data) {
     if (this._destroyed) return
     const onDone = (error) => {
-      if (this._destroyed) return
-      if (error) {
-        this.showEventError(error)
-        return
-      }
-      this.afterMutation("deleteSuccess")
+      this.finishPluginMutation("deleteSuccess", error, null, null)
     }
     if (data.id !== undefined) {
       global.eventStore.remove(String(data.id), onDone)

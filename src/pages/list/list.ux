@@ -107,6 +107,7 @@ export default {
   onInit() {
     // 原始事件快照只保存在非响应式属性，展示数组只保留当前页
     this._allEvents = []
+    this._primaryId = ""
     this._destroyed = false
     this._ticker = global.createMinuteTicker((dateChanged) => this.handleMinuteTick(dateChanged))
   },
@@ -141,6 +142,10 @@ export default {
       days = String(status.days)
       already = false
     }
+
+    // 表盘主事件与首页展示独立，列表只做标记，不新增节点
+    const watchface = event.id === this._primaryId
+    if (watchface) display_name += " " + this.$t("watchfaceBadge")
 
     const font_size = calculateListFontSize(days, this.$t("today")) + getExtraFontSize()
 
@@ -180,6 +185,7 @@ export default {
         return
       }
       this._allEvents = result.events
+      this._primaryId = result.primaryId || ""
       this.showPage(restorePage > 0 ? restorePage : this.page)
     })
   },
@@ -197,6 +203,7 @@ export default {
     // 隐藏时释放列表节点与展示数据，页码 / 原始下标在重新显示时重新校验
     this.contentVisible = false
     this._allEvents = []
+    this._primaryId = ""
     this.events = []
     this._ticker.stop()
   },
@@ -205,6 +212,7 @@ export default {
     this._destroyed = true
     this._ticker.stop()
     this._allEvents = []
+    this._primaryId = ""
     this.events = []
     if (typeof global.tryRunGC === "function") global.tryRunGC()
   },
@@ -250,6 +258,7 @@ export default {
         on_index: event.on_index,
         themeColor: event.themeColor,
         IFStaringDay: event.IFStaringDay || false,
+        watchface: event.id === this._primaryId ? "true" : "false",
         callback_uri: "/pages/list"
       }
     })
@@ -262,6 +271,8 @@ export default {
       params: {
         extend: "true",
         event_id: this.count,
+        // 尚无主事件时新增的第一个事件默认作为表盘事件，衔接旧行为
+        watchface: this._primaryId ? "false" : "true",
         callback_uri: "/pages/list"
       }
     })

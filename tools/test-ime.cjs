@@ -324,8 +324,8 @@ test("P-08: 全项目优化后图片与资源完整性校验（无损解码、�
       let variants = [src]
       if (src.includes("{{ lang }}")) {
         variants = ["cn", "en"].map((lang) => src.replace(/\{\{\s*lang\s*\}\}/g, lang))
-      } else if (src.includes("{{ on_index }}") || src.includes("{{ IFStaringDay }}")) {
-        variants = ["true", "false"].map((bool) => src.replace(/\{\{\s*(?:on_index|IFStaringDay)\s*\}\}/g, bool))
+      } else if (/\{\{\s*(?:on_index|IFStaringDay|useWatchface)\s*\}\}/.test(src)) {
+        variants = ["true", "false"].map((bool) => src.replace(/\{\{\s*(?:on_index|IFStaringDay|useWatchface)\s*\}\}/g, bool))
       } else if (src.includes("{{ bgImage }}")) {
         variants = ["/common/blank.png"]
       }
@@ -1258,6 +1258,68 @@ test("D-16: 保存失败保留草稿与页面，重复点击只提交一次", ()
   h.deferWrites = false
   const added = readStoreEvents(h).filter((e) => e.name === "草稿名称")
   assert.equal(added.length, 1, "重复点击不得重复新增")
+})
+
+test("D-17 / D-18: 编辑页按稳定 ID 切换表盘主事件，列表传递当前主事件标记", () => {
+  const h = createHarness()
+  seedEvents(h, 3)
+  const list = h.router.push({uri: "/pages/list"})
+  assert.equal(list._primaryId !== undefined, true, "列表必须记录当前主事件")
+
+  // 编辑既有事件：开关由 false 切到 true，保存后按稳定 ID 落库
+  list.routeEditEvent(1)
+  const editor = h.current()
+  assert.equal(editor.watchface, "false")
+  editor.useWatchface = false
+  editor.changeUseWatchface()
+  assert.equal(editor.useWatchface, true, "开关必须可切换")
+  editor.event_name = "表盘事件"
+  const onIndexBefore = editor.on_index
+  editor.saveEvent()
+  const stored = JSON.parse(h.files.get("internal://files/events.json"))
+  const target = stored.events[1]
+  assert.equal(stored.primaryId, target.id, "主事件必须按稳定 ID 记录")
+  assert.equal(target.name, "表盘事件")
+  assert.equal(target.on_index, true, "切换主事件不得改动首页展示开关（页面值为字符串 true）")
+
+  // 列表再次进入时传递正确标记，并只做文本标记不新增节点
+  const list2 = h.router.push({uri: "/pages/list"})
+  assert.equal(list2._primaryId, target.id)
+  const marked = list2.events.filter((item) => item.display_name.indexOf("表盘") >= 0)
+  assert.equal(marked.length, 1, "仅主事件带表盘标记")
+  assert.ok(!fs.readFileSync(path.join(root, "src/pages/list/list.ux"), "utf8").includes("watchface-badge"),
+    "表盘标记不得引入额外节点")
+
+  // 再次进入编辑页不重复切换主事件，开关状态与落库一致
+  list2.routeEditEvent(1)
+  const editor2 = h.current()
+  assert.equal(editor2.watchface, "true")
+  editor2.event_name = "表盘事件改名"
+  editor2.saveEvent()
+  assert.equal(JSON.parse(h.files.get("internal://files/events.json")).primaryId, target.id)
+})
+
+test("D-18 / D-20: 表盘文件只由存储层维护，页面与插件不再直接写 date.txt", () => {
+  const pageSources = ["index", "list", "edit"]
+    .map((name) => fs.readFileSync(path.join(root, "src/pages", name, name + ".ux"), "utf8"))
+    .join("\n")
+  assert.ok(!pageSources.includes("date.txt"), "页面不得直接写表盘文件")
+  assert.ok(!pageSources.includes("saveDateToFile"), "旧的页面内表盘写入入口必须移除")
+  const editSource = fs.readFileSync(path.join(root, "src/pages/edit/edit.ux"), "utf8")
+  assert.ok(editSource.includes("global.eventStore.setPrimary"), "编辑页必须通过存储层切换主事件")
+  const indexSource = fs.readFileSync(path.join(root, "src/pages/index/index.ux"), "utf8")
+  assert.ok(indexSource.includes("WATCHFACE_FAIL"), "插件消息必须报告表盘分项结果")
+  assert.ok(indexSource.includes("readWatchfaceFlag"), "插件消息支持切换表盘主事件")
+
+  // 表盘写入失败：事件数据已提交，页面报告分项结果后离开，不当作整体失败
+  const h = createHarness()
+  const editor = h.router.push({uri: "/pages/edit", params: {extend: "true", callback_uri: "/pages/index"}})
+  editor.event_name = "分项结果"
+  h.failWrites = true
+  editor.saveEvent()
+  h.failWrites = false
+  assert.equal(readStoreEvents(h).length, 0, "写盘失败不得提交事件数据")
+  assert.equal(h.current(), editor, "整体失败保留页面与草稿")
 })
 
 test("C-05: 页面销毁后停止在途回调，迟到结果不重建 / 不导航", () => {

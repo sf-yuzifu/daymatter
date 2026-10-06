@@ -43,6 +43,17 @@
         </div>
         <div class="line button" style="margin-bottom: 8px">
           <marquee if="{{ pageVisible }}" scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
+            {{ $t("useAsWatchface") }}
+          </marquee>
+          <text else>{{ $t("useAsWatchface") }}</text>
+          <img
+            style="height: 48px"
+            @click="changeUseWatchface"
+            src="/common/{{ useWatchface }}.png"
+          />
+        </div>
+        <div class="line button" style="margin-bottom: 8px">
+          <marquee if="{{ pageVisible }}" scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
             {{ $t("includeStartDay") }}
           </marquee>
           <text else>{{ $t("includeStartDay") }}</text>
@@ -115,7 +126,6 @@
 
 <script>
 import router from "@system.router"
-import file from "@system.file"
 import {showToast} from "@system.prompt"
 
 export default {
@@ -125,6 +135,7 @@ export default {
     date: "",
     on_index: true,
     IFStaringDay: false,
+    useWatchface: false,
     themeColor: "#3184d0",
     callback_uri: "/pages/index",
     event_id: "0",
@@ -150,6 +161,10 @@ export default {
     this._pendingRequestId = ""
     this._destroyed = false
     this._saving = false
+    // 表盘主事件与「首页展示」相互独立：进入时的状态决定保存时是否需要切换
+    this._wasWatchface = this.watchface === true || this.watchface === "true"
+    this.useWatchface = this._wasWatchface
+    this._primaryChange = false
     this._ticker = global.createMinuteTicker(() => this.handleMinuteTick())
     // 统一日期格式：旧数据 / 插件参数中的 YYYY-M-D 归一到 YYYY-MM-DD，非法值回退今天
     const normalizedDate = global.dateUtils.normalizeDate(this.date)
@@ -265,6 +280,15 @@ export default {
     this.IFStaringDay = !this.IFStaringDay
   },
 
+  changeUseWatchface() {
+    if (this.useWatchface === "true") {
+      this.useWatchface = true
+    } else if (this.useWatchface === "false") {
+      this.useWatchface = false
+    }
+    this.useWatchface = !this.useWatchface
+  },
+
   changeThemeColor(color) {
     this.themeColor = color
   },
@@ -303,25 +327,46 @@ export default {
       themeColor: this.themeColor
     }
 
-    const onDone = (error) => {
+    // 页面收到的「当前是否表盘事件」与开关最终值不一致才需要切换主事件
+    const wantedWatchface = this.useWatchface === true || this.useWatchface === "true"
+    this._primaryChange = wantedWatchface !== this._wasWatchface
+
+    const finish = (error) => {
       if (this._destroyed) return
       if (error) {
+        if (error.code === "WATCHFACE_FAIL") {
+          // D-20 分项结果：事件数据已提交，仅表盘文件失败；离开页面避免重复新增
+          showToast({message: this.$t("watchfaceSyncFail"), duration: 2000})
+          this.routeBack()
+          return
+        }
         // 保存失败保留当前草稿与页面，不虚报成功（D-16）
         this._saving = false
         this.showEventError(error)
         return
       }
-      if (payload.on_index) {
-        this.saveDateToFile()
-      }
       showToast({message: this.$t("saveSuccess")})
       this.routeBack()
     }
 
-    if (this.extend == "true") {
-      global.eventStore.add(payload, onDone)
+    const onStored = (error, result) => {
+      if (error) {
+        finish(error)
+        return
+      }
+      const id = this.extend === "true" ? result.event.id : String(this.event_id)
+      if (!this._primaryChange) {
+        finish(null)
+        return
+      }
+      // 主事件切换单独提交，取消主事件传空串
+      global.eventStore.setPrimary(wantedWatchface ? id : "", finish)
+    }
+
+    if (this.extend === "true") {
+      global.eventStore.add(payload, onStored)
     } else {
-      global.eventStore.update(String(this.event_id), payload, onDone)
+      global.eventStore.update(String(this.event_id), payload, onStored)
     }
   },
 
@@ -356,24 +401,18 @@ export default {
     this.showErrorToast(causeCode)
   },
 
-  saveDateToFile() {
-    file.writeText({
-      uri: "internal://files/date.txt",
-      text: `${this.event_name},${this.date},${this.IFStaringDay}`,
-      success: () => {},
-      fail: (data, code) => {
-        if (this._destroyed) return
-        this.showErrorToast(code)
-      }
-    })
-  },
-
   deleteEvent() {
     if (this._saving) return
     this._saving = true
     global.eventStore.remove(String(this.event_id), (error) => {
       if (this._destroyed) return
       if (error) {
+        if (error.code === "WATCHFACE_FAIL") {
+          // 事件已删除，仅表盘文件失败：报告分项结果后离开
+          showToast({message: this.$t("watchfaceSyncFail"), duration: 2000})
+          this.routeBack()
+          return
+        }
         this._saving = false
         this.showEventError(error)
         return

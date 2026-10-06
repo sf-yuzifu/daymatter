@@ -5,6 +5,7 @@ import gcGuard from "./components/gcGuard"
 import minuteTicker from "./components/minuteTicker"
 import dateUtils from "./components/dateUtils"
 import eventStoreFactory from "./components/eventStore"
+import watchFaceFactory from "./components/watchface"
 
 let screenSize = {width: 0, height: 0}
 
@@ -17,8 +18,15 @@ global.createMinuteTicker = minuteTicker.createMinuteTicker
 // 日期工具：显式解析与日历日算法，页面统一通过 global.dateUtils 使用
 global.dateUtils = dateUtils
 
-// 事件存储：腕端与插件消息统一走同一读写 / 校验 / 原子提交入口
-global.eventStore = eventStoreFactory.createEventStore({file: file, dateUtils: dateUtils})
+// 表盘文件维护：名称兜底文案按当前语言取一次，模块本身不依赖多语言
+global.watchFace = watchFaceFactory.createWatchFace({file: file})
+
+// 事件存储：腕端与插件消息统一走同一读写 / 校验 / 原子提交入口，提交后自动维护表盘文件
+global.eventStore = eventStoreFactory.createEventStore({
+  file: file,
+  dateUtils: dateUtils,
+  watchFace: global.watchFace
+})
 
 // 设备信息就绪前的默认形态：胶囊 / 跑道屏是设计基准
 global.screenShape = "pill-shaped"
