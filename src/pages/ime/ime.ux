@@ -946,6 +946,8 @@ const KEYS = Object.freeze({
   ]),
 });
 
+const MAX_CANDIDATE_LENGTH = 5;
+
 export default {
   private: {
     // 页面化改造（原自定义组件 InputMethod）：props 改 private/启动参数，
@@ -953,15 +955,12 @@ export default {
     context: "",
     label: "",
     keyboardtype: "QWERTY",
-    maxlength: 5,
-    vibratemode: "",
     screentype: "circle",
     cval: "",
     resultList: [],
     resultList2: [],
     waitingList: [],
     waitingIndex: -1,
-    lastWaitingStr: "",
     downFlag: "",
     lang: "cn",
     numFlag: false,
@@ -975,17 +974,17 @@ export default {
   },
   onInit() {
     this.keys = KEYS;
+    this.vibratemode = "";
+    this.lastWaitingStr = "";
     // 调用方通过 global 传入初始文本与输入行标题（保持与调用页一致的 UI）
     this.context = global.__imeText || "";
     this.label = global.__imeLabel || "";
     this.screentype = global.screenShape || "circle";
-    if (this.maxlength) {
-      const tempCvalList = [];
-      for (let i = 0; i < this.maxlength; i++) {
-        tempCvalList.push(i);
-      }
-      this.cvalList = tempCvalList;
+    const tempCvalList = [];
+    for (let i = 0; i < MAX_CANDIDATE_LENGTH; i++) {
+      tempCvalList.push(i);
     }
+    this.cvalList = tempCvalList;
     if (this.screentype === "rect" || this.screentype === "pill-shaped") {
       this.adjustScreenWidth();
     }
@@ -1143,12 +1142,12 @@ export default {
     let array = [];
     for (let i = 0; i < this.resultList.length; i++) {
       array.push(this.resultList[i]);
-      if (array.length === parseInt(this.maxlength)) {
+      if (array.length === MAX_CANDIDATE_LENGTH) {
         this.resultList2.push(array);
         array = [];
       }
     }
-    if (array.length > 0 && array.length < parseInt(this.maxlength)) {
+    if (array.length > 0 && array.length < MAX_CANDIDATE_LENGTH) {
       this.resultList2.push(array);
     }
   },

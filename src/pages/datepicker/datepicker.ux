@@ -41,10 +41,7 @@ export default {
     time: "",
     requestId: "",
     date: "",
-    currentYear: 2024,
     currentMonth: 1,
-    selectedYear: 2024,
-    selectedMonth: 1,
     selectedDay: 1,
     yearRange: [],
     monthRange: [],
@@ -56,6 +53,7 @@ export default {
     // 初始化年份范围（前后50年）
     const now = new Date()
     const currentYear = now.getFullYear()
+    this.currentYear = currentYear
     const years = []
     for (let i = currentYear - 50; i <= currentYear + 50; i++) {
       years.push(String(i))
@@ -73,8 +71,6 @@ export default {
     const [year, month, day] = initDate.split("-").map(Number)
     this.currentYear = year
     this.currentMonth = month
-    this.selectedYear = year
-    this.selectedMonth = month
     this.selectedDay = day
     
     // 计算年份索引
