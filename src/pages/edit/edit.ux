@@ -150,6 +150,7 @@ export default {
     this._pendingRequestId = ""
     this._destroyed = false
     this._saving = false
+    this._ticker = global.createMinuteTicker(() => this.handleMinuteTick())
     if (this.date == "") {
       const _date = new Date()
       this.date = _date.getFullYear() + "-" + (_date.getMonth() + 1) + "-" + _date.getDate()
@@ -178,16 +179,25 @@ export default {
     }
     this._pendingField = ""
     this._pendingRequestId = ""
+    this._ticker.start()
+  },
+
+  handleMinuteTick() {
+    if (this._destroyed) return
+    // 编辑页只显示当前时间，目标日期草稿不随时钟变化
+    this.time = global.getTime()
   },
 
   onHide() {
-    // 离开页面时移除跑马灯与表单节点，停止滚动；草稿数据保留在 this 中
+    // 离开页面时移除跑马灯与表单节点，停止滚动与分钟时钟；草稿数据保留在 this 中
     this.pageVisible = false
     this.contentVisible = false
+    this._ticker.stop()
   },
 
   onDestroy() {
     this._destroyed = true
+    this._ticker.stop()
     this.clearImeResult()
     const result = global.__daymatterDateResult
     if (result && result.requestId === this._pendingRequestId) {

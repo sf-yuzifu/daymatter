@@ -61,8 +61,25 @@ export default {
     time: ""
   },
 
+  onInit() {
+    this._ticker = global.createMinuteTicker(() => this.handleMinuteTick())
+  },
+
+  handleMinuteTick() {
+    this.time = global.getTime()
+  },
+
   onShow() {
     this.time = global.getTime()
+    this._ticker.start()
+  },
+
+  onHide() {
+    this._ticker.stop()
+  },
+
+  onDestroy() {
+    this._ticker.stop()
   },
 
   routeBack() {

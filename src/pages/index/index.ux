@@ -139,6 +139,7 @@ export default {
     this._destroyed = false
     this._needsRefresh = false
     this._messageHandler = null
+    this._ticker = global.createMinuteTicker((dateChanged) => this.handleMinuteTick(dateChanged))
     connect = interconnectHub.getConnection(interconnect)
     if (!connect) return
     // 订阅应用级分发：处理器只在页面存活期间挂载，销毁时解除
@@ -176,19 +177,22 @@ export default {
     this.time = global.getTime()
     this.loadBackground()
     this.completed()
+    this._ticker.start()
   },
 
   onHide() {
-    // 离开页面立即停止跑马灯并释放重内容节点；卡片位置由 _currentSource 保留
+    // 离开页面立即停止跑马灯与分钟时钟，并释放重内容节点；卡片位置由 _currentSource 保留
     this.pageVisible = false
     this.contentVisible = false
     this.events = []
     this.slots = []
     this.activeSourceIndex = -1
+    this._ticker.stop()
   },
 
   onDestroy() {
     this._destroyed = true
+    this._ticker.stop()
     if (this._messageHandler) {
       interconnectHub.unsubscribeMessage(this._messageHandler)
       this._messageHandler = null
@@ -199,6 +203,15 @@ export default {
     this.activeSourceIndex = -1
     this._needsRefresh = false
     if (typeof global.tryRunGC === "function") global.tryRunGC()
+  },
+
+  handleMinuteTick(dateChanged) {
+    if (this._destroyed) return
+    this.time = global.getTime()
+    if (dateChanged) {
+      // 跨午夜后重新计算全部倒数天数
+      this.completed()
+    }
   },
 
   onReady() {

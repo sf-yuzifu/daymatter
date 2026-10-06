@@ -1,11 +1,15 @@
 <script>
 import device from "@system.device"
 import gcGuard from "./components/gcGuard"
+import minuteTicker from "./components/minuteTicker"
 
 let screenSize = {width: 0, height: 0}
 
 // 低频 GC 守卫：页面释放大块数据后按需调用，宿主持有 runGC 时才真正执行
 global.tryRunGC = gcGuard.createGcGuard()
+
+// 前台分钟级时钟：页面可见时启动、隐藏停止，跨午夜上报日期变化
+global.createMinuteTicker = minuteTicker.createMinuteTicker
 
 device.getInfo({
   success: function (deviceRet) {

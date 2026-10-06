@@ -108,6 +108,7 @@ export default {
     // 原始事件快照只保存在非响应式属性，展示数组只保留当前页
     this._allEvents = []
     this._destroyed = false
+    this._ticker = global.createMinuteTicker((dateChanged) => this.handleMinuteTick(dateChanged))
   },
 
   onBackPress() {
@@ -169,6 +170,11 @@ export default {
   onShow() {
     this.contentVisible = true
     this.time = global.getTime()
+    this.loadList()
+    this._ticker.start()
+  },
+
+  loadList() {
     // 从编辑 / 新增返回时恢复原页；列表销毁重建也由模块级变量兜底
     const restorePage = pendingListPage
     pendingListPage = 0
@@ -194,15 +200,26 @@ export default {
     })
   },
 
+  handleMinuteTick(dateChanged) {
+    if (this._destroyed || !this.contentVisible) return
+    this.time = global.getTime()
+    if (dateChanged) {
+      // 跨午夜后当前页天数需要重新计算
+      this.loadList()
+    }
+  },
+
   onHide() {
     // 隐藏时释放列表节点与展示数据，页码 / 原始下标在重新显示时重新校验
     this.contentVisible = false
     this._allEvents = []
     this.events = []
+    this._ticker.stop()
   },
 
   onDestroy() {
     this._destroyed = true
+    this._ticker.stop()
     this._allEvents = []
     this.events = []
     if (typeof global.tryRunGC === "function") global.tryRunGC()

@@ -32,6 +32,7 @@ function createHarness() {
     connection: null,
     deferReads: false,
     deferWrites: false,
+    readCounts: new Map(),
     global: {
       screenShape: "pill-shaped",
       screenSize: {width: 192, height: 490},
@@ -43,6 +44,38 @@ function createHarness() {
       adjustThemeColor: (color) => color || "#3184d0"
     }
   }
+  // 可控时钟与假定时器：分钟时钟测试不依赖真实时间，也不会残留 Node 定时器
+  const clock = {now: Date.now()}
+  const timeoutQueue = new Map()
+  let timerSeq = 0
+  const RealDate = Date
+  const FakeDate = function (...args) {
+    if (args.length === 0) return new RealDate(clock.now)
+    return new RealDate(...args)
+  }
+  FakeDate.now = () => clock.now
+  FakeDate.parse = RealDate.parse
+  FakeDate.UTC = RealDate.UTC
+  const fakeSetTimeout = (fn, delay) => {
+    const id = ++timerSeq
+    timeoutQueue.set(id, {fn, delay})
+    return id
+  }
+  const fakeClearTimeout = (id) => {
+    timeoutQueue.delete(id)
+  }
+  state.clock = clock
+  state.pendingTimers = () => timeoutQueue.size
+  state.timerDelays = () => Array.from(timeoutQueue.values()).map((task) => task.delay)
+  state.runNextTimer = () => {
+    const next = timeoutQueue.entries().next()
+    if (next.done) return false
+    const [id, task] = next.value
+    timeoutQueue.delete(id)
+    task.fn()
+    return true
+  }
+  state.readCount = (uri) => state.readCounts.get(uri) || 0
   const dict = loadModule(fs.readFileSync(path.join(imeDir, "assets/dic.js"), "utf8"), {}, "dict")
   const SimpleInputMethod = loadModule(
     fs.readFileSync(path.join(imeDir, "assets/dicUtil.js"), "utf8"), {dict}, "SimpleInputMethod"
@@ -51,6 +84,13 @@ function createHarness() {
   const interconnectHub = loadModule(
     fs.readFileSync(path.join(root, "src/components/interconnectHub.js"), "utf8"), {}, "unused"
   )
+  // 分钟时钟使用假定时器与可控时钟，页面通过 global.createMinuteTicker 获取
+  const minuteTicker = loadModule(
+    fs.readFileSync(path.join(root, "src/components/minuteTicker.js"), "utf8"),
+    {setTimeout: fakeSetTimeout, clearTimeout: fakeClearTimeout, Date: FakeDate},
+    "unused"
+  )
+  state.global.createMinuteTicker = minuteTicker.createMinuteTicker
   const current = () => state.pages[state.pages.length - 1]
   const show = () => { if (current().onShow) current().onShow() }
   const destroy = () => {
@@ -69,6 +109,7 @@ function createHarness() {
         definition = loadModule(script, {
           router, file, showToast() {}, SimpleInputMethod, global: state.global,
           console: {log() {}, error() {}},
+          app: {getInfo: () => ({versionName: "2.1"})},
           vibrator: {vibrate(options) { state.vibrations.push(options) }},
           device: {getInfo({success}) { success({screenWidth: state.global.screenSize.width}) }},
           interconnect: {
@@ -133,6 +174,7 @@ function createHarness() {
   const file = {
     readText({uri, success, fail}) {
       const run = () => {
+        state.readCounts.set(uri, (state.readCounts.get(uri) || 0) + 1)
         if (state.files.has(uri)) success({text: state.files.get(uri)})
         else if (fail) fail("not found", 301)
       }
@@ -1218,4 +1260,145 @@ test("C-25: runGC 仅在宿主持有时低频调用，不在高频路径触发",
   }
   const appSource = fs.readFileSync(path.join(root, "src/app.ux"), "utf8")
   assert.ok(appSource.includes("createGcGuard"), "app.ux 必须安装低频 GC 守卫")
+})
+
+test("C-22: 时钟按分钟级更新并停止于隐藏，跨午夜刷新日期相关数据", () => {
+  const h = createHarness()
+  h.clock.now = new Date(2026, 5, 15, 12, 34, 30).getTime()
+  seedEvents(h, 2)
+  const home = h.router.push({uri: "/pages/index"})
+  assert.equal(home.time, "12:34")
+  assert.equal(h.pendingTimers(), 1, "显示时必须只挂一个分钟级定时器")
+  const delay = h.timerDelays()[0]
+  assert.ok(delay > 0 && delay <= 60000, "延迟必须在一分钟内")
+  assert.equal((h.clock.now + delay) % 60000, 0, "必须对齐分钟边界")
+
+  // 普通分钟：只更新时间，不重建事件数据
+  const readsBefore = h.readCount("internal://files/events.json")
+  h.global.getTime = () => "12:35"
+  h.clock.now += delay
+  h.runNextTimer()
+  assert.equal(home.time, "12:35")
+  assert.equal(h.readCount("internal://files/events.json"), readsBefore, "普通分钟不得重建数据")
+  assert.equal(h.pendingTimers(), 1, "触发后继续按分钟调度")
+
+  // 隐藏停止、重新显示恢复，且同一时间只有一个可见页计时器
+  home.routeMore()
+  assert.equal(h.pendingTimers(), 1, "同一时间只允许一个可见页计时器")
+  h.current().routeBack()
+  assert.equal(h.pendingTimers(), 1)
+
+  // 关于页 / 编辑页 / 键盘 / 日期页：只保留当前可见页的计时器
+  home.info()
+  assert.equal(h.pendingTimers(), 1)
+  h.current().routeBack()
+  home.routeMore()
+  const list = h.current()
+  list.routeEditEvent(0)
+  const editor = h.current()
+  assert.equal(h.pendingTimers(), 1, "编辑页显示时只保留自身计时器")
+  editor.editDate()
+  assert.equal(h.pendingTimers(), 1, "日期页显示时只保留自身计时器")
+  h.current().routeBack()
+  editor.editEventName()
+  assert.equal(h.pendingTimers(), 0, "键盘页不显示时钟，编辑页隐藏后不得保留计时器")
+  h.current().finish(false)
+  assert.equal(h.pendingTimers(), 1)
+  editor.routeBack()
+  list.routeBack()
+  assert.equal(h.pendingTimers(), 1)
+
+  // 跨午夜：分钟 tick 报告日期变化，首页重新计算倒数天数
+  const readsBeforeMidnight = h.readCount("internal://files/events.json")
+  h.clock.now += 24 * 60 * 60 * 1000
+  h.runNextTimer()
+  assert.equal(h.readCount("internal://files/events.json"), readsBeforeMidnight + 1, "跨午夜必须重新计算天数")
+  assert.equal(h.pendingTimers(), 1)
+
+  // 源码约束：所有显示时钟的页面都使用全局分钟时钟，不新增常驻高频计时器
+  const clockPages = [
+    "src/pages/index/index.ux",
+    "src/pages/list/list.ux",
+    "src/pages/edit/edit.ux",
+    "src/pages/datepicker/datepicker.ux",
+    "src/pages/about/about.ux"
+  ]
+  for (const file of clockPages) {
+    const source = fs.readFileSync(path.join(root, file), "utf8")
+    assert.ok(source.includes("global.createMinuteTicker"), file + " 必须使用分钟级时钟")
+    assert.ok(source.includes("_ticker.stop()"), file + " 隐藏 / 销毁必须停止时钟")
+    assert.ok(!source.includes("setInterval"), file + " 不得新增常驻高频计时器")
+  }
+})
+
+test("C-23: 连续进入 / 退出各页面后大块数据可回收，数组 / 缓存规模有界", (t) => {
+  const h = createHarness()
+  seedEvents(h, 12)
+  const home = h.router.push({uri: "/pages/index"})
+  const imePages = []
+
+  const runCycle = () => {
+    // 首页 → 分页列表 → 编辑 → 键盘（更多候选）→ 日期 → 返回，再进入关于页
+    home.routeMore()
+    const list = h.current()
+    list.changePage(2)
+    list.changePage(1)
+    list.routeEditEvent(0)
+    const editor = h.current()
+    editor.editEventName()
+    const ime = h.current()
+    imePages.push(ime)
+    ime.onSelect("N")
+    ime.onSelect("I")
+    ime.onBtnClick("down")
+    assert.ok(ime.resultList2.length > 0, "展开更多候选应生成分组")
+    ime.onBtnClick("down")
+    assert.equal(ime.resultList2.length, 0, "收起立即释放候选分组")
+    ime.finish(false)
+    editor.editDate()
+    h.current().routeBack()
+    editor.routeBack()
+    assert.equal(h.current(), list)
+    list.routeBack()
+    assert.equal(h.current(), home)
+    home.info()
+    h.current().routeBack()
+    assert.equal(h.current(), home)
+
+    // 隐藏 / 销毁后大块数据立即释放，页面栈不堆积
+    assert.equal(h.pages.length, 1, "连续往返不得堆积页面")
+    assert.equal(list._allEvents.length, 0, "隐藏列表必须释放原始快照")
+    assert.equal(list.events.length, 0, "隐藏列表必须释放当前页数据")
+    assert.ok(home.events.length <= 12)
+    assert.equal(home.slots.length, 3, "首页最多三个槽位")
+  }
+
+  // 先预热，避开首次模块加载 / JIT 的固定峰值，再测量持续增长
+  for (let i = 0; i < 5; i++) runCycle()
+  if (typeof global.gc === "function") global.gc()
+  const heapBefore = process.memoryUsage().heapUsed
+  for (let i = 0; i < 15; i++) runCycle()
+  if (typeof global.gc === "function") global.gc()
+  const heapAfter = process.memoryUsage().heapUsed
+
+  // 键盘页销毁后缓存 / 候选全部释放，查词缓存有界
+  for (const ime of imePages) {
+    assert.equal(Object.keys(ime._searchCache).length, 0, "键盘销毁后查词缓存必须释放")
+    assert.equal(ime.resultList.length, 0, "键盘销毁后候选必须释放")
+    assert.equal(ime.resultList2.length, 0, "键盘销毁后候选分组必须释放")
+  }
+  assert.equal(h.pages.length, 1)
+  assert.equal(h.maxDepth, 4)
+  assert.equal(h.replacements, 0)
+  assert.equal(h.pendingTimers(), 1, "仅当前可见页保留分钟时钟")
+
+  t.diagnostic(
+    `C-23 模拟规模：页面栈=${h.pages.length} 峰值深度=${h.maxDepth} 键盘页缓存=0 ` +
+      `列表快照=0 当前页≤10 首页槽位=${home.slots.length} 可见计时器=${h.pendingTimers()}`
+  )
+  t.diagnostic(
+    `C-23 预热后 15 轮 Node 模拟 JS 堆 ${(heapBefore / 1024).toFixed(1)} KiB -> ` +
+      `${(heapAfter / 1024).toFixed(1)} KiB (${typeof global.gc === "function" ? "含 gc" : "未启用 gc，仅供参考"}；` +
+      `非 Vela 真机数据)`
+  )
 })

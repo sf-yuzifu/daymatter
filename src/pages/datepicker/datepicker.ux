@@ -82,6 +82,7 @@ export default {
     
     // 初始化日期范围
     this.updateDayRange()
+    this._ticker = global.createMinuteTicker(() => this.handleMinuteTick())
   },
 
   updateDayRange() {
@@ -105,6 +106,19 @@ export default {
 
   onShow() {
     this.time = global.getTime()
+    this._ticker.start()
+  },
+
+  handleMinuteTick() {
+    this.time = global.getTime()
+  },
+
+  onHide() {
+    this._ticker.stop()
+  },
+
+  onDestroy() {
+    this._ticker.stop()
   },
 
   onYearChange(e) {
