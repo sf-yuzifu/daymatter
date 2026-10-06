@@ -17,9 +17,14 @@
     <img else class="top" src="/common/back.png" @click="routeBack" />
     <text class="count" if="{{ global.isPillShaped }}">{{ $t("eventCount", {count: count}) }}</text>
     <div class="box">
-      <scroll scroll-y="true" bounces="true">
-        <div for="{{ events }}">
-          <div class="countdown-card" @click="routeEditEvent($idx)">
+      <list class="event-list" bounces="true">
+        <list-item
+          for="{{ events }}"
+          type="event"
+          class="event-item"
+          @click="routeEditEvent($item.storageIndex)"
+        >
+          <div class="countdown-card">
             <div
               class="card-header"
               style="background-color: {{ global.adjustThemeColor($item.themeColor, $item.already) }}"
@@ -32,8 +37,31 @@
               </text>
             </div>
           </div>
-        </div>
-      </scroll>
+        </list-item>
+        <list-item type="pagination" class="pagination-item" if="{{ totalPages > 1 }}">
+          <div class="pagination-controls">
+            <div
+              class="{{ page > 1 ? 'pagination-button' : 'pagination-button-disabled' }}"
+              @click="changePage(page - 1)"
+            >
+              <text class="{{ page > 1 ? 'text-normal' : 'text-disabled' }}">
+                {{ $t("prevPage") }}
+              </text>
+            </div>
+            <text class="page-indicator">
+              {{ $t("pageIndicator", {page: page, total: totalPages}) }}
+            </text>
+            <div
+              class="{{ page < totalPages ? 'pagination-button' : 'pagination-button-disabled' }}"
+              @click="changePage(page + 1)"
+            >
+              <text class="{{ page < totalPages ? 'text-normal' : 'text-disabled' }}">
+                {{ $t("nextPage") }}
+              </text>
+            </div>
+          </div>
+        </list-item>
+      </list>
     </div>
     <img
       if="{{ global.screenShape == 'rect' }}"
@@ -62,11 +90,22 @@ function calculateListFontSize(days, todayStr) {
   return 20
 }
 
+const PAGE_SIZE = 10
+
+let pendingListPage = 0
+
 export default {
   private: {
     count: 0,
     events: [],
-    time: ""
+    time: "",
+    page: 1,
+    totalPages: 1
+  },
+
+  onInit() {
+    // 原始事件快照只保存在非响应式属性，展示数组只保留当前页
+    this._allEvents = []
   },
 
   onBackPress() {
@@ -82,7 +121,7 @@ export default {
     }
   },
 
-  formatEvent(event) {
+  formatEvent(event, storageIndex) {
     let days,
       display_name = event.name,
       already = true
@@ -120,41 +159,72 @@ export default {
       themeColor: event.themeColor,
       on_index: event.on_index,
       IFStaringDay: event.IFStaringDay || false,
-      font_size
+      font_size,
+      storageIndex
     }
   },
 
   onShow() {
     this.time = global.getTime()
+    // 从编辑 / 新增返回时恢复原页；列表销毁重建也由模块级变量兜底
+    const restorePage = pendingListPage
+    pendingListPage = 0
     file.readText({
       uri: "internal://files/events.json",
       success: (data) => {
+        let events
         try {
-          this.events = JSON.parse(data.text).map((event) => this.formatEvent(event))
-          this.count = this.events.length
+          events = JSON.parse(data.text)
         } catch (e) {
-          this.events = []
-          this.count = 0
+          events = []
         }
+        if (!Array.isArray(events)) events = []
+        this._allEvents = events
+        this.showPage(restorePage > 0 ? restorePage : this.page)
       },
       fail: () => {
-        this.events = []
-        this.count = 0
+        this._allEvents = []
+        this.showPage(1)
       }
     })
+  },
+
+  showPage(targetPage) {
+    // 每次列表变更后按原始存储下标重建当前页映射
+    const total = this._allEvents.length
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+    let page = targetPage > 0 ? targetPage : 1
+    if (page > totalPages) page = totalPages
+    this.totalPages = totalPages
+    this.count = total
+    this.page = page
+    const start = (page - 1) * PAGE_SIZE
+    const end = Math.min(start + PAGE_SIZE, total)
+    const pageEvents = []
+    for (let i = start; i < end; i++) {
+      pageEvents.push(this.formatEvent(this._allEvents[i], i))
+    }
+    this.events = pageEvents
+  },
+
+  changePage(targetPage) {
+    if (targetPage < 1 || targetPage > this.totalPages || targetPage === this.page) return
+    this.showPage(targetPage)
   },
 
   onRefresh() {
     router.clear()
   },
 
-  routeEditEvent(event_id) {
-    const event = this.events[event_id]
+  routeEditEvent(storageIndex) {
+    const event = this._allEvents[storageIndex]
+    if (!event) return
+    pendingListPage = this.page
     router.push({
       uri: "/pages/edit",
       params: {
         extend: "false",
-        event_id: String(event_id),
+        event_id: String(storageIndex),
         event_name: event.name,
         date: event.date,
         on_index: event.on_index,
@@ -166,6 +236,7 @@ export default {
   },
 
   routeAdd() {
+    pendingListPage = this.page
     router.push({
       uri: "/pages/edit",
       params: {
@@ -198,11 +269,14 @@ export default {
   align-items: center;
 }
 
-scroll {
+.event-list {
   flex: 1;
   width: 100%;
-  align-items: flex-start;
-  flex-direction: column;
+}
+
+.event-item {
+  width: 100%;
+  height: 74px;
 }
 
 .countdown-card {
@@ -212,7 +286,7 @@ scroll {
   width: 100%;
   height: 66px;
   border-radius: 14px;
-  margin-bottom: 8px;
+  margin-bottom: 0;
   overflow: hidden;
   background-color: white;
 }
@@ -258,10 +332,66 @@ scroll {
   font-weight: bold;
 }
 
+.pagination-item {
+  width: 100%;
+  height: 66px;
+  margin-top: 6px;
+}
+
+.pagination-controls {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.pagination-button {
+  height: 46px;
+  width: 64px;
+  border-radius: 100%;
+  border: 3px rgba(255, 255, 255, 0.24);
+  background-color: #262626;
+  justify-content: center;
+  align-items: center;
+}
+
+.pagination-button-disabled {
+  height: 46px;
+  width: 64px;
+  border-radius: 100%;
+  border: 3px rgba(255, 255, 255, 0.06);
+  background-color: rgba(38, 38, 38, 0.12);
+  justify-content: center;
+  align-items: center;
+}
+
+.text-normal {
+  font-size: 18px;
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.text-disabled {
+  font-size: 18px;
+  color: #555555;
+}
+
+.page-indicator {
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: bold;
+}
+
 @media (device-type: band) and (shape: rect) {
+  .event-item {
+    height: 88px;
+  }
+
   .countdown-card {
     height: 78px;
-    margin-bottom: 10px;
+    margin-bottom: 0;
   }
 
   .card-header {
@@ -288,9 +418,13 @@ scroll {
 }
 
 @media (device-type: watch) and (shape: rect) {
+  .event-item {
+    height: 88px;
+  }
+
   .countdown-card {
     height: 78px;
-    margin-bottom: 10px;
+    margin-bottom: 0;
   }
 
   .card-header {
@@ -317,9 +451,13 @@ scroll {
 }
 
 @media (device-type: watch) and (shape: circle) {
+  .event-item {
+    height: 88px;
+  }
+
   .countdown-card {
     height: 78px;
-    margin-bottom: 10px;
+    margin-bottom: 0;
   }
 
   .card-header {

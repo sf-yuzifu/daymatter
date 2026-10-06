@@ -23,15 +23,28 @@
       src="/common/back_rect.png"
       @click="routeBack"
     />
-    <swiper if="{{ !is_no_event }}" indicator="false" class="countdown-swiper">
-      <div for="{{ events }}">
+    <swiper
+      if="{{ !is_no_event }}"
+      index="{{ swiperIndex }}"
+      indicator="false"
+      class="countdown-swiper"
+      @change="onSwiperChange"
+    >
+      <div for="{{ slots }}">
         <div class="countdown-page">
           <div class="countdown-header" style="background-color: {{ $item.themeColor }}">
-            <marquee class="countdown-event" scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
+            <marquee
+              if="{{ pageVisible && $item.nameOverflow && activeSourceIndex === $item.sourceIndex }}"
+              id="home-marquee"
+              class="countdown-event"
+              scrollamount="{{ 20 }}"
+              text-offset="{{ 20 }}"
+            >
               {{ $item.name }}
             </marquee>
+            <text else class="countdown-event">{{ $item.name }}</text>
           </div>
-          <div class="countdown-body" @click="toggleDisplayMode($idx)">
+          <div class="countdown-body" @click="toggleDisplayMode($item.sourceIndex)">
             <text class="countdown-days" style="font-size: {{ $item.fontSize }}px;">
               {{ $item.displayText }}
             </text>
@@ -78,19 +91,48 @@ const LENGTH_FACTORS = Object.freeze([
   Object.freeze({max: 99, factor: 0.3})
 ])
 
+// 跑马灯只在当前可见卡片且名称估算超宽时启用；每个汉字按字号计宽，其余字符约 0.6 倍
+const MARQUEE_CHAR_FACTOR = 0.6
+
+function getNameMetrics() {
+  const deviceType = global.deviceType || "watch"
+  const screenShape = global.screenShape || "rect"
+  if (deviceType === "watch") {
+    return {fontSize: 28, width: 300 * 0.85}
+  }
+  if (deviceType === "band" && screenShape === "rect") {
+    return {fontSize: 24, width: 256 * 0.85}
+  }
+  return {fontSize: 20, width: 178 * 0.85}
+}
+
+function isNameOverflow(name, fontSize, availableWidth) {
+  let textWidth = 0
+  for (let i = 0; i < name.length; i++) {
+    textWidth += name.charCodeAt(i) > 0x2e7f ? fontSize : fontSize * MARQUEE_CHAR_FACTOR
+  }
+  return textWidth > availableWidth
+}
+
 let connect, isOnMessageRegistered
 
 export default {
   private: {
     time: "",
     events: [],
+    slots: [],
     is_no_event: true,
-    bgImage: "/common/blank.png"
+    bgImage: "/common/blank.png",
+    pageVisible: false,
+    activeSourceIndex: -1,
+    swiperIndex: 0
   },
 
   onInit() {
     this.allEvents = 0
     this.currentDisplayModeIndex = 0
+    this._currentSlot = 0
+    this._currentSource = 0
     connect = interconnect.instance()
     // 如果 interconnect 不可用，直接返回
     if (!connect) {
@@ -126,16 +168,22 @@ export default {
   },
 
   onShow() {
+    this.pageVisible = true
     this.time = global.getTime()
     this.loadBackground()
     this.completed()
+  },
+
+  onHide() {
+    // 离开页面立即停止跑马灯，重新显示时按需恢复
+    this.pageVisible = false
   },
 
   onReady() {
     router.clear()
   },
 
-  formatEvent(event, mode) {
+  formatEvent(event, mode, sourceIndex, nameMetrics) {
     const diff = global.dateDiff(event.date)
     let accurateDiff = global.getDateDiffAccurate(event.date)
     let name = event.name
@@ -178,7 +226,9 @@ export default {
       date: event.date,
       already,
       themeColor,
-      isToday
+      isToday,
+      sourceIndex,
+      nameOverflow: isNameOverflow(name, nameMetrics.fontSize, nameMetrics.width)
     }
   },
 
@@ -319,14 +369,91 @@ export default {
     file.readText({
       uri: "internal://files/events.json",
       success: (data) => {
-        const events = JSON.parse(data.text)
+        let events
+        try {
+          events = JSON.parse(data.text)
+        } catch (e) {
+          events = []
+        }
+        if (!Array.isArray(events)) events = []
         this.allEvents = events.length
         const currentMode = DISPLAY_MODES[this.currentDisplayModeIndex]
-        this.events = events.filter((e) => e.on_index).map((e) => this.formatEvent(e, currentMode))
-        this.is_no_event = this.events.length === 0
+        const nameMetrics = getNameMetrics()
+        this.events = events
+          .filter((e) => e.on_index)
+          .map((e, i) => this.formatEvent(e, currentMode, i, nameMetrics))
+        this.setupSlots()
       },
       fail: (data, code) => console.error(`handling fail, code = ${code}`)
     })
+  },
+
+  setupSlots() {
+    // 首页最多保留三个槽位：当前、下一个、上一个（循环）
+    const total = this.events.length
+    this.is_no_event = total === 0
+    this._currentSlot = 0
+    this._currentSource = 0
+    this.swiperIndex = 0
+    if (total === 0) {
+      this.slots = []
+      this.activeSourceIndex = -1
+      return
+    }
+    if (total <= 3) {
+      this.slots = this.events.slice(0, total)
+    } else {
+      this.slots = [this.events[0], this.events[1], this.events[total - 1]]
+    }
+    this.activeSourceIndex = 0
+    this.resumeMarquee()
+  },
+
+  onSwiperChange(event) {
+    const total = this.events.length
+    if (total <= 1) return
+    const slotCount = this.slots.length
+    const newSlot = event && event.index >= 0 && event.index < slotCount ? event.index : 0
+    const oldSlot = this._currentSlot
+    if (newSlot === oldSlot) return
+
+    let newSource
+    if (total > 3 && slotCount === 3) {
+      const step = (newSlot - oldSlot + 3) % 3
+      if (step === 1) {
+        // 前进：把两页之前的出屏槽位原地换成新的下一个事件
+        newSource = (this._currentSource + 1) % total
+        this.slots[(newSlot + 1) % 3] = this.events[(newSource + 1) % total]
+      } else if (step === 2) {
+        // 后退：把两页之前的出屏槽位原地换成新的上一个事件
+        newSource = (this._currentSource - 1 + total) % total
+        this.slots[(newSlot + 2) % 3] = this.events[(newSource - 1 + total) % total]
+      } else {
+        newSource = this._currentSource
+      }
+    } else {
+      newSource = newSlot
+    }
+
+    this._currentSlot = newSlot
+    this._currentSource = newSource
+    this.swiperIndex = newSlot
+    this.activeSourceIndex = newSource
+    this.resumeMarquee()
+  },
+
+  resumeMarquee() {
+    const resume = () => {
+      const marquee = this.$element("home-marquee")
+      if (marquee && typeof marquee.start === "function") {
+        marquee.start()
+      }
+    }
+    if (typeof this.$nextTick === "function") {
+      this.$nextTick(resume)
+    } else {
+      resume()
+    }
   },
 
   readEvents(successCallback) {
@@ -563,6 +690,8 @@ export default {
   width: 85%;
   font-weight: bold;
   color: white;
+  lines: 1;
+  text-overflow: ellipsis;
 }
 
 .countdown-body {

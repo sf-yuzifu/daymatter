@@ -735,3 +735,249 @@ test("C-16: 词库仅由键盘页按需加载，保留完整中文候选覆盖",
     assert.ok(!content.includes("SimpleInputMethod"), path.basename(file) + " 不得提前初始化输入法词库")
   }
 })
+
+function seedEvents(h, count) {
+  const raw = []
+  for (let i = 0; i < count; i++) {
+    raw.push({
+      name: "事件" + i,
+      date: "2026-11-" + String((i % 28) + 1).padStart(2, "0"),
+      on_index: true,
+      IFStaringDay: false,
+      themeColor: "#3184d0"
+    })
+  }
+  h.files.set("internal://files/events.json", JSON.stringify(raw))
+  return raw
+}
+
+test("C-17: 事件列表按 10 条分页，只格式化当前页，原始快照保持非响应式", () => {
+  const h = createHarness()
+  seedEvents(h, 25)
+  const home = h.router.push({uri: "/pages/index"})
+  home.routeMore()
+  const list = h.current()
+  assert.equal(list.uri, "/pages/list")
+
+  // 原始快照只作为非响应式属性存在，不进入 private 视图模型
+  const listDefinition = h.definitions.get("pages/list")
+  assert.equal("_allEvents" in listDefinition.private, false, "_allEvents 不得进入响应式 private")
+  assert.equal(list._allEvents.length, 25, "原始快照必须保留全部事件")
+  assert.equal(list.count, 25, "总条数保持全量")
+  assert.equal(list.totalPages, 3)
+  assert.equal(list.page, 1)
+
+  // 响应式展示数组只格式化当前页，最多 10 条
+  assert.equal(list.events.length, 10)
+  assert.equal(list.events[0].storageIndex, 0)
+  assert.equal(list.events[9].storageIndex, 9)
+  assert.equal(list.events[9].name, "事件9")
+
+  // 翻页后按原始存储下标重建当前页
+  list.changePage(2)
+  assert.equal(list.page, 2)
+  assert.equal(list.events.length, 10)
+  assert.equal(list.events[0].storageIndex, 10)
+  assert.equal(list.events[9].storageIndex, 19)
+
+  list.changePage(3)
+  assert.equal(list.page, 3)
+  assert.equal(list.events.length, 5)
+  assert.equal(list.events[4].storageIndex, 24)
+
+  // 越界翻页不改状态
+  list.changePage(4)
+  assert.equal(list.page, 3)
+  list.changePage(0)
+  assert.equal(list.page, 3)
+
+  // 新增入口使用全量条数而不是当前页局部长度
+  list.routeAdd()
+  assert.equal(h.current().uri, "/pages/edit")
+  assert.equal(h.current().extend, "true")
+  assert.equal(h.current().event_id, "25")
+})
+
+test("C-27: 编辑 / 删除使用原始存储下标，返回恢复原页，删除末页末条修正页码", () => {
+  const h = createHarness()
+  seedEvents(h, 21)
+  const home = h.router.push({uri: "/pages/index"})
+  home.routeMore()
+  const list = h.current()
+
+  // 跳到第三页（第 21 条，存储下标 20），编辑入口必须带原始下标
+  list.changePage(3)
+  assert.equal(list.events.length, 1)
+  assert.equal(list.events[0].storageIndex, 20)
+  list.routeEditEvent(list.events[0].storageIndex)
+  const editor = h.current()
+  assert.equal(editor.uri, "/pages/edit")
+  assert.equal(editor.event_id, "20", "编辑必须映射回原始存储下标")
+  assert.equal(editor.event_name, "事件20")
+
+  // 编辑保存返回后恢复原页
+  editor.saveEvent()
+  assert.equal(h.current(), list)
+  assert.equal(list.page, 3, "返回列表必须恢复原页")
+  assert.equal(list.events.length, 1)
+
+  // 删除最后一页末条后，页码自动修正到新的最后一页并重新校验映射
+  list.routeEditEvent(20)
+  h.current().deleteEvent()
+  assert.equal(h.current(), list)
+  assert.equal(list.count, 20)
+  assert.equal(list.totalPages, 2)
+  assert.equal(list.page, 2, "删除末页末条后页码必须修正")
+  assert.equal(list.events.length, 10)
+  assert.equal(list.events[0].storageIndex, 10)
+  assert.equal(list.events[9].storageIndex, 19)
+})
+
+test("C-17/C-27: 列表页模板使用 list/list-item 显式高度与存储下标，不以 $idx 定位", () => {
+  const listSource = fs.readFileSync(path.join(root, "src/pages/list/list.ux"), "utf8")
+  assert.ok(listSource.includes('<list class="event-list"'), "列表必须使用 list 容器")
+  assert.ok(listSource.includes('type="event"'), "事件条目必须声明 list-item type")
+  assert.ok(listSource.includes('type="pagination"'), "翻页入口必须声明独立 list-item type")
+  assert.ok(
+    listSource.includes("routeEditEvent($item.storageIndex)"),
+    "编辑入口必须使用原始存储下标"
+  )
+  assert.ok(!listSource.includes("routeEditEvent($idx)"), "不得使用当前页局部 $idx 定位")
+  assert.ok(/\.event-item\s*\{[^}]*height:\s*\d+px/.test(listSource), "list-item 必须显式设置高度")
+})
+
+test("C-18: 首页最多保留三个卡片槽位，滑动时原地轮换当前与相邻卡片", () => {
+  function homeWith(count) {
+    const h = createHarness()
+    seedEvents(h, count)
+    const home = h.router.push({uri: "/pages/index"})
+    return {h, home}
+  }
+
+  function assertSlotWindow(home) {
+    const total = home.events.length
+    const p = home._currentSlot
+    assert.equal(home.slots.length, 3)
+    assert.equal(home.slots[p], home.events[home._currentSource], "当前槽位必须对应当前事件")
+    assert.equal(
+      home.slots[(p + 1) % 3],
+      home.events[(home._currentSource + 1) % total],
+      "下一槽位必须对应下一个事件"
+    )
+    assert.equal(
+      home.slots[(p + 2) % 3],
+      home.events[(home._currentSource - 1 + total) % total],
+      "上一槽位必须对应上一个事件"
+    )
+    assert.equal(home.swiperIndex, p, "swiper 索引与槽位一致")
+  }
+
+  // 0 / 1 / 2 / 3 个事件边界
+  const zero = homeWith(0)
+  assert.equal(zero.home.is_no_event, true)
+  assert.equal(zero.home.slots.length, 0)
+  for (const count of [1, 2, 3]) {
+    const {home} = homeWith(count)
+    assert.equal(home.is_no_event, false)
+    assert.equal(home.slots.length, count, count + " 个事件时槽位数与事件数一致")
+    for (let i = 0; i < count; i++) {
+      assert.equal(home.slots[i], home.events[i], "槽位必须复用同一展示对象")
+    }
+  }
+
+  // 多事件：仅三个槽位，顺序为当前 / 下一个 / 上一个（循环）
+  const {home} = homeWith(5)
+  assert.equal(home.events.length, 5)
+  assert.equal(home.slots.length, 3)
+  assert.equal(home.slots[0], home.events[0])
+  assert.equal(home.slots[1], home.events[1])
+  assert.equal(home.slots[2], home.events[4])
+  assert.equal(home.activeSourceIndex, 0)
+  assertSlotWindow(home)
+
+  const slotsRef = home.slots
+  const eventsRef = home.events
+
+  // 双向快速滑动：每次只原地替换出屏槽位，数组与事件对象引用不变
+  home.onSwiperChange({index: 1})
+  assert.equal(home.slots, slotsRef, "必须原地更新槽位数组")
+  assert.equal(home.events, eventsRef, "不得重建全部首页事件数组")
+  assert.equal(home.activeSourceIndex, 1)
+  assertSlotWindow(home)
+
+  home.onSwiperChange({index: 2})
+  assert.equal(home.activeSourceIndex, 2)
+  assertSlotWindow(home)
+
+  home.onSwiperChange({index: 0})
+  assert.equal(home.activeSourceIndex, 3)
+  assertSlotWindow(home)
+
+  home.onSwiperChange({index: 2})
+  assert.equal(home.activeSourceIndex, 2)
+  assertSlotWindow(home)
+
+  home.onSwiperChange({index: 1})
+  assert.equal(home.activeSourceIndex, 1)
+  assertSlotWindow(home)
+
+  // 连续来回快速滑动后映射不漂移
+  for (let i = 0; i < 20; i++) {
+    home.onSwiperChange({index: home._currentSlot === 2 ? 0 : home._currentSlot + 1})
+    assertSlotWindow(home)
+    home.onSwiperChange({index: home._currentSlot === 0 ? 2 : home._currentSlot - 1})
+    assertSlotWindow(home)
+  }
+
+  // 切换显示单位时仍原地更新全部首页事件，槽位引用保持
+  home.toggleDisplayMode(home.activeSourceIndex)
+  assert.equal(home.events, eventsRef)
+  assert.equal(home.slots, slotsRef)
+  assertSlotWindow(home)
+})
+
+test("C-19: 跑马灯仅在当前可见且名称超宽时启用，隐藏 / 离开立即停止", () => {
+  const indexSource = fs.readFileSync(path.join(root, "src/pages/index/index.ux"), "utf8")
+  const editSource = fs.readFileSync(path.join(root, "src/pages/edit/edit.ux"), "utf8")
+
+  // 源码约束：首页跑马灯同时受页面可见性、超宽与当前槽位约束，并显式 start 恢复
+  assert.ok(
+    indexSource.includes(
+      "pageVisible && $item.nameOverflow && activeSourceIndex === $item.sourceIndex"
+    ),
+    "跑马灯必须只对当前可见且超宽的事件启用"
+  )
+  assert.ok(indexSource.includes('id="home-marquee"'), "跑马灯节点必须可被按需恢复")
+  assert.ok(indexSource.includes('$element("home-marquee")'), "重新显示时必须按需启动跑马灯")
+  assert.ok(indexSource.includes('@change="onSwiperChange"'), "槽位切换必须响应 swiper change")
+  assert.ok(editSource.includes('if="{{ pageVisible }}"'), "编辑页跑马灯必须随页面隐藏移除")
+
+  const h = createHarness()
+  const longName = "这是一个非常非常非常长的倒数日名称"
+  h.files.set(
+    "internal://files/events.json",
+    JSON.stringify([
+      {name: longName, date: "2026-11-01", on_index: true, IFStaringDay: false, themeColor: "#3184d0"},
+      {name: "短", date: "2026-11-02", on_index: true, IFStaringDay: false, themeColor: "#3184d0"}
+    ])
+  )
+  const home = h.router.push({uri: "/pages/index"})
+  assert.equal(home.pageVisible, true, "显示时跑马灯按需恢复")
+  assert.equal(home.events[0].nameOverflow, true, "超宽名称启用跑马灯")
+  assert.equal(home.events[1].nameOverflow, false, "未超宽名称使用静态文本")
+  assert.equal(home.activeSourceIndex, 0, "仅当前可见卡片启用跑马灯")
+
+  home.onSwiperChange({index: 1})
+  assert.equal(home.activeSourceIndex, 1, "切换卡片后只有新当前卡片启用跑马灯")
+
+  home.onHide()
+  assert.equal(home.pageVisible, false, "页面离开时停止跑马灯")
+  home.onShow()
+  assert.equal(home.pageVisible, true, "重新显示时按需恢复")
+
+  const editor = h.router.push({uri: "/pages/edit"})
+  assert.equal(editor.pageVisible, true)
+  editor.onHide()
+  assert.equal(editor.pageVisible, false, "编辑页离开时停止跑马灯")
+  assert.equal(home.pageVisible, false, "进入子页面时首页跑马灯也停止")
+})

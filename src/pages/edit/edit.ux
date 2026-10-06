@@ -31,7 +31,10 @@
           </div>
         </div>
         <div class="line button" style="margin-bottom: 8px">
-          <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}">{{ $t("showOnHome") }}</marquee>
+          <marquee if="{{ pageVisible }}" scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
+            {{ $t("showOnHome") }}
+          </marquee>
+          <text else>{{ $t("showOnHome") }}</text>
           <img
             style="height: 48px"
             @click="changeDisplayOnIndex"
@@ -39,9 +42,10 @@
           />
         </div>
         <div class="line button" style="margin-bottom: 8px">
-          <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
+          <marquee if="{{ pageVisible }}" scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
             {{ $t("includeStartDay") }}
           </marquee>
+          <text else>{{ $t("includeStartDay") }}</text>
           <img
             style="height: 48px"
             @click="changeDisplayIFStaringDay"
@@ -124,7 +128,8 @@ export default {
     themeColor: "#3184d0",
     callback_uri: "/pages/index",
     event_id: "0",
-    time: ""
+    time: "",
+    pageVisible: false
   },
 
   routeBack() {
@@ -149,6 +154,7 @@ export default {
   },
 
   onShow() {
+    this.pageVisible = true
     this.time = global.getTime()
     if (this._pendingField === "event_name") {
       if (global.__daymatterImeOwner === this._pendingRequestId) {
@@ -168,6 +174,11 @@ export default {
     }
     this._pendingField = ""
     this._pendingRequestId = ""
+  },
+
+  onHide() {
+    // 离开页面时移除跑马灯节点，停止滚动
+    this.pageVisible = false
   },
 
   onDestroy() {
