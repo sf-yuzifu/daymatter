@@ -177,7 +177,8 @@ export default {
       fontSize: displayInfo.fontSize,
       date: event.date,
       already,
-      themeColor
+      themeColor,
+      isToday
     }
   },
 
@@ -264,9 +265,10 @@ export default {
   toggleDisplayMode(index) {
     // 获取当前事件的信息（用于判断能否切换到某个模式）
     const currentEvent = this.events[index]
+    if (!currentEvent) return
     const days = parseInt(currentEvent.days)
     const accurateDiff = currentEvent.accurateDiff
-    const isToday = currentEvent.displayText === this.$t("today")
+    const isToday = currentEvent.isToday !== undefined ? currentEvent.isToday : (currentEvent.displayText === this.$t("today"))
 
     // 尝试切换到下一个模式，如果无法显示则继续尝试
     let attempts = 0
@@ -280,18 +282,20 @@ export default {
       attempts < DISPLAY_MODES.length
     )
 
-    // 重新格式化所有事件
-    this.events = this.events.map((event) => {
+    // 原地更新所有事件的展示文本和字号，避免重新创建对象及破坏 Swiper 节点池
+    for (let i = 0; i < this.events.length; i++) {
+      const event = this.events[i]
       const eventDays = parseInt(event.days)
       const eventAccurateDiff = event.accurateDiff
-      const eventIsToday = event.displayText === this.$t("today")
+      const eventIsToday = event.isToday !== undefined ? event.isToday : (event.displayText === this.$t("today"))
       const displayInfo = this.getDisplayInfo(eventDays, eventAccurateDiff, newMode, eventIsToday)
-      return {
-        ...event,
-        displayText: displayInfo.text,
-        fontSize: displayInfo.fontSize
+      if (event.displayText !== displayInfo.text) {
+        event.displayText = displayInfo.text
       }
-    })
+      if (event.fontSize !== displayInfo.fontSize) {
+        event.fontSize = displayInfo.fontSize
+      }
+    }
   },
 
   canShowMode(days, accurateDiff, mode, isToday) {

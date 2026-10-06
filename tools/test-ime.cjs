@@ -422,3 +422,25 @@ test("方屏 / 圆屏沿用源初始化，缺少候选节点的模式切换不�
     assert.equal(editor.event_name, "原名称a2")
   }
 })
+
+test("C-20: 首页切换显示单位时原地修改属性，严格保留事件对象与数组引用", () => {
+  const h = createHarness()
+  h.files.set("internal://files/events.json", JSON.stringify([
+    {name: "测试事件", date: "2026-11-06", on_index: true, IFStaringDay: false, themeColor: "#3184d0"}
+  ]))
+  const home = h.router.push({uri: "/pages/index"})
+  assert.equal(home.events.length, 1)
+
+  const arrayBefore = home.events
+  const objBefore = home.events[0]
+  const modeBefore = home.currentDisplayModeIndex
+
+  // 触发切换模式
+  home.toggleDisplayMode(0)
+
+  assert.equal(home.events, arrayBefore, "必须保持同一 events 数组引用，不重新赋值整个数组")
+  assert.equal(home.events[0], objBefore, "必须保持同一事件对象引用，避免销毁已有 DOM / Swiper 节点")
+  assert.notEqual(home.currentDisplayModeIndex, modeBefore, "单位模式索引已推进")
+  assert.ok(home.events[0].displayText, "更新了展示文本")
+  assert.ok(home.events[0].fontSize > 0, "更新了字号大小")
+})
