@@ -7,7 +7,7 @@ const {test} = require("node:test")
 const root = path.resolve(__dirname, "..")
 const imeDir = path.join(root, "src/pages/ime")
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "src/manifest.json"), "utf8"))
-const imeSource = fs.readFileSync(path.join(imeDir, "ime.ux"), "utf8")
+const imeSource = fs.readFileSync(path.join(imeDir, "ime.ux"), "utf8").replace(/\r\n/g, "\n")
 
 function loadModule(source, bindings, exportName) {
   const context = vm.createContext({...bindings, module: {exports: {}}})
@@ -24,6 +24,7 @@ function createHarness() {
     pages: [],
     definitions: new Map(),
     writes: [],
+    vibrations: [],
     maxDepth: 0,
     replacements: 0,
     files: new Map([["internal://files/events.json", "[]"]]),
@@ -60,7 +61,7 @@ function createHarness() {
         definition = loadModule(script, {
           router, file, showToast() {}, SimpleInputMethod, global: state.global,
           console: {log() {}, error() {}},
-          vibrator: {vibrate() {}},
+          vibrator: {vibrate(options) { state.vibrations.push(options) }},
           device: {getInfo({success}) { success({screenWidth: state.global.screenSize.width}) }},
           interconnect: {instance: () => null}
         }, "unused")
@@ -615,4 +616,122 @@ test("C-12: 滚动反馈只更新当前屏幕分支且值变化才写入", () =>
   assert.equal(writes, 0, "计算值未变化时不得写入响应式字段")
   ime.handelScroll({scrollX: 200})
   assert.equal(writes, 1, "值真正变化时才写入一次")
+})
+
+test("C-13: 展开候选时移除被遮住的键盘节点，收起后按需重建；圆屏保留可见键盘", () => {
+  // 胶囊屏 66：被黑色候选面板完全遮住的键盘容器改为按需创建
+  assert.ok(
+    imeSource.includes(
+      `if="{{ downFlag !== 'down' }}"\n          style="position: absolute; left: 0px; top: 34px; width: 100%; height: 276px"`
+    ),
+    "胶囊屏键盘容器必须在展开更多候选时移除"
+  )
+
+  // 方屏 67：T9 与全键盘分支在展开时都不渲染
+  assert.ok(
+    imeSource.includes(`if="{{ keyboardtype=='T9' && !numFlag && downFlag !== 'down' }}"`),
+    "方屏 T9 分支必须在展开更多候选时移除"
+  )
+  assert.ok(
+    imeSource.includes(`elif="{{ downFlag !== 'down' }}"`),
+    "方屏全键盘分支必须在展开更多候选时按需创建"
+  )
+
+  // 圆屏 62：候选面板只覆盖候选条，键盘保持可见，不得移除
+  const fullKeyboardTag = imeSource.match(/<div\s+id="full-keyboard"[\s\S]*?>/)
+  assert.ok(fullKeyboardTag, "圆屏全键盘节点必须存在")
+  assert.ok(
+    !fullKeyboardTag[0].includes("downFlag"),
+    "圆屏键盘未被候选面板遮盖，不得随展开移除"
+  )
+
+  // 展开 / 收起状态字段仍由页面逻辑正常切换
+  const h = createHarness()
+  const editor = h.openEditor({event_name: ""})
+  editor.editEventName()
+  const ime = h.current()
+  ime.onSelect("N")
+  ime.onBtnClick("down")
+  assert.equal(ime.downFlag, "down")
+  ime.onBtnClick("down")
+  assert.equal(ime.downFlag, "")
+})
+
+test("C-14: 默认无震动且无逐按键日志，保持源键盘默认体验", () => {
+  const h = createHarness()
+  const editor = h.openEditor({event_name: ""})
+  editor.editEventName()
+  const ime = h.current()
+
+  // 默认体验：震动模式为空，输入不触发震动，也不保留逐按键日志
+  assert.equal(ime.vibratemode, "", "默认震动模式必须为空")
+  ime.onSelect("N")
+  ime.onSelect("I")
+  ime.onBtnClick("D")
+  ime.onRsSelect("你")
+  assert.equal(h.vibrations.length, 0, "默认配置下不得触发任何震动调用")
+  assert.ok(!/console\.(log|debug|info)/.test(imeSource), "键盘页不得保留逐按键调试日志")
+
+  // 仅当显式配置震动模式后才触发，且参数透传正确
+  ime.vibratemode = "short"
+  ime.onSelect("N")
+  assert.equal(h.vibrations.length, 1, "显式配置后才触发一次震动")
+  assert.equal(h.vibrations[0].mode, "short", "震动参数必须原样透传")
+})
+
+test("C-15: 设备分支使用 if.static 固定，候选 / 语言 / 数字 / 输入与滚动保持动态", () => {
+  // 屏幕信息在 onInit 就绪后固定设备分支
+  assert.ok(imeSource.includes(`if.static="{{ screentype==='circle' }}"`), "圆屏分支必须 if.static")
+  assert.ok(imeSource.includes(`if.static="{{ screentype==='rect' }}"`), "方屏分支必须 if.static")
+  assert.ok(
+    imeSource.includes(`if.static="{{ screentype==='pill-shaped' }}"`),
+    "胶囊屏分支必须 if.static"
+  )
+  assert.ok(imeSource.includes(`if.static="{{ keyboardtype!='T9' }}"`), "键盘类型分支必须 if.static")
+
+  // 动态内容不得被静态化
+  assert.ok(imeSource.includes(`for="{{ cvalList }}"`), "候选索引循环必须保持动态")
+  assert.ok(imeSource.includes(`show="{{ resultList.length > $idx }}"`), "候选更新必须保持动态")
+  assert.ok(imeSource.includes(`if="{{ !numFlag }}"`), "数字 / 符号切换必须保持动态")
+  assert.ok(imeSource.includes(`src="/pages/ime/assets/full/{{ lang }}.png"`), "语言图标必须保持动态")
+  assert.ok(imeSource.includes(`style="padding-left: {{ (screenWidth - 192)/2 }}px`), "屏宽适配必须保持动态")
+  assert.ok(imeSource.includes(`{{ context }}`), "输入文本必须保持动态")
+  assert.ok(imeSource.includes(`onscroll="handelScroll"`), "滚动反馈必须保持动态")
+
+  // 固定图标补充 static（父节点动态不影响图标自身一次性绑定）
+  for (const icon of ["Q.png", "P.png", "btA.png", "L.png", "Z.png", "M.png", "1.png", "0.png", "2-1.png", "2-2.png", "3-1.png", "3-2.png", "123_boardless.png"]) {
+    const pattern = new RegExp(`<img\\s+static\\s+src="\\./assets/full/${icon.replace(".", "\\.")}"`)
+    assert.ok(pattern.test(imeSource), icon + " 固定图标必须补充 static")
+  }
+})
+
+test("C-16: 词库仅由键盘页按需加载，保留完整中文候选覆盖", () => {
+  const dicPath = path.join(imeDir, "assets/dic.js")
+  const dicText = fs.readFileSync(dicPath, "utf8")
+  const dicSize = fs.statSync(dicPath).size
+
+  // 词库体积与覆盖测量：文件约 26.8 KiB，390+ 拼音分组，6000+ 汉字
+  assert.ok(dicSize > 20 * 1024 && dicSize < 48 * 1024, "词库文件大小应处于合理范围（当前约 26.8 KiB）")
+  const groups = dicText.match(/^\s{2}[a-z]+:/gm) || []
+  assert.ok(groups.length >= 300, "拼音分组覆盖必须完整（当前约 390+ 组）")
+  const hanziCount = (dicText.match(/[\u4e00-\u9fa5]/g) || []).length
+  assert.ok(hanziCount >= 6000, "候选汉字覆盖不得少于 6000 字（当前约 7480 字）")
+  const dict = loadModule(dicText, {}, "dict")
+  assert.equal(Object.keys(dict).length, groups.length, "加载后的字典分组数量必须与源文件一致")
+
+  // 词库按需加载：只有键盘页资源引用，首页 / 列表 / 编辑 / 应用入口不得提前引入
+  const lazyFiles = [
+    path.join(root, "src/app.ux"),
+    path.join(root, "src/pages/index/index.ux"),
+    path.join(root, "src/pages/list/list.ux"),
+    path.join(root, "src/pages/edit/edit.ux"),
+    path.join(root, "src/pages/datepicker/datepicker.ux"),
+    path.join(root, "src/pages/about/about.ux"),
+  ]
+  for (const file of lazyFiles) {
+    const content = fs.readFileSync(file, "utf8")
+    assert.ok(!content.includes("dic.js"), path.basename(file) + " 不得引用词库文件")
+    assert.ok(!content.includes("dicUtil"), path.basename(file) + " 不得引用词库工具")
+    assert.ok(!content.includes("SimpleInputMethod"), path.basename(file) + " 不得提前初始化输入法词库")
+  }
 })

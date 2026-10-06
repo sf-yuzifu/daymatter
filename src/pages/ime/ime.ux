@@ -20,9 +20,13 @@
     <div class="page" style="flex-direction: column">
     <div style="background-color: black">
       <!-- 圆屏62 -->
-      <div if="{{ screentype==='circle' }}" style="width: 480px; height: 321px">
+      <div if.static="{{ screentype==='circle' }}" style="width: 480px; height: 321px">
         <!-- 全键盘 -->
-        <div id="full-keyboard" if="{{ keyboardtype!='T9' }}" style="width: 480px; height: 321px">
+        <div
+          id="full-keyboard"
+          if.static="{{ keyboardtype!='T9' }}"
+          style="width: 480px; height: 321px"
+        >
           <img
             src="./assets/full/back2.png"
             style="position: absolute; top: 38px; left: 7px; width: 466px; height: 52px"
@@ -107,7 +111,7 @@
             show="{{ downFlag==='' && !numFlag && lang==='en' }}"
             @click="onBtnClick('switchNum')"
           >
-            <img src="./assets/full/123_boardless.png" />
+            <img static src="./assets/full/123_boardless.png" />
           </div>
           <!-- 这里使用show会导致每次输入都会加载全部候选列表，很卡 -->
           <list class="list3" if="{{ downFlag==='down' }}">
@@ -122,6 +126,7 @@
             show="{{ downFlag===''&&!numFlag }}"
           >
             <img
+              static
               src="./assets/full/Q.png"
               style="width: 54px; height: 52px; margin-right: 4px"
               @click="onSelect('Q')"
@@ -130,6 +135,7 @@
               {{ item }}
             </text>
             <img
+              static
               src="./assets/full/P.png"
               style="width: 54px; height: 52px"
               @click="onSelect('P')"
@@ -140,6 +146,7 @@
             show="{{ downFlag===''&&!numFlag }}"
           >
             <img
+              static
               src="./assets/full/btA.png"
               style="width: 60px; height: 52px; margin-right: 4px"
               @click="onSelect('A')"
@@ -148,6 +155,7 @@
               {{ item }}
             </text>
             <img
+              static
               src="./assets/full/L.png"
               style="width: 60px; height: 52px"
               @click="onSelect('L')"
@@ -158,6 +166,7 @@
             show="{{ downFlag===''&&!numFlag }}"
           >
             <img
+              static
               src="./assets/full/Z.png"
               style="width: 72px; height: 52px; margin-right: 4px"
               @click="onSelect('Z')"
@@ -166,6 +175,7 @@
               {{ item }}
             </text>
             <img
+              static
               src="./assets/full/M.png"
               style="width: 72px; height: 52px"
               @click="onSelect('M')"
@@ -176,6 +186,7 @@
             show="{{ numFlag }}"
           >
             <img
+              static
               src="./assets/full/1.png"
               style="width: 54px; height: 52px; margin-right: 4px"
               @click="onSelect('1')"
@@ -184,6 +195,7 @@
               {{ item }}
             </text>
             <img
+              static
               src="./assets/full/0.png"
               style="width: 54px; height: 52px"
               @click="onSelect('0')"
@@ -194,6 +206,7 @@
             show="{{ numFlag }}"
           >
             <img
+              static
               src="./assets/full/2-1.png"
               style="width: 60px; height: 52px; margin-right: 4px"
               @click="onSelect('~')"
@@ -202,6 +215,7 @@
               {{ item }}
             </text>
             <img
+              static
               src="./assets/full/2-2.png"
               style="width: 60px; height: 52px"
               @click="onSelect('?')"
@@ -212,6 +226,7 @@
             show="{{ numFlag }}"
           >
             <img
+              static
               src="./assets/full/3-1.png"
               style="width: 72px; height: 52px; margin-right: 4px"
               @click="onSelect('(')"
@@ -220,6 +235,7 @@
               {{ item }}
             </text>
             <img
+              static
               src="./assets/full/3-2.png"
               style="width: 72px; height: 52px"
               @click="onSelect('、')"
@@ -362,7 +378,7 @@
             show="{{ downFlag==='' && !numFlag && lang==='en' }}"
             @click="onBtnClick('switchNum')"
           >
-            <img src="./assets/full/123_boardless.png" />
+            <img static src="./assets/full/123_boardless.png" />
           </div>
           <!-- 这里使用show会导致每次输入都会加载全部候选列表，很卡 -->
           <list class="list3" if="{{ downFlag==='down' }}">
@@ -451,12 +467,12 @@
       </div>
       <!-- 方屏67 -->
       <div
-        if="{{ screentype==='rect' }}"
+        if.static="{{ screentype==='rect' }}"
         style="width: 100%; height: 255px; flex-direction: column"
       >
         <!-- 九键中文 -->
         <div
-          if="{{ keyboardtype=='T9' && !numFlag }}"
+          if="{{ keyboardtype=='T9' && !numFlag && downFlag !== 'down' }}"
           style="
             position: absolute;
             top: -11px;
@@ -517,7 +533,7 @@
           </div>
         </div>
         <div
-          else
+          elif="{{ downFlag !== 'down' }}"
           style="
             position: absolute;
             top: -11px;
@@ -737,8 +753,11 @@
         </div>
       </div>
       <!-- 胶囊屏66 -->
-      <div if="{{ screentype==='pill-shaped' }}" style="width: 100%; height: 305px">
-        <div static style="position: absolute; left: 0px; top: 34px; width: 100%; height: 276px">
+      <div if.static="{{ screentype==='pill-shaped' }}" style="width: 100%; height: 305px">
+        <div
+          if="{{ downFlag !== 'down' }}"
+          style="position: absolute; left: 0px; top: 34px; width: 100%; height: 276px"
+        >
           <progress
             percent="{{ 30+percent66 }}"
             type="arc"
