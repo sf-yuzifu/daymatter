@@ -39,13 +39,11 @@ function createHarness() {
       deviceType: "band",
       isPillShaped: true,
       getTime: () => "12:34",
-      dateDiff: () => -10,
-      getDateDiffAccurate: () => ({years: 0, months: 0, days: 10}),
       adjustThemeColor: (color) => color || "#3184d0"
     }
   }
-  // 可控时钟与假定时器：分钟时钟测试不依赖真实时间，也不会残留 Node 定时器
-  const clock = {now: Date.now()}
+  // 可控时钟与假定时器：分钟时钟与日期状态测试不依赖真实时间，也不会残留 Node 定时器
+  const clock = {now: new Date(2026, 9, 6, 12, 34, 30).getTime()}
   const timeoutQueue = new Map()
   let timerSeq = 0
   const RealDate = Date
@@ -64,6 +62,13 @@ function createHarness() {
   const fakeClearTimeout = (id) => {
     timeoutQueue.delete(id)
   }
+  // 日期工具使用同一假时钟：页面日期状态与分钟时钟保持一致的可控时间
+  const dateUtils = loadModule(
+    fs.readFileSync(path.join(root, "src/components/dateUtils.js"), "utf8"),
+    {Date: FakeDate},
+    "unused"
+  )
+  state.global.dateUtils = dateUtils
   state.clock = clock
   state.pendingTimers = () => timeoutQueue.size
   state.timerDelays = () => Array.from(timeoutQueue.values()).map((task) => task.delay)
@@ -378,7 +383,7 @@ test("日期确认返回原编辑页，取消保持原日期和名称 / 颜色 /
   picker.date = "2026-11-7"
   picker.saveEvent()
   assert.equal(h.current(), editor)
-  assert.equal(editor.date, "2026-11-7")
+  assert.equal(editor.date, "2026-11-07")
   assert.equal(h.global.__daymatterDateResult, null)
   const preserved = otherFields(editor)
   editor.editDate()
@@ -445,7 +450,7 @@ test("取消后重新打开日期页，旧请求的结果不能覆盖新草稿",
   assert.notEqual(h.current().requestId, previousRequest)
   h.global.__daymatterDateResult = {requestId: previousRequest, date: "1999-1-1"}
   h.current().routeBack()
-  assert.equal(editor.date, "2026-10-6")
+  assert.equal(editor.date, "2026-10-06")
 })
 
 test("保存回原首页后立即刷新事件，后续列表编辑 / 删除栈深稳定", () => {

@@ -151,9 +151,13 @@ export default {
     this._destroyed = false
     this._saving = false
     this._ticker = global.createMinuteTicker(() => this.handleMinuteTick())
-    if (this.date == "") {
-      const _date = new Date()
-      this.date = _date.getFullYear() + "-" + (_date.getMonth() + 1) + "-" + _date.getDate()
+    // 统一日期格式：旧数据 / 插件参数中的 YYYY-M-D 归一到 YYYY-MM-DD，非法值回退今天
+    const normalizedDate = global.dateUtils.normalizeDate(this.date)
+    if (normalizedDate) {
+      this.date = normalizedDate
+    } else {
+      const today = global.dateUtils.todayParts()
+      this.date = global.dateUtils.formatDate(today.year, today.month, today.day)
     }
   },
 
@@ -173,7 +177,8 @@ export default {
     } else if (this._pendingField === "date") {
       const result = global.__daymatterDateResult
       if (result && result.requestId === this._pendingRequestId) {
-        if (typeof result.date === "string") this.date = result.date
+        const normalized = global.dateUtils.normalizeDate(result.date)
+        if (normalized) this.date = normalized
         global.__daymatterDateResult = null
       }
     }
@@ -280,6 +285,14 @@ export default {
       showToast({message: this.$t("eventNameRequired")})
       return
     }
+
+    // 只接受真实日历日期，按统一格式写入；非法日期不保存，避免写入不存在日期
+    const normalizedDate = global.dateUtils.normalizeDate(this.date)
+    if (!normalizedDate) {
+      showToast({message: this.$t("dateInvalid")})
+      return
+    }
+    this.date = normalizedDate
 
     this._saving = true
     this.on_index = this.normalizeBoolean(this.on_index)

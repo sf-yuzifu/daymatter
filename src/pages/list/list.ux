@@ -125,29 +125,20 @@ export default {
   },
 
   formatEvent(event, storageIndex) {
+    const status =
+      global.dateUtils.getEventStatus(event.date, event.IFStaringDay) || global.dateUtils.TODAY_STATUS
     let days,
       display_name = event.name,
       already = true
 
-    const diff = global.dateDiff(event.date)
-    if (diff > 0) {
-      if (event.IFStaringDay) {
-        display_name += this.$t("already")
-        days = String(diff + 1)
-      } else {
-        display_name += this.$t("already")
-        days = String(diff)
-      }
-    } else if (diff == 0) {
-      if (event.IFStaringDay) {
-        display_name += this.$t("already")
-        days = String(diff + 1)
-      } else {
-        days = this.$t("today")
-      }
+    if (status.state === "past") {
+      display_name += this.$t("already")
+      days = String(status.days)
+    } else if (status.state === "today") {
+      days = this.$t("today")
     } else {
       display_name += this.$t("remaining")
-      days = String(-diff)
+      days = String(status.days)
       already = false
     }
 

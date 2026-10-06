@@ -31,6 +31,7 @@
   "showOnHome": "在首页显示",
   "includeStartDay": "包含起始日",
   "eventNameRequired": "事件名称不能为空",
+  "dateInvalid": "日期无效",
   "saveSuccess": "事件保存成功！",
   "themeColor": "主题色",
   "bgUpdateSuccess": "背景更新成功！",

@@ -2,6 +2,7 @@
 import device from "@system.device"
 import gcGuard from "./components/gcGuard"
 import minuteTicker from "./components/minuteTicker"
+import dateUtils from "./components/dateUtils"
 
 let screenSize = {width: 0, height: 0}
 
@@ -10,6 +11,9 @@ global.tryRunGC = gcGuard.createGcGuard()
 
 // 前台分钟级时钟：页面可见时启动、隐藏停止，跨午夜上报日期变化
 global.createMinuteTicker = minuteTicker.createMinuteTicker
+
+// 日期工具：显式解析与日历日算法，页面统一通过 global.dateUtils 使用
+global.dateUtils = dateUtils
 
 // 设备信息就绪前的默认形态：胶囊 / 跑道屏是设计基准
 global.screenShape = "pill-shaped"
@@ -26,52 +30,6 @@ device.getInfo({
     global.isPillShaped = deviceRet.screenShape !== "rect" && deviceRet.screenShape !== "circle"
   }
 })
-
-global.dateDiff = (date1) => {
-  const _date = new Date()
-  const date = _date.getFullYear() + "-" + (_date.getMonth() + 1) + "-" + _date.getDate()
-  return Math.floor((new Date(date).getTime() - new Date(date1).getTime()) / (1000 * 60 * 60 * 24))
-}
-
-global.getDateDiffAccurate = (targetDate) => {
-  const today = new Date()
-  const target = new Date(targetDate)
-
-  // 确保日期是有效的
-  if (isNaN(today.getTime()) || isNaN(target.getTime())) {
-    return {years: 0, months: 0, days: 0, totalDays: 0}
-  }
-
-  // 判断哪个日期在前
-  const isTargetFuture = target.getTime() > today.getTime()
-
-  // 确保 startDate 是较早的日期，endDate 是较晚的日期
-  const startDate = isTargetFuture ? today : target
-  const endDate = isTargetFuture ? target : today
-
-  let years = endDate.getFullYear() - startDate.getFullYear()
-  let months = endDate.getMonth() - startDate.getMonth()
-  let days = endDate.getDate() - startDate.getDate()
-
-  // 调整天数为负数的情况
-  if (days < 0) {
-    months--
-    // 获取上一个月的天数
-    const lastMonth = new Date(endDate.getFullYear(), endDate.getMonth(), 0)
-    days += lastMonth.getDate()
-  }
-
-  // 调整月份为负数的情况
-  if (months < 0) {
-    years--
-    months += 12
-  }
-
-  // 计算总天数差（用于判断事件状态）
-  const totalDays = Math.floor((today.getTime() - target.getTime()) / (1000 * 60 * 60 * 24))
-
-  return {years, months, days, totalDays}
-}
 
 global.getTime = function () {
   const date = new Date()

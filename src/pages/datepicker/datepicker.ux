@@ -50,44 +50,38 @@ export default {
   },
 
   onInit() {
-    // 初始化年份范围（前后50年）
-    const now = new Date()
-    const currentYear = now.getFullYear()
-    this.currentYear = currentYear
+    // 显式解析入参；旧数据 / 插件日期中的 YYYY-M-D 与非法值在这里收口
+    const today = global.dateUtils.todayParts()
+    const parsed = global.dateUtils.parseDate(this.date) || today
+
+    // 年份窗口：默认当前年前后 50 年；入参超出时以入参年为中心，避免打开后显示与实际日期不一致
+    const inDefaultWindow = parsed.year >= today.year - 50 && parsed.year <= today.year + 50
+    const baseYear = inDefaultWindow ? today.year : parsed.year
+    const minYear = baseYear - 50
     const years = []
-    for (let i = currentYear - 50; i <= currentYear + 50; i++) {
+    for (let i = minYear; i <= baseYear + 50; i++) {
       years.push(String(i))
     }
     this.yearRange = years
 
-    // 初始化日期
-    let initDate = this.date
-    
-    if (!initDate) {
-      initDate = currentYear + "-" + (now.getMonth() + 1) + "-" + now.getDate()
-    }
-    
-    this.date = initDate
-    const [year, month, day] = initDate.split("-").map(Number)
-    this.currentYear = year
-    this.currentMonth = month
-    this.selectedDay = day
-    
-    // 计算年份索引
-    this.yearIndex = this.yearRange.indexOf(String(year))
-    if (this.yearIndex === -1) this.yearIndex = 50 // 默认当前年
-    
+    this.currentYear = parsed.year
+    this.currentMonth = parsed.month
+    this.selectedDay = parsed.day
+    // 入参日期始终位于窗口内，年份索引不再回退到当前年
+    this.yearIndex = parsed.year - minYear
+    this.date = global.dateUtils.formatDate(parsed.year, parsed.month, parsed.day)
+
     // 初始化循环的月份范围（前后各加一份实现循环效果）
     this.monthRange = [...ORIGINAL_MONTH_RANGE, ...ORIGINAL_MONTH_RANGE, ...ORIGINAL_MONTH_RANGE]
-    
+
     // 初始化日期范围
     this.updateDayRange()
     this._ticker = global.createMinuteTicker(() => this.handleMinuteTick())
   },
 
   updateDayRange() {
-    // 根据年月计算当月天数
-    const daysInMonth = new Date(this.currentYear, this.currentMonth, 0).getDate()
+    // 根据年月计算当月天数（真实日历天数，含闰年规则）
+    const daysInMonth = global.dateUtils.daysInMonth(this.currentYear, this.currentMonth)
     const originalDays = []
     for (let i = 1; i <= daysInMonth; i++) {
       originalDays.push(String(i))
@@ -100,8 +94,8 @@ export default {
       this.selectedDay = daysInMonth
     }
     
-    // 更新日期字符串
-    this.date = `${this.currentYear}-${this.currentMonth}-${this.selectedDay}`
+    // 更新日期字符串（统一补零格式）
+    this.date = global.dateUtils.formatDate(this.currentYear, this.currentMonth, this.selectedDay)
   },
 
   onShow() {
@@ -136,13 +130,14 @@ export default {
 
   onDayChange(e) {
     // 处理循环：将索引映射到 1-当月天数 范围
-    const daysInMonth = new Date(this.currentYear, this.currentMonth, 0).getDate()
+    const daysInMonth = global.dateUtils.daysInMonth(this.currentYear, this.currentMonth)
     this.selectedDay = (e.newSelected % daysInMonth) + 1
     this.updateDayRange()
   },
 
   saveEvent() {
-    global.__daymatterDateResult = {requestId: this.requestId, date: this.date}
+    const normalized = global.dateUtils.normalizeDate(this.date)
+    global.__daymatterDateResult = {requestId: this.requestId, date: normalized || this.date}
     router.back()
   },
 
