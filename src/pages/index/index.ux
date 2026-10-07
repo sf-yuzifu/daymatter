@@ -79,6 +79,19 @@ import interconnectHub from "../../components/interconnectHub"
 
 const DISPLAY_MODES = ["days", "weeks", "months", "years"]
 
+const PROTOCOL_REQUEST_LIMIT = 32
+const PROTOCOL_PAYLOAD_LIMIT = 16384
+
+// 使用完整规范化 JSON，而非短哈希，避免属性顺序差异和哈希碰撞导致误判。
+function canonicalProtocolValue(value) {
+  if (Array.isArray(value)) return "[" + value.map(canonicalProtocolValue).join(",") + "]"
+  if (value && typeof value === "object") {
+    return "{" + Object.keys(value).sort().map((key) =>
+      JSON.stringify(key) + ":" + canonicalProtocolValue(value[key])).join(",") + "}"
+  }
+  return JSON.stringify(value)
+}
+
 const BASE_FONT_SIZES = Object.freeze({
   band: Object.freeze({rect: 76, pill: 56}),
   watch: Object.freeze({rect: 92, circle: 92})
@@ -139,7 +152,11 @@ export default {
     this._destroyed = false
     this._needsRefresh = false
     this._messageHandler = null
-    this._protocolRequests = []
+    // 应用级账本：页面重建不能丢失已执行/仍在提交的请求。
+    if (!global.__daymatterProtocolLedger) {
+      global.__daymatterProtocolLedger = {sessionId: "", deviceId: "", requests: []}
+    }
+    this._protocolLedger = global.__daymatterProtocolLedger
     this._ticker = global.createMinuteTicker((dateChanged) => this.handleMinuteTick(dateChanged))
     connect = interconnectHub.getConnection(interconnect)
     if (!connect) return
@@ -158,8 +175,15 @@ export default {
       return
     }
 
-    if (parsedData && parsedData.type === "hello") {
+    if (!parsedData || typeof parsedData !== "object" || Array.isArray(parsedData)) return
+    if (parsedData.type === "hello") {
       this._pluginSession = typeof parsedData.sessionId === "string" ? parsedData.sessionId : ""
+      if (this._pluginSession && this._protocolLedger.sessionId !== this._pluginSession) {
+        // 新会话只释放旧的完成记录；旧在途操作仍持有自己的上下文。
+        this._protocolLedger.requests = this._protocolLedger.requests.filter((item) => !item.response)
+        this._protocolLedger.sessionId = this._pluginSession
+        this._protocolLedger.deviceId = ""
+      }
       this._pluginProtocolV2 = parsedData.protocolVersion >= 2
       this._pluginCapabilities = Array.isArray(parsedData.capabilities) ? parsedData.capabilities : []
       this.sendProtocolResponse({type: "capabilities", protocolVersion: 2, sessionId: this._pluginSession,
@@ -173,34 +197,58 @@ export default {
       return
     }
     if (parsedData && parsedData.type === "getRequestResult") {
-      const prior = (this._protocolRequests || []).find((item) => item.requestId === parsedData.requestId)
-      if (prior && prior.sessionId === parsedData.sessionId && prior.deviceId === parsedData.deviceId) this.sendProtocolResponse(prior)
-      else if (!prior) {
-        this._activeProtocolRequest = {requestId: parsedData.requestId, sessionId: parsedData.sessionId, deviceId: parsedData.deviceId}
-        this.handleGetAllEvent()
-      }
+      const prior = this.findProtocolRequest(parsedData)
+      if (prior && prior.response) this.sendProtocolResponse(prior.response)
+      else this.sendProtocolResponse({type: "requestStatus", requestId: parsedData.requestId,
+        sessionId: parsedData.sessionId, deviceId: parsedData.deviceId,
+        status: prior ? "processing" : "unknown"})
       return
     }
     if (parsedData && parsedData.type === "mutationResult") return
     const requestId = parsedData && parsedData.requestId
     if (requestId && this._pluginSession && parsedData.sessionId !== this._pluginSession) return
-    if (requestId && this._protocolRequests.some((item) => item.requestId === requestId)) {
-      this.sendProtocolResponse(this._protocolRequests.find((item) => item.requestId === requestId))
-      return
-    }
+    let request = null
     const handlers = {
       getAllEvent: () => this.handleGetAllEvent(),
-      addEvent: () => this.handleAddEvent(parsedData),
-      changeEvent: () => this.handleChangeEvent(parsedData),
-      deleteEvent: () => this.handleDeleteEvent(parsedData),
+      addEvent: () => this.handleAddEvent(parsedData, request),
+      changeEvent: () => this.handleChangeEvent(parsedData, request),
+      deleteEvent: () => this.handleDeleteEvent(parsedData, request),
       addBG: () => this.handleAddBG(parsedData)
     }
 
     const handler = handlers[parsedData.type]
     if (handler) {
       if (requestId && ["addEvent", "changeEvent", "deleteEvent"].includes(parsedData.type)) {
-        if (!this._pluginProtocolV2 || !this._pluginCapabilities || !this._pluginCapabilities.includes("requestId") || !parsedData.deviceId) return
-        this._activeProtocolRequest = {requestId: requestId, sessionId: parsedData.sessionId, deviceId: parsedData.deviceId}
+        if (!this._pluginProtocolV2 || !this._pluginCapabilities || !this._pluginCapabilities.includes("requestId") ||
+          parsedData.sessionId !== this._protocolLedger.sessionId ||
+          typeof requestId !== "string" || requestId.length > 128 ||
+          typeof parsedData.deviceId !== "string" || !parsedData.deviceId || parsedData.deviceId.length > 128) return
+        const fingerprint = canonicalProtocolValue(parsedData)
+        if (fingerprint.length > PROTOCOL_PAYLOAD_LIMIT) {
+          this.rejectProtocolRequest(parsedData, "REQUEST_TOO_LARGE")
+          return
+        }
+        const prior = this.findProtocolRequest(parsedData)
+        if (prior) {
+          if (prior.fingerprint !== fingerprint) this.rejectProtocolRequest(parsedData, "REQUEST_CONFLICT")
+          else if (prior.response) this.sendProtocolResponse(prior.response)
+          else this.sendProtocolResponse({type: "requestStatus", requestId: requestId,
+            sessionId: prior.sessionId, deviceId: prior.deviceId, status: "processing"})
+          return
+        }
+        if (this._protocolLedger.deviceId && this._protocolLedger.deviceId !== parsedData.deviceId) {
+          this.rejectProtocolRequest(parsedData, "REQUEST_DEVICE_MISMATCH")
+          return
+        }
+        // 不淘汰仍可重试的请求，否则被淘汰的新增会再次执行。
+        if (this._protocolLedger.requests.length >= PROTOCOL_REQUEST_LIMIT) {
+          this.rejectProtocolRequest(parsedData, "REQUEST_CACHE_FULL")
+          return
+        }
+        this._protocolLedger.deviceId = parsedData.deviceId
+        request = {requestId: requestId, sessionId: parsedData.sessionId,
+          deviceId: parsedData.deviceId, fingerprint: fingerprint, response: null}
+        this._protocolLedger.requests.push(request)
       }
       handler()
     }
@@ -210,16 +258,23 @@ export default {
     if (connect && payload) connect.send({data: payload})
   },
 
-  finishProtocolRequest(error, result) {
-    const request = this._activeProtocolRequest
+  findProtocolRequest(data) {
+    return this._protocolLedger.requests.find((item) => item.requestId === data.requestId &&
+      item.sessionId === data.sessionId && item.deviceId === data.deviceId)
+  },
+
+  rejectProtocolRequest(data, code) {
+    this.sendProtocolResponse({type: "mutationResult", requestId: data.requestId,
+      sessionId: data.sessionId, deviceId: data.deviceId, ok: false, code: code})
+  },
+
+  finishProtocolRequest(request, error, result) {
     if (!request || !request.requestId) return
-    this._activeProtocolRequest = null
+    if (request.response) return
     const response = {type: "mutationResult", requestId: request.requestId, sessionId: request.sessionId,
       deviceId: request.deviceId, ok: !error || error.code === "WATCHFACE_FAIL",
       revision: result && result.revision, code: error && error.code ? error.code : ""}
-    this._protocolRequests = (this._protocolRequests || []).filter((item) => item.requestId !== request.requestId)
-    this._protocolRequests.push(response)
-    if (this._protocolRequests.length > 32) this._protocolRequests.shift()
+    request.response = response
     this.sendProtocolResponse(response)
   },
 
@@ -594,10 +649,8 @@ export default {
     showToast({message: this.$t("saveFail", {code: causeCode}), duration: 2000})
   },
 
-  handleGetAllEvent() {
+  handleGetAllEvent(request) {
     if (this._destroyed) return
-    const request = this._activeProtocolRequest
-    this._activeProtocolRequest = null
     global.eventStore.read((error, result) => {
       if (this._destroyed) return
       if (error) {
@@ -633,46 +686,47 @@ export default {
   },
 
   // 分项结果：事件数据已提交但表盘文件失败时单独报告，不当作整体失败
-  finishPluginMutation(messageKey, error, result, wanted) {
-    if (this._destroyed) return
+  finishPluginMutation(messageKey, error, result, wanted, request) {
     if (error) {
       if (error.code !== "WATCHFACE_FAIL") {
-        this.finishProtocolRequest(error, result)
+        this.finishProtocolRequest(request, error, result)
+        if (this._destroyed) return
         this.showEventError(error)
         return
       }
-      this.finishProtocolRequest(error, result)
+      this.finishProtocolRequest(request, error, result)
+      if (this._destroyed) return
       this.afterMutation(messageKey)
       showToast({message: this.$t("watchfaceSyncFail"), duration: 2000})
       return
     }
     const eventId = result && result.event ? result.event.id : null
     if (wanted === null || !eventId) {
-      this.finishProtocolRequest(null, result)
+      this.finishProtocolRequest(request, null, result)
+      if (this._destroyed) return
       this.afterMutation(messageKey)
       return
     }
-    global.eventStore.setPrimary(wanted ? eventId : "", (primaryError) => {
+    global.eventStore.setPrimary(wanted ? eventId : "", (primaryError, primaryResult) => {
+      this.finishProtocolRequest(request, primaryError, primaryResult || result)
       if (this._destroyed) return
       if (primaryError && primaryError.code !== "WATCHFACE_FAIL") {
-        this.finishProtocolRequest(primaryError, result)
         this.showEventError(primaryError)
         return
       }
-      this.finishProtocolRequest(primaryError, result)
       this.afterMutation(messageKey)
       if (primaryError) showToast({message: this.$t("watchfaceSyncFail"), duration: 2000})
     })
   },
 
-  handleAddEvent(data) {
+  handleAddEvent(data, request) {
     if (this._destroyed) return
     global.eventStore.add(data, (error, result) => {
-      this.finishPluginMutation("addSuccess", error, result, this.readWatchfaceFlag(data.watchface))
+      this.finishPluginMutation("addSuccess", error, result, this.readWatchfaceFlag(data.watchface), request)
     })
   },
 
-  handleChangeEvent(data) {
+  handleChangeEvent(data, request) {
     if (this._destroyed) return
     // 只提交消息里出现的字段，未提供的字段由存储层原样保留
     const patch = {
@@ -683,7 +737,7 @@ export default {
       themeColor: data.themeColor
     }
     const onDone = (error, result) => {
-      this.finishPluginMutation("changeSuccess", error, result, this.readWatchfaceFlag(data.watchface))
+      this.finishPluginMutation("changeSuccess", error, result, this.readWatchfaceFlag(data.watchface), request)
     }
     if (data.id !== undefined) {
       global.eventStore.update(String(data.id), patch, onDone)
@@ -692,10 +746,10 @@ export default {
     }
   },
 
-  handleDeleteEvent(data) {
+  handleDeleteEvent(data, request) {
     if (this._destroyed) return
-    const onDone = (error) => {
-      this.finishPluginMutation("deleteSuccess", error, null, null)
+    const onDone = (error, result) => {
+      this.finishPluginMutation("deleteSuccess", error, result, null, request)
     }
     if (data.id !== undefined) {
       global.eventStore.remove(String(data.id), onDone)

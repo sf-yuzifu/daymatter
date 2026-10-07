@@ -1262,6 +1262,125 @@ test("E-05/E-06/E-07/E-09: 协议握手、同请求幂等回执与原请求查�
   assert.equal(readStoreEvents(h).length, 1, "迟到旧 session 不得修改数据")
 })
 
+function protocolHarness() {
+  const h = createHarness()
+  h.router.push({uri: "/pages/index"})
+  h.sendProtocol = (data) => h.connection.onmessage({data: JSON.stringify(data)})
+  h.hello = (sessionId = "s-1") => h.sendProtocol({type: "hello", protocolVersion: 2,
+    sessionId, capabilities: ["requestId"]})
+  h.request = (requestId, extra = {}) => ({type: "addEvent", requestId, sessionId: "s-1",
+    deviceId: "watch-1", name: requestId, date: "2026-12-01", ...extra})
+  h.results = () => h.connection.sent.map((item) => item.data).filter((item) => item.type === "mutationResult")
+  h.hello()
+  return h
+}
+
+test("E-06/E-07: 写盘中重试、交错提交与查询不串请求", () => {
+  const h = protocolHarness()
+  h.deferWrites = true
+  const a = h.request("a")
+  h.sendProtocol(a)
+  h.sendProtocol(Object.fromEntries(Object.entries(a).reverse()))
+  h.sendProtocol(h.request("b"))
+  h.sendProtocol({type: "getRequestResult", requestId: "a", sessionId: "s-1", deviceId: "watch-1"})
+  assert.equal(h.connection.sent.at(-1).data.status, "processing")
+  h.sendProtocol({type: "getAllEvent"})
+  assert.equal(h.results().length, 0)
+  h.flushWrites()
+  assert.deepEqual(readStoreEvents(h).map((event) => event.name), ["a", "b"])
+  assert.deepEqual(h.results().map((result) => result.requestId), ["a", "b"])
+  assert.ok(h.results().every((result) => result.ok && typeof result.revision === "number"))
+  h.sendProtocol(a)
+  assert.equal(readStoreEvents(h).length, 2)
+  assert.equal(h.results().at(-1).revision, h.results()[0].revision)
+})
+
+test("E-06: 同 ID 不同载荷拒绝，在途与完成后均不改写原结果", () => {
+  const h = protocolHarness()
+  h.deferWrites = true
+  const request = h.request("same")
+  h.sendProtocol(request)
+  h.sendProtocol({...request, name: "冲突"})
+  assert.equal(h.results().at(-1).code, "REQUEST_CONFLICT")
+  h.flushWrites()
+  h.sendProtocol({...request, date: "2027-01-01"})
+  assert.equal(h.results().at(-1).code, "REQUEST_CONFLICT")
+  h.sendProtocol(request)
+  assert.equal(h.results().at(-1).ok, true)
+  assert.equal(readStoreEvents(h)[0].name, "same")
+})
+
+test("E-06: 缓存有界且不淘汰可重试请求，新会话释放完成记录", () => {
+  const h = protocolHarness()
+  for (let i = 0; i < 32; i++) h.sendProtocol(h.request("r-" + i))
+  h.sendProtocol(h.request("overflow"))
+  assert.equal(h.results().at(-1).code, "REQUEST_CACHE_FULL")
+  h.sendProtocol(h.request("r-0"))
+  assert.equal(h.results().at(-1).ok, true)
+  assert.equal(readStoreEvents(h).length, 32)
+  assert.equal(h.global.__daymatterProtocolLedger.requests.length, 32)
+  h.hello("s-2")
+  h.sendProtocol(h.request("r-0", {sessionId: "s-2"}))
+  assert.equal(readStoreEvents(h).length, 33, "相同 ID 在新会话是独立请求")
+  h.sendProtocol(h.request("old"))
+  assert.equal(readStoreEvents(h).length, 33)
+})
+
+test("E-06/E-07: 失败结果可查询，页面销毁后提交仍结算且重建不重放", () => {
+  const h = protocolHarness()
+  h.failWrites = true
+  const failed = h.request("failed")
+  h.sendProtocol(failed)
+  assert.equal(h.results().at(-1).ok, false)
+  h.failWrites = false
+  h.sendProtocol(failed)
+  assert.equal(readStoreEvents(h).length, 0)
+  h.deferWrites = true
+  const request = h.request("alive")
+  h.sendProtocol(request)
+  h.router.replace({uri: "/pages/index"})
+  h.hello()
+  h.sendProtocol(request)
+  h.flushWrites()
+  assert.equal(readStoreEvents(h).length, 1)
+  assert.equal(h.results().at(-1).requestId, "alive")
+  assert.equal(h.results().at(-1).ok, true)
+  h.sendProtocol(request)
+  assert.equal(readStoreEvents(h).length, 1)
+  h.sendProtocol({type: "getRequestResult", requestId: "missing", sessionId: "s-1", deviceId: "watch-1"})
+  assert.equal(h.connection.sent.at(-1).data.status, "unknown")
+})
+
+test("E-06/E-07: 换会话在途上下文隔离、设备关联及删除 revision", () => {
+  const h = protocolHarness()
+  h.deferWrites = true
+  h.sendProtocol(h.request("same"))
+  h.hello("s-2")
+  h.sendProtocol(h.request("same", {sessionId: "s-2"}))
+  h.flushWrites()
+  assert.deepEqual(h.results().map((result) => result.sessionId), ["s-1", "s-2"])
+  h.deferWrites = false
+  h.sendProtocol(h.request("wrong", {sessionId: "s-2", deviceId: "watch-2"}))
+  assert.equal(h.results().at(-1).code, "REQUEST_DEVICE_MISMATCH")
+  const id = readStoreEvents(h)[0].id
+  h.sendProtocol(h.request("delete", {type: "deleteEvent", sessionId: "s-2", id}))
+  const revision = JSON.parse(h.files.get("internal://files/events.json")).revision
+  assert.equal(h.results().at(-1).revision, revision)
+  assert.equal(readStoreEvents(h).length, 1)
+})
+
+test("E-07: 设置主事件回执使用最终 revision；超大请求不占用账本", () => {
+  const h = protocolHarness()
+  h.sendProtocol(h.request("primary", {watchface: true, on_index: false}))
+  const stored = JSON.parse(h.files.get("internal://files/events.json"))
+  assert.equal(stored.primaryId, stored.events[0].id)
+  assert.equal(h.results().at(-1).revision, stored.revision)
+  h.sendProtocol(h.request("large", {extra: "x".repeat(16384)}))
+  assert.equal(h.results().at(-1).code, "REQUEST_TOO_LARGE")
+  assert.equal(h.global.__daymatterProtocolLedger.requests.length, 1)
+  assert.equal(readStoreEvents(h).length, 1)
+})
+
 test("D-16: 保存失败保留草稿与页面，重复点击只提交一次", () => {
   const h = createHarness()
   const editor = h.router.push({uri: "/pages/edit", params: {extend: "true", callback_uri: "/pages/index"}})
