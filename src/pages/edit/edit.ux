@@ -6,11 +6,11 @@
     </text>
     <div class="box padding" if="{{ contentVisible }}">
       <scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
-        <div class="line" style="margin-bottom: 10px">
-          <text style="margin-left: 14px">{{ $t("eventName") }}</text>
+        <div class="line field-card">
+          <text class="field-label input-label">{{ $t("eventName") }}</text>
           <div class="input-line" @click="editEventName">
             <scroll
-              style="position: absolute; width: 100%; height: 42px; margin: 6px 0"
+              class="input-scroll"
               scroll-x="true"
             >
               <text class="input-text">
@@ -19,11 +19,11 @@
             </scroll>
           </div>
         </div>
-        <div class="line" style="margin-bottom: 8px">
-          <text style="margin-left: 14px">{{ $t("targetDateLabel") }}</text>
+        <div class="line field-card">
+          <text class="field-label input-label">{{ $t("targetDateLabel") }}</text>
           <div class="input-line" @click="editDate">
             <scroll
-              style="position: absolute; width: 100%; height: 42px; margin: 6px 0"
+              class="input-scroll"
               scroll-x="true"
             >
               <text class="input-text">{{ date }}</text>
@@ -31,62 +31,54 @@
           </div>
         </div>
         <div class="line button" style="margin-bottom: 8px">
-          <marquee if="{{ pageVisible }}" scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
-            {{ $t("showOnHome") }}
-          </marquee>
-          <text else>{{ $t("showOnHome") }}</text>
-          <img
-            style="height: 48px"
-            @click="changeDisplayOnIndex"
-            src="/common/{{ on_index }}.png"
-          />
+          <div class="setting-content">
+            <marquee if="{{ global.isPillShaped && pageVisible }}" scrollamount="20" text-offset="20">{{ $t("showOnHome") }}</marquee>
+            <text class="setting-label" else>{{ $t("showOnHome") }}</text>
+            <marquee class="setting-info" if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}" scrollamount="20" text-offset="20">{{ $t("showOnHomeInfo") }}</marquee>
+          </div>
+          <img if="{{ global.isPillShaped }}" style="height: 48px" src="/common/{{ on_index }}.png" @click="changeDisplayOnIndex" />
+          <switch else class="setting-switch" checked="{{ on_index === true || on_index === 'true' }}" @change="onHomeChange"></switch>
         </div>
         <div class="line button" style="margin-bottom: 8px">
-          <marquee if="{{ pageVisible }}" scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
-            {{ $t("useAsWatchface") }}
-          </marquee>
-          <text else>{{ $t("useAsWatchface") }}</text>
-          <img
-            style="height: 48px"
-            @click="changeUseWatchface"
-            src="/common/{{ useWatchface }}.png"
-          />
+          <div class="setting-content">
+            <marquee if="{{ global.isPillShaped && pageVisible }}" scrollamount="20" text-offset="20">{{ $t("useAsWatchface") }}</marquee>
+            <text class="setting-label" else>{{ $t("useAsWatchface") }}</text>
+            <marquee class="setting-info" if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}" scrollamount="20" text-offset="20">{{ $t("useAsWatchfaceInfo") }}</marquee>
+          </div>
+          <img if="{{ global.isPillShaped }}" style="height: 48px" src="/common/{{ useWatchface }}.png" @click="changeUseWatchface" />
+          <switch else class="setting-switch" checked="{{ useWatchface === true || useWatchface === 'true' }}" @change="onWatchfaceChange"></switch>
         </div>
         <div class="line button" style="margin-bottom: 8px">
-          <marquee if="{{ pageVisible }}" scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
-            {{ $t("includeStartDay") }}
-          </marquee>
-          <text else>{{ $t("includeStartDay") }}</text>
-          <img
-            style="height: 48px"
-            @click="changeDisplayIFStaringDay"
-            src="/common/{{ IFStaringDay }}.png"
-          />
+          <div class="setting-content">
+            <marquee if="{{ global.isPillShaped && pageVisible }}" scrollamount="20" text-offset="20">{{ $t("includeStartDay") }}</marquee>
+            <text class="setting-label" else>{{ $t("includeStartDay") }}</text>
+            <marquee class="setting-info" if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}" scrollamount="20" text-offset="20">{{ $t("includeStartDayInfo") }}</marquee>
+          </div>
+          <img if="{{ global.isPillShaped }}" style="height: 48px" src="/common/{{ IFStaringDay }}.png" @click="changeDisplayIFStaringDay" />
+          <switch else class="setting-switch" checked="{{ IFStaringDay === true || IFStaringDay === 'true' }}" @change="onStartDayChange"></switch>
         </div>
         <div class="line button" style="margin-bottom: 8px">
-          <marquee if="{{ pageVisible }}" scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
-            {{ $t("annualRepeat") }}
-          </marquee>
-          <text else>{{ $t("annualRepeat") }}</text>
-          <img
-            if="{{ repeat === 'yearly' }}"
-            style="height: 48px"
-            src="/common/true.png"
-            @click="changeRepeat"
-          />
-          <img
-            else
-            style="height: 48px"
-            src="/common/false.png"
-            @click="changeRepeat"
-          />
+          <div class="setting-content">
+            <marquee if="{{ global.isPillShaped && pageVisible }}" scrollamount="20" text-offset="20">{{ $t("annualRepeat") }}</marquee>
+            <text class="setting-label" else>{{ $t("annualRepeat") }}</text>
+            <marquee class="setting-info" if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}" scrollamount="20" text-offset="20">{{ $t("annualRepeatInfo") }}</marquee>
+          </div>
+          <div if="{{ global.isPillShaped }}">
+            <img if="{{ repeat === 'yearly' }}" style="height: 48px" src="/common/true.png" @click="changeRepeat" />
+            <img else style="height: 48px" src="/common/false.png" @click="changeRepeat" />
+          </div>
+          <switch else class="setting-switch" checked="{{ repeat === 'yearly' }}" @change="onRepeatChange"></switch>
         </div>
         <div class="line button" style="margin-bottom: 8px">
-          <text>{{ $t("displayUnit") }}</text>
+          <div class="setting-content">
+            <text class="setting-label">{{ $t("displayUnit") }}</text>
+            <marquee class="setting-info" if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}" scrollamount="20" text-offset="20">{{ $t("displayUnitInfo") }}</marquee>
+          </div>
           <text class="unit-button" @click="changeUnit">{{ $t(displayUnit) }}</text>
         </div>
         <div class="line color-picker-container">
-          <text>{{ $t("themeColor") }}</text>
+          <text class="field-label">{{ $t("themeColor") }}</text>
+          <marquee class="setting-info" if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}" scrollamount="20" text-offset="20">{{ $t("themeColorInfo") }}</marquee>
           <div class="color-picker">
             <div
               class="color-option"
@@ -319,6 +311,22 @@ export default {
     this.themeColor = color
   },
 
+  onHomeChange(event) {
+    this.on_index = event.checked
+  },
+
+  onWatchfaceChange(event) {
+    this.useWatchface = event.checked
+  },
+
+  onStartDayChange(event) {
+    this.IFStaringDay = event.checked
+  },
+
+  onRepeatChange(event) {
+    this.repeat = event.checked ? "yearly" : "none"
+  },
+
   changeRepeat() {
     this.repeat = this.repeat === "yearly" ? "none" : "yearly"
   },
@@ -484,7 +492,7 @@ export default {
   display: flex;
   flex-direction: column;
   justify-content: left;
-  width: 90%;
+   width: 92%;
 }
 
 text,
@@ -494,22 +502,36 @@ marquee {
 }
 
 .input-line {
-  height: 48px;
+  height: 60px;
   width: 100%;
   background-color: #262626;
   border: 3px solid rgba(255, 255, 255, 0.06);
-  border-radius: 100%;
-  margin-top: 4px;
+  border-radius: 18px;
+  margin-top: 10px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.input-label {
+  padding-left: 0px;
+  min-height: 42px;
+  flex-shrink: 0;
+}
+
+.input-scroll {
+  width: 100%;
+  height: 44px;
 }
 
 .input-text {
   lines: 1;
-  position: absolute;
+  height: 44px;
+  line-height: 44px;
+  color: #ffffff;
   padding: 0 12px;
 }
 
 .button {
-  width: 85%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -529,7 +551,6 @@ marquee {
 }
 
 .color-picker-container {
-  width: 85%;
   align-items: center;
 }
 
@@ -559,14 +580,24 @@ marquee {
   align-items: center;
 }
 
-/* 跑道屏固定三列：48px 色块 + 左右各 2px，末行不再两端分散。 */
+/* 跑道屏固定三列：42px 色块 + 左右各 2px，末行不再两端分散。 */
 @media (shape: pill-shaped) {
+  .input-label {
+    min-height: 32px;
+  }
+  .input-line {
+    height: 52px;
+    margin-top: 8px;
+    border-radius: 16px;
+  }
   .color-picker {
-    width: 156px;
+    width: 138px;
     justify-content: flex-start;
   }
 
   .color-option {
+    width: 42px;
+    height: 42px;
     flex-shrink: 0;
     margin: 0 2px 10px;
   }
@@ -574,12 +605,8 @@ marquee {
 
 @media (device-type: band) and (shape: rect) {
   .line {
-    width: 83%;
-  }
-
-  .button,
-  .color-picker-container {
-    width: 75%;
+    width: 324px;
+    max-width: 96%;
   }
 
   .color-picker-container {
@@ -603,12 +630,8 @@ marquee {
 
 @media (device-type: watch) and (shape: rect) {
   .line {
-    width: 75%;
-  }
-
-  .button,
-  .color-picker-container {
-    width: 70%;
+    width: 380px;
+    max-width: 96%;
   }
 
   .button {
@@ -637,12 +660,8 @@ marquee {
   }
 
   .line {
-    width: 70%;
-  }
-
-  .button,
-  .color-picker-container {
-    width: 65%;
+    width: 380px;
+    max-width: 96%;
   }
 
   .button {
@@ -656,6 +675,179 @@ marquee {
   .color-option {
     width: 48px;
     height: 48px;
+  }
+}
+/* 圆角卡片沿用漫画设置页风格，宽度按当前设备布局。 */
+.field-card,
+.button,
+.color-picker-container {
+  flex-shrink: 0;
+  margin-bottom: 10px;
+  padding: 12px;
+  border-radius: 24px;
+  background-color: #262626;
+}
+
+.input-line,
+.unit-button {
+  background-color: #363636;
+}
+
+.setting-label {
+  min-width: 0px;
+  width: 100%;
+  min-height: 42px;
+  font-size: 32px;
+  font-weight: bold;
+  flex-shrink: 0;
+  color: #ffffff;
+}
+
+.setting-content {
+  flex: 1;
+  min-width: 0px;
+  flex-direction: column;
+}
+
+.setting-info {
+  width: 100%;
+  height: 36px;
+  flex-shrink: 0;
+  font-size: 28px;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 5px;
+  lines: 1;
+}
+
+.setting-switch {
+  height: 36px;
+  width: 64px;
+  flex-shrink: 0;
+  margin-top: 8px;
+}
+
+.color-picker {
+  margin-bottom: 0px;
+}
+
+@media (shape: pill-shaped) {
+  .setting-label {
+    font-size: 24px;
+    min-height: 32px;
+  }
+  .setting-content {
+    flex-grow: 0;
+    flex-shrink: 0;
+    flex-basis: auto;
+    width: 100%;
+  }
+  .setting-label {
+    width: 100%;
+    text-align: center;
+  }
+
+  .unit-button {
+    width: 80px;
+  }
+}
+
+@media (shape: rect) {
+  .field-label,
+  .input-text,
+  .unit-button {
+    font-size: 32px;
+  }
+  .setting-info {
+    font-size: 28px;
+  }
+  .setting-switch {
+    margin-top: 0px;
+    margin-left: 10px;
+  }
+}
+
+@media (shape: circle) {
+  .field-label,
+  .input-text,
+  .unit-button {
+    font-size: 32px;
+  }
+  .setting-info {
+    font-size: 28px;
+  }
+  .setting-switch {
+    margin-top: 0px;
+    margin-left: 10px;
+  }
+}
+/* 跑道屏恢复为卡片化改造前的紧凑编辑布局。 */
+@media (shape: pill-shaped) {
+  .line {
+    width: 90%;
+  }
+  .field-card,
+  .button,
+  .color-picker-container {
+    padding: 0px;
+    border-radius: 0px;
+    background-color: transparent;
+  }
+  .field-card {
+    margin-bottom: 8px;
+  }
+  .button,
+  .color-picker-container {
+    width: 85%;
+  }
+  .input-line {
+    height: 48px;
+    background-color: #262626;
+    border-radius: 100%;
+    margin-top: 4px;
+  }
+  .input-scroll {
+    position: absolute;
+    height: 42px;
+    margin: 6px 0;
+  }
+  .input-text {
+    position: absolute;
+    height: 42px;
+    line-height: 42px;
+  }
+  .input-label,
+  .setting-label {
+    min-height: 0px;
+    text-align: center;
+  }
+  .input-label {
+    width: 100%;
+    padding-left: 0px;
+  }
+  .field-label {
+    width: 100%;
+    text-align: center;
+  }
+  .setting-content {
+    align-items: center;
+  }
+  marquee {
+    width: 100%;
+    text-align: center;
+  }
+  .unit-button {
+    width: auto;
+    background-color: #262626;
+  }
+  .color-picker {
+    width: 156px;
+    margin-bottom: 20px;
+  }
+  .color-option {
+    width: 48px;
+    height: 48px;
+    margin: 0 2px 10px;
   }
 }
 </style>

@@ -28,7 +28,7 @@
   "editEvent": "編輯事件",
   "eventName": "事件名稱",
   "targetDateLabel": "目標日",
-    "useAsWatchface": "錶盤顯示此事件",
+    "useAsWatchface": "錶盤顯示",
   "watchfaceBadge": "錶盤",
   "watchfaceSyncFail": "事件已儲存，錶盤檔案未同步（下次進入自動重試）",
 "showOnHome": "在首頁顯示",
@@ -48,6 +48,12 @@
   "loadFail": "資料讀取失敗",
   "saveSuccess": "事件儲存成功！",
   "themeColor": "主題色",
+  "showOnHomeInfo": "顯示在首頁",
+  "useAsWatchfaceInfo": "設為錶盤主事件",
+  "includeStartDayInfo": "起始日計為第 1 天",
+  "annualRepeatInfo": "每年同日重複",
+  "displayUnitInfo": "點擊切換計時單位",
+  "themeColorInfo": "選擇卡片配色",
   "bgUpdateSuccess": "背景更新成功！",
   "bgSaveFail": "背景儲存失敗，錯誤碼: {code}"
 }

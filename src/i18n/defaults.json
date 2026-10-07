@@ -28,7 +28,7 @@
   "editEvent": "Edit Event",
   "eventName": "Event Name",
   "targetDateLabel": "Target Date",
-    "useAsWatchface": "Show on watch face",
+    "useAsWatchface": "Watchface",
   "watchfaceBadge": "WF",
   "watchfaceSyncFail": "Event saved, watch face not synced (will retry on next entry)",
 "showOnHome": "Show on Home",
@@ -48,6 +48,12 @@
   "loadFail": "Failed to load data",
   "saveSuccess": "Event saved successfully!",
   "themeColor": "Theme Color",
+  "showOnHomeInfo": "Show on home",
+  "useAsWatchfaceInfo": "Set as watchface event",
+  "includeStartDayInfo": "Start day counts as day 1",
+  "annualRepeatInfo": "Repeat yearly",
+  "displayUnitInfo": "Tap to change units",
+  "themeColorInfo": "Choose card colors",
   "bgUpdateSuccess": "Background updated!",
   "bgSaveFail": "Failed to save background, error code: {code}"
 }

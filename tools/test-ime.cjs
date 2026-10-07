@@ -1152,7 +1152,7 @@ test("C-19: 跑马灯仅在当前可见且名称超宽时启用，隐藏 / 离�
   assert.ok(indexSource.includes('id="home-marquee"'), "跑马灯节点必须可被按需恢复")
   assert.ok(indexSource.includes('$element("home-marquee")'), "重新显示时必须按需启动跑马灯")
   assert.ok(indexSource.includes('@change="onSwiperChange"'), "槽位切换必须响应 swiper change")
-  assert.ok(editSource.includes('if="{{ pageVisible }}"'), "编辑页跑马灯必须随页面隐藏移除")
+  assert.ok(!editSource.includes("<marquee") || /<marquee[^>]*if="\{\{[^}]*\bpageVisible\b[^}]*\}\}"/.test(editSource), "编辑页如使用跑马灯，必须随页面隐藏移除")
 
   const h = createHarness()
   const longName = "这是一个非常非常非常长的倒数日名称"
