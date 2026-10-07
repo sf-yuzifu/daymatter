@@ -1451,6 +1451,42 @@ test("E-12: 腕端拒绝超预算消息且不进入存储提交", () => {
   assert.equal(h.global.__daymatterProtocolLedger.requests.length, 0)
 })
 
+test("E-12: 协商分批回传保持完整顺序、身份和单批预算", () => {
+  const h = protocolHarness()
+  h.hello = () => h.sendProtocol({type: "hello", protocolVersion: 2, sessionId: "s-1", capabilities: ["requestId", "listBatches"]})
+  h.hello()
+  const events = Array.from({length: 200}, (_, i) => ({id: "e" + i, name: '甲"\\\n🎂' + i, date: "2026-12-01", on_index: true, IFStaringDay: false}))
+  h.files.set("internal://files/events.json", JSON.stringify({version: 2, revision: 10, primaryId: "e0", events}))
+  h.sendProtocol({type: "getAllEvent", requestId: "batches", sessionId: "s-1", deviceId: "watch-1", listBatches: true})
+  const batches = h.connection.sent.map((item) => item.data).filter((item) => item.type === "eventListBatch")
+  assert.ok(batches.length > 1)
+  assert.equal(batches.flatMap((item) => item.data).length, 200)
+  assert.deepEqual(batches.flatMap((item) => item.data).map((item) => item.name), events.map((item) => item.name))
+  batches.forEach((batch, index) => {
+    assert.equal(batch.batchIndex, index)
+    assert.equal(batch.batchCount, batches.length)
+    assert.equal(batch.total, 200)
+    assert.equal(batch.requestId, "batches")
+    assert.ok(batch.data.length <= 16)
+    assert.ok(Buffer.byteLength(JSON.stringify(batch)) <= 8192)
+  })
+})
+
+test("E-12: 空列表单批完成，单项超预算明确失败不发送部分列表", () => {
+  const h = protocolHarness()
+  h.sendProtocol({type: "hello", protocolVersion: 2, sessionId: "s-1", capabilities: ["listBatches"]})
+  const request = {type: "getAllEvent", requestId: "empty", sessionId: "s-1", deviceId: "watch-1", listBatches: true}
+  h.sendProtocol(request)
+  const empty = h.connection.sent.at(-1).data
+  assert.equal(empty.type, "eventListBatch")
+  assert.equal(empty.total, 0)
+  assert.equal(empty.batchCount, 1)
+  h.global.eventStore.read = (callback) => callback(null, {events: [{name: "a", date: "2026-01-01", extra: "x".repeat(8192)}], revision: 1, primaryId: ""})
+  h.sendProtocol({...request, requestId: "oversize"})
+  assert.equal(h.connection.sent.at(-1).data.type, "eventListError")
+  assert.equal(h.connection.sent.at(-1).data.code, "LIST_ITEM_TOO_LARGE")
+})
+
 test("D-16: 保存失败保留草稿与页面，重复点击只提交一次", () => {
   const h = createHarness()
   const editor = h.router.push({uri: "/pages/edit", params: {extend: "true", callback_uri: "/pages/index"}})

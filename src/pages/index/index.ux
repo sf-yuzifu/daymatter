@@ -189,7 +189,7 @@ export default {
       this._pluginProtocolV2 = parsedData.protocolVersion >= 2
       this._pluginCapabilities = Array.isArray(parsedData.capabilities) ? parsedData.capabilities : []
       this.sendProtocolResponse({type: "capabilities", protocolVersion: 2, sessionId: this._pluginSession,
-        capabilities: ["stableId", "mutationResult", "requestId", "listRequestId", "themeColor", "primaryId", "revision", "backgroundJpeg"]})
+        capabilities: ["stableId", "mutationResult", "requestId", "listRequestId", "listBatches", "themeColor", "primaryId", "revision", "backgroundJpeg"]})
       return
     }
     if (parsedData && parsedData.type === "capabilities") {
@@ -212,7 +212,8 @@ export default {
     let request = null
     const handlers = {
       getAllEvent: () => this.handleGetAllEvent(requestId ? {
-        requestId: requestId, sessionId: parsedData.sessionId, deviceId: parsedData.deviceId
+        requestId: requestId, sessionId: parsedData.sessionId, deviceId: parsedData.deviceId,
+        batches: parsedData.listBatches === true && this._pluginCapabilities.includes("listBatches")
       } : null),
       addEvent: () => this.handleAddEvent(parsedData, request),
       changeEvent: () => this.handleChangeEvent(parsedData, request),
@@ -673,6 +674,10 @@ export default {
         responseData.sessionId = request.sessionId
         responseData.deviceId = request.deviceId
       }
+      if (request && request.batches) {
+        this.sendEventBatches(responseData)
+        return
+      }
       connect.send({
         // 同时给出稳定 ID / 主事件 / 修订号，插件按 ID 操作并可显示表盘主事件（E-02 / E-11）
         data: responseData,
@@ -686,6 +691,39 @@ export default {
         }
       })
     })
+  },
+
+  sendEventBatches(snapshot) {
+    const batches = []
+    let items = []
+    const makeBatch = (data, index, count) => ({type: "eventListBatch", requestId: snapshot.requestId,
+      sessionId: snapshot.sessionId, deviceId: snapshot.deviceId, revision: snapshot.revision,
+      primaryId: snapshot.primaryId, total: snapshot.data.length, batchIndex: index, batchCount: count, data: data})
+    // UTF-8 长度上界：每个 UTF-16 单元最多 3 字节（代理对实际更小）。
+    const fits = (data) => JSON.stringify(makeBatch(data, 199, 200)).length * 3 <= 8192
+    for (let i = 0; i < snapshot.data.length; i++) {
+      const event = snapshot.data[i]
+      if (items.length >= 16 || !fits(items.concat([event]))) {
+        if (items.length) batches.push(items)
+        items = []
+      }
+      if (!fits([event])) {
+        this.sendProtocolResponse({type: "eventListError", requestId: snapshot.requestId,
+          sessionId: snapshot.sessionId, deviceId: snapshot.deviceId, code: "LIST_ITEM_TOO_LARGE"})
+        return
+      }
+      items.push(event)
+    }
+    if (items.length || !batches.length) batches.push(items)
+    let index = 0
+    const sendNext = () => {
+      if (this._destroyed || index >= batches.length) return
+      const current = index++
+      connect.send({data: makeBatch(batches[current], current, batches.length), success: sendNext,
+        fail: () => this.sendProtocolResponse({type: "eventListError", requestId: snapshot.requestId,
+          sessionId: snapshot.sessionId, deviceId: snapshot.deviceId, code: "LIST_SEND_FAILED"})})
+    }
+    sendNext()
   },
 
   // 插件消息里的表盘主事件标记：true / false 生效，缺省或非法值不改变主事件
