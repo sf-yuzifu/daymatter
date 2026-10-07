@@ -63,11 +63,27 @@
             src="/common/{{ IFStaringDay }}.png"
           />
         </div>
-        <div class="line color-picker-container">
-          <text @click="changeRepeat">{{ $t('annualRepeat') }}: {{ repeat === 'yearly' ? $t('enabled') : $t('disabled') }}</text>
+        <div class="line button" style="margin-bottom: 8px">
+          <marquee if="{{ pageVisible }}" scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
+            {{ $t("annualRepeat") }}
+          </marquee>
+          <text else>{{ $t("annualRepeat") }}</text>
+          <img
+            if="{{ repeat === 'yearly' }}"
+            style="height: 48px"
+            src="/common/true.png"
+            @click="changeRepeat"
+          />
+          <img
+            else
+            style="height: 48px"
+            src="/common/false.png"
+            @click="changeRepeat"
+          />
         </div>
-        <div class="line button" @click="changeUnit">
-          <text>{{ $t('displayUnit') }}: {{ $t(displayUnit) }}</text>
+        <div class="line button" style="margin-bottom: 8px">
+          <text>{{ $t("displayUnit") }}</text>
+          <text class="unit-button" @click="changeUnit">{{ $t(displayUnit) }}</text>
         </div>
         <div class="line color-picker-container">
           <text>{{ $t("themeColor") }}</text>
@@ -498,6 +514,18 @@ marquee {
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
+}
+
+.unit-button {
+  height: 48px;
+  min-width: 72px;
+  padding: 0 12px;
+  margin-top: 4px;
+  color: #ffffff;
+  background-color: #262626;
+  border: 3px solid rgba(255, 255, 255, 0.06);
+  border-radius: 24px;
+  text-align: center;
 }
 
 .color-picker-container {
