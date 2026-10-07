@@ -34,6 +34,8 @@
 "showOnHome": "在首頁顯示",
   "includeStartDay": "包含起始日",
   "eventNameRequired": "事件名稱不能為空",
+  "eventNameTooLong": "事件名稱最多 50 個 Unicode 字元",
+  "eventNameInvalid": "事件名稱包含無效 Unicode 字元",
   "dateInvalid": "日期無效",
   "tooManyEvents": "事件數量已達上限",
   "invalidEvent": "事件資料無效",

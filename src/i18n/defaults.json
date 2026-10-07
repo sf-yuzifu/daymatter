@@ -34,6 +34,8 @@
 "showOnHome": "Show on Home",
   "includeStartDay": "Include Start Day",
   "eventNameRequired": "Event name is required",
+  "eventNameTooLong": "Event name must be at most 50 Unicode characters",
+  "eventNameInvalid": "Event name contains invalid Unicode characters",
   "dateInvalid": "Invalid date",
   "tooManyEvents": "Event limit reached",
   "invalidEvent": "Invalid event data",

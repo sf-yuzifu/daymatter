@@ -376,6 +376,10 @@ export default {
       showToast({message: this.$t("eventNameRequired")})
       return
     }
+    if (code === "NAME_TOO_LONG" || code === "NAME_INVALID") {
+      showToast({message: this.$t(code === "NAME_TOO_LONG" ? "eventNameTooLong" : "eventNameInvalid")})
+      return
+    }
     if (code === "DATE_INVALID") {
       showToast({message: this.$t("dateInvalid")})
       return
@@ -389,7 +393,6 @@ export default {
       return
     }
     if (
-      code === "NAME_TOO_LONG" ||
       code === "INVALID_BOOLEAN" ||
       code === "INVALID_COLOR" ||
       code === "INVALID_EVENT"

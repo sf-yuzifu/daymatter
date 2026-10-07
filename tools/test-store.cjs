@@ -120,6 +120,31 @@ function seedFile(fake, events, extra) {
   fake.files.set(URI, JSON.stringify(Object.assign({version: 2, revision: 100, events: events}, extra || {})))
 }
 
+test("B-09 名称按码点计数、统一空白、保留未改旧长名称", async () => {
+  for (const language of ["zh-CN", "zh-TW", "zh-HK", "en", "defaults"]) {
+    const text = JSON.parse(fs.readFileSync(path.join(root, "src/i18n", language + ".json"), "utf8"))
+    for (const key of ["eventNameRequired", "eventNameTooLong", "eventNameInvalid"]) assert.ok(text[key])
+  }
+  const fake = createFakeFile()
+  const store = createStore(fake)
+  for (const name of ["中".repeat(50), "😀".repeat(50), "e\u0301".repeat(25)]) {
+    const result = await call(store, "add", {name: "\ufeff\u3000" + name + "\u00a0", date: "2026-01-01"})
+    assert.equal(result.event.name, name)
+  }
+  for (const name of ["中".repeat(51), "😀".repeat(51), "e\u0301".repeat(26)]) {
+    await assert.rejects(call(store, "add", {name, date: "2026-01-01"}), {code: "NAME_TOO_LONG"})
+  }
+  await assert.rejects(call(store, "add", {name: "\ufeff\u3000\t", date: "2026-01-01"}), {code: "NAME_REQUIRED"})
+  await assert.rejects(call(store, "add", {name: "\ud800", date: "2026-01-01"}), {code: "NAME_INVALID"})
+  assert.equal((await call(store, "add", {name: " a  b\u0085 ", date: "2026-01-01"})).event.name, "a  b\u0085")
+  const oldName = " " + "旧".repeat(60) + " "
+  seedFile(fake, [{id: "legacy", name: oldName, date: "2026-01-01"}])
+  assert.equal((await call(store, "update", "legacy", {name: oldName, date: "2026-02-01"})).event.name, oldName)
+  assert.equal((await call(store, "updateByIndex", 0, {name: oldName, on_index: false})).event.name, oldName)
+  await assert.rejects(call(store, "update", "legacy", {name: "新".repeat(51)}), {code: "NAME_TOO_LONG"})
+  assert.equal((await call(store, "update", "legacy", {name: " 新名称 "})).event.name, "新名称")
+})
+
 test("D-13 旧数组迁移：字段归一、日期补零、字符串布尔转换、ID 稳定且不丢字段", async () => {
   const fake = createFakeFile()
   fake.files.set(

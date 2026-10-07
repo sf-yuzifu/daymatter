@@ -18,6 +18,27 @@ const MAX_NAME_LENGTH = 50
 const THEME_COLORS = ["#3184d0", "#f78803", "#e74c3c", "#27ae60", "#9b59b6"]
 const FILE_NOT_FOUND = 301
 
+// B-09：显式采用 ECMAScript 空白集合，Rust 端保持相同集合；按 Unicode 码点计数。
+function trimName(name) {
+  return name.replace(/^[\u0009-\u000d\u0020\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+|[\u0009-\u000d\u0020\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+$/g, "")
+}
+
+function validateName(name, previousName) {
+  if (typeof name !== "string" || trimName(name) === "") return "NAME_REQUIRED"
+  if (name === previousName) return null // 旧名称原样保留，不静默归一或截断
+  const text = trimName(name)
+  let count = 0
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i)
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = text.charCodeAt(++i)
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return "NAME_INVALID"
+    } else if (code >= 0xdc00 && code <= 0xdfff) return "NAME_INVALID"
+    count++
+  }
+  return count > MAX_NAME_LENGTH ? "NAME_TOO_LONG" : null
+}
+
 function toBoolean(value) {
   if (value === true || value === "true") return {valid: true, value: true}
   if (value === false || value === "false") return {valid: true, value: false}
@@ -397,17 +418,13 @@ function createEventStore(options) {
     })
   }
 
-  function validateEventInput(input, partial) {
+  function validateEventInput(input, partial, previousName) {
     if (!input || typeof input !== "object" || Array.isArray(input)) {
       return {ok: false, error: {code: "INVALID_EVENT"}}
     }
     if (!partial || input.name !== undefined) {
-      if (typeof input.name !== "string" || input.name.trim() === "") {
-        return {ok: false, error: {code: "NAME_REQUIRED"}}
-      }
-      if (input.name.trim().length > MAX_NAME_LENGTH) {
-        return {ok: false, error: {code: "NAME_TOO_LONG"}}
-      }
+      const code = validateName(input.name, previousName)
+      if (code) return {ok: false, error: {code: code}}
     }
     if (!partial || input.date !== undefined) {
       if (!dateUtils.normalizeDate(input.date)) return {ok: false, error: {code: "DATE_INVALID"}}
@@ -440,7 +457,7 @@ function createEventStore(options) {
     const includeStart = toBoolean(input.IFStaringDay)
     return {
       id: createId(state.events),
-      name: input.name.trim(),
+      name: trimName(input.name),
       date: dateUtils.normalizeDate(input.date),
       on_index: onIndex.valid ? onIndex.value : true,
       IFStaringDay: includeStart.valid ? includeStart.value : false,
@@ -450,7 +467,7 @@ function createEventStore(options) {
 
   // 只更新消息中明确给出的字段，其余字段（主题色 / 显示设置 / 未来扩展）原样保留
   function applyPatch(event, patch) {
-    if (patch.name !== undefined) event.name = patch.name.trim()
+    if (patch.name !== undefined && patch.name !== event.name) event.name = trimName(patch.name)
     if (patch.date !== undefined) event.date = dateUtils.normalizeDate(patch.date)
     if (patch.on_index !== undefined) event.on_index = toBoolean(patch.on_index).value
     if (patch.IFStaringDay !== undefined) event.IFStaringDay = toBoolean(patch.IFStaringDay).value
@@ -513,7 +530,7 @@ function createEventStore(options) {
   }
 
   function update(id, patch, callback) {
-    const validation = validateEventInput(patch, true)
+    const validation = validateEventInput(patch, true, patch && patch.name)
     if (!validation.ok) {
       callback(validation.error)
       return
@@ -523,6 +540,8 @@ function createEventStore(options) {
         if (error) return done(error)
         const index = indexOfId(result.state.events, id)
         if (index < 0) return done({code: "NOT_FOUND"})
+        const validation = validateEventInput(patch, true, result.state.events[index].name)
+        if (!validation.ok) return done(validation.error)
         applyPatch(result.state.events[index], patch)
         result.state.revision += 1
         commitAndSync(
@@ -536,7 +555,7 @@ function createEventStore(options) {
 
   // 旧插件协议兼容：在队列内按当下数据解析下标对应的稳定 ID，再按 ID 操作
   function updateByIndex(index, patch, callback) {
-    const validation = validateEventInput(patch, true)
+    const validation = validateEventInput(patch, true, patch && patch.name)
     if (!validation.ok) {
       callback(validation.error)
       return
@@ -545,6 +564,8 @@ function createEventStore(options) {
       loadState((error, result) => {
         if (error) return done(error)
         if (index < 0 || index >= result.state.events.length) return done({code: "NOT_FOUND"})
+        const validation = validateEventInput(patch, true, result.state.events[index].name)
+        if (!validation.ok) return done(validation.error)
         applyPatch(result.state.events[index], patch)
         result.state.revision += 1
         commitAndSync(
