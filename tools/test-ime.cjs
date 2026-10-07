@@ -1487,6 +1487,18 @@ test("E-12: 空列表单批完成，单项超预算明确失败不发送部分�
   assert.equal(h.connection.sent.at(-1).data.code, "LIST_ITEM_TOO_LARGE")
 })
 
+test("E 收尾: 未知命令原型名称忽略，列表读取失败带回本次请求身份", () => {
+  const h = protocolHarness()
+  const before = h.connection.sent.length
+  h.sendProtocol({type: "constructor"})
+  h.sendProtocol({type: "toString"})
+  assert.equal(h.connection.sent.length, before)
+  h.global.eventStore.read = (callback) => callback({code: "READ_FAIL"})
+  h.sendProtocol({type: "getAllEvent", requestId: "failed-list", sessionId: "s-1", deviceId: "watch-1"})
+  assert.equal(h.connection.sent.at(-1).data.type, "eventListError")
+  assert.equal(h.connection.sent.at(-1).data.requestId, "failed-list")
+})
+
 test("D-16: 保存失败保留草稿与页面，重复点击只提交一次", () => {
   const h = createHarness()
   const editor = h.router.push({uri: "/pages/edit", params: {extend: "true", callback_uri: "/pages/index"}})

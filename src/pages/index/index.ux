@@ -193,12 +193,7 @@ export default {
         capabilities: ["stableId", "mutationResult", "requestId", "listRequestId", "listBatches", "themeColor", "primaryId", "revision", "backgroundJpeg"]})
       return
     }
-    if (parsedData && parsedData.type === "capabilities") {
-      this._pluginSession = typeof parsedData.sessionId === "string" ? parsedData.sessionId : this._pluginSession
-      this._pluginProtocolV2 = parsedData.protocolVersion >= 2
-      this._pluginCapabilities = Array.isArray(parsedData.capabilities) ? parsedData.capabilities : []
-      return
-    }
+    if (parsedData.type === "capabilities") return
     if (parsedData && parsedData.type === "getRequestResult") {
       const prior = this.findProtocolRequest(parsedData)
       if (prior && prior.response) this.sendProtocolResponse(prior.response)
@@ -214,7 +209,7 @@ export default {
     const handlers = {
       getAllEvent: () => this.handleGetAllEvent(requestId ? {
         requestId: requestId, sessionId: parsedData.sessionId, deviceId: parsedData.deviceId,
-        batches: parsedData.listBatches === true && this._pluginCapabilities.includes("listBatches")
+        batches: parsedData.listBatches === true && (this._pluginCapabilities || []).includes("listBatches")
       } : null),
       addEvent: () => this.handleAddEvent(parsedData, request),
       changeEvent: () => this.handleChangeEvent(parsedData, request),
@@ -222,7 +217,7 @@ export default {
       addBG: () => this.handleAddBG(parsedData)
     }
 
-    const handler = handlers[parsedData.type]
+    const handler = Object.prototype.hasOwnProperty.call(handlers, parsedData.type) ? handlers[parsedData.type] : null
     if (handler) {
       if (requestId && ["addEvent", "changeEvent", "deleteEvent"].includes(parsedData.type)) {
         if (!this._pluginProtocolV2 || !this._pluginCapabilities || !this._pluginCapabilities.includes("requestId") ||
@@ -666,6 +661,8 @@ export default {
     global.eventStore.read((error, result) => {
       if (this._destroyed) return
       if (error) {
+        if (request) this.sendProtocolResponse({type: "eventListError", requestId: request.requestId,
+          sessionId: request.sessionId, deviceId: request.deviceId, code: "LIST_READ_FAILED"})
         showToast({message: this.$t("syncFail"), duration: 2000})
         return
       }
