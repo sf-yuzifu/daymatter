@@ -167,6 +167,8 @@ export default {
 
   handleInterconnectMessage(message) {
     if (this._destroyed) return
+    // Base64 背景保留既有正常上传规模，解析前先限制总消息分配。
+    if (!message || typeof message.data !== "string" || message.data.length > 262144) return
     let parsedData
     try {
       parsedData = JSON.parse(message.data)

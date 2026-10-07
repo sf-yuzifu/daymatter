@@ -1443,6 +1443,14 @@ test("E-10: 列表回包显式绑定请求身份，交错拉取不消费 mutatio
   assert.equal(h.connection.sent.length, before, "旧会话不返回列表")
 })
 
+test("E-12: 腕端拒绝超预算消息且不进入存储提交", () => {
+  const h = protocolHarness()
+  h.sendProtocol(h.request("huge", {extra: "x".repeat(262144)}))
+  assert.equal(readStoreEvents(h).length, 0)
+  assert.equal(h.results().length, 0)
+  assert.equal(h.global.__daymatterProtocolLedger.requests.length, 0)
+})
+
 test("D-16: 保存失败保留草稿与页面，重复点击只提交一次", () => {
   const h = createHarness()
   const editor = h.router.push({uri: "/pages/edit", params: {extend: "true", callback_uri: "/pages/index"}})
