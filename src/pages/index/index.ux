@@ -189,6 +189,7 @@ export default {
       this._pluginProtocolV2 = parsedData.protocolVersion >= 2
       this._pluginCapabilities = Array.isArray(parsedData.capabilities) ? parsedData.capabilities : []
       this.sendProtocolResponse({type: "capabilities", protocolVersion: 2, sessionId: this._pluginSession,
+        handshakeId: parsedData.handshakeId, deviceId: parsedData.deviceId,
         capabilities: ["stableId", "mutationResult", "requestId", "listRequestId", "listBatches", "themeColor", "primaryId", "revision", "backgroundJpeg"]})
       return
     }
