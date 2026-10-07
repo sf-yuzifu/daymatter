@@ -274,6 +274,12 @@ export default {
     const response = {type: "mutationResult", requestId: request.requestId, sessionId: request.sessionId,
       deviceId: request.deviceId, ok: !error || error.code === "WATCHFACE_FAIL",
       revision: result && result.revision, code: error && error.code ? error.code : ""}
+    if (request.parts) {
+      response.event = request.parts.event
+      response.primary = request.parts.primary
+      response.watchface = request.parts.watchface
+      response.ok = request.parts.event.ok
+    }
     request.response = response
     this.sendProtocolResponse(response)
   },
@@ -687,27 +693,32 @@ export default {
 
   // 分项结果：事件数据已提交但表盘文件失败时单独报告，不当作整体失败
   finishPluginMutation(messageKey, error, result, wanted, request) {
+    const eventSaved = !error || error.code === "WATCHFACE_FAIL"
+    if (request) request.parts = {event: {ok: eventSaved},
+      primary: {ok: null, requested: wanted !== null},
+      watchface: {ok: eventSaved ? !(error && error.code === "WATCHFACE_FAIL") : null}}
     if (error) {
-      if (error.code !== "WATCHFACE_FAIL") {
+      if (!eventSaved) {
         this.finishProtocolRequest(request, error, result)
         if (this._destroyed) return
         this.showEventError(error)
         return
       }
-      this.finishProtocolRequest(request, error, result)
-      if (this._destroyed) return
-      this.afterMutation(messageKey)
-      showToast({message: this.$t("watchfaceSyncFail"), duration: 2000})
-      return
     }
     const eventId = result && result.event ? result.event.id : null
     if (wanted === null || !eventId) {
-      this.finishProtocolRequest(request, null, result)
+      this.finishProtocolRequest(request, error, result)
       if (this._destroyed) return
       this.afterMutation(messageKey)
+      if (error) showToast({message: this.$t("watchfaceSyncFail"), duration: 2000})
       return
     }
     global.eventStore.setPrimary(wanted ? eventId : "", (primaryError, primaryResult) => {
+      if (request) {
+        request.parts.primary.ok = !primaryError || primaryError.code === "WATCHFACE_FAIL"
+        request.parts.primary.code = primaryError && primaryError.code || ""
+        request.parts.watchface.ok = request.parts.primary.ok ? !(primaryError && primaryError.code === "WATCHFACE_FAIL") : request.parts.watchface.ok
+      }
       this.finishProtocolRequest(request, primaryError, primaryResult || result)
       if (this._destroyed) return
       if (primaryError && primaryError.code !== "WATCHFACE_FAIL") {

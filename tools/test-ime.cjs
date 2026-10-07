@@ -1381,6 +1381,52 @@ test("E-07: 设置主事件回执使用最终 revision；超大请求不占用�
   assert.equal(readStoreEvents(h).length, 1)
 })
 
+test("E-07: 事件已保存但主事件失败，回执保留事件成功且重试不再次新增", () => {
+  const h = protocolHarness()
+  h.global.eventStore.setPrimary = (id, callback) => callback({code: "WRITE_FAIL"})
+  const request = h.request("partial-primary", {watchface: true})
+  h.sendProtocol(request)
+  const result = h.results().at(-1)
+  assert.equal(result.ok, true)
+  assert.equal(result.event.ok, true)
+  assert.equal(result.primary.ok, false)
+  assert.equal(result.primary.code, "WRITE_FAIL")
+  assert.equal(result.revision, JSON.parse(h.files.get("internal://files/events.json")).revision)
+  h.sendProtocol(request)
+  assert.equal(readStoreEvents(h).length, 1)
+})
+
+test("E-07: 表盘失败不跳过主事件提交，最终回执报告各分项", () => {
+  const h = protocolHarness()
+  const add = h.global.eventStore.add
+  h.global.eventStore.add = (data, callback) => add(data, (error, result) =>
+    callback({code: "WATCHFACE_FAIL"}, result))
+  h.sendProtocol(h.request("recover-primary", {watchface: true, on_index: false}))
+  let result = h.results().at(-1)
+  assert.equal(result.event.ok, true)
+  assert.equal(result.primary.ok, true)
+  assert.equal(result.watchface.ok, true, "后续主事件提交修复了表盘同步")
+  h.global.eventStore.setPrimary = (id, callback) => callback({code: "WATCHFACE_FAIL"}, {revision: 5})
+  h.sendProtocol(h.request("watchface-fail", {watchface: true}))
+  result = h.results().at(-1)
+  assert.equal(result.ok, true)
+  assert.equal(result.primary.ok, true)
+  assert.equal(result.watchface.ok, false)
+  assert.equal(result.code, "WATCHFACE_FAIL")
+  assert.equal(result.revision, 5)
+})
+
+test("E-07: 未提交事件的失败回执不报告主事件和表盘成功", () => {
+  const h = protocolHarness()
+  h.sendProtocol(h.request("bad", {date: "2026-02-30", watchface: true}))
+  const result = h.results().at(-1)
+  assert.equal(result.ok, false)
+  assert.equal(result.event.ok, false)
+  assert.equal(result.primary.ok, null)
+  assert.equal(result.watchface.ok, null)
+  assert.equal(readStoreEvents(h).length, 0)
+})
+
 test("D-16: 保存失败保留草稿与页面，重复点击只提交一次", () => {
   const h = createHarness()
   const editor = h.router.push({uri: "/pages/edit", params: {extend: "true", callback_uri: "/pages/index"}})
