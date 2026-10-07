@@ -187,7 +187,7 @@ export default {
       this._pluginProtocolV2 = parsedData.protocolVersion >= 2
       this._pluginCapabilities = Array.isArray(parsedData.capabilities) ? parsedData.capabilities : []
       this.sendProtocolResponse({type: "capabilities", protocolVersion: 2, sessionId: this._pluginSession,
-        capabilities: ["stableId", "mutationResult", "requestId", "themeColor", "primaryId", "revision", "backgroundJpeg"]})
+        capabilities: ["stableId", "mutationResult", "requestId", "listRequestId", "themeColor", "primaryId", "revision", "backgroundJpeg"]})
       return
     }
     if (parsedData && parsedData.type === "capabilities") {
@@ -209,7 +209,9 @@ export default {
     if (requestId && this._pluginSession && parsedData.sessionId !== this._pluginSession) return
     let request = null
     const handlers = {
-      getAllEvent: () => this.handleGetAllEvent(),
+      getAllEvent: () => this.handleGetAllEvent(requestId ? {
+        requestId: requestId, sessionId: parsedData.sessionId, deviceId: parsedData.deviceId
+      } : null),
       addEvent: () => this.handleAddEvent(parsedData, request),
       changeEvent: () => this.handleChangeEvent(parsedData, request),
       deleteEvent: () => this.handleDeleteEvent(parsedData, request),

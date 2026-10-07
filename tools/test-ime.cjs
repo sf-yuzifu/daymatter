@@ -1427,6 +1427,22 @@ test("E-07: 未提交事件的失败回执不报告主事件和表盘成功", ()
   assert.equal(readStoreEvents(h).length, 0)
 })
 
+test("E-10: 列表回包显式绑定请求身份，交错拉取不消费 mutation 上下文", () => {
+  const h = protocolHarness()
+  h.deferWrites = true
+  h.sendProtocol(h.request("mutation"))
+  h.sendProtocol({type: "getAllEvent", requestId: "list-1", sessionId: "s-1", deviceId: "watch-1"})
+  h.sendProtocol({type: "getAllEvent", requestId: "list-2", sessionId: "s-1", deviceId: "watch-1"})
+  h.flushWrites()
+  const lists = h.connection.sent.map((item) => item.data).filter((item) => Array.isArray(item.data))
+  assert.deepEqual(lists.map((item) => item.requestId), ["list-1", "list-2"])
+  assert.ok(lists.every((item) => item.sessionId === "s-1" && item.deviceId === "watch-1"))
+  assert.equal(h.results().at(-1).requestId, "mutation")
+  const before = h.connection.sent.length
+  h.sendProtocol({type: "getAllEvent", requestId: "old", sessionId: "stale", deviceId: "watch-1"})
+  assert.equal(h.connection.sent.length, before, "旧会话不返回列表")
+})
+
 test("D-16: 保存失败保留草稿与页面，重复点击只提交一次", () => {
   const h = createHarness()
   const editor = h.router.push({uri: "/pages/edit", params: {extend: "true", callback_uri: "/pages/index"}})
