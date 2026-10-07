@@ -52,7 +52,7 @@
   "useAsWatchfaceInfo": "设为表盘主事件",
   "includeStartDayInfo": "起始日计为第 1 天",
   "annualRepeatInfo": "每年同日重复",
-  "displayUnitInfo": "点击切换计时单位",
+  "displayUnitInfo": "选择计时单位",
   "themeColorInfo": "选择卡片配色",
   "bgUpdateSuccess": "背景更新成功！",
   "bgSaveFail": "背景保存失败，错误码: {code}"

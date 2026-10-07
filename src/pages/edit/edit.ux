@@ -74,7 +74,7 @@
             <text class="setting-label">{{ $t("displayUnit") }}</text>
             <marquee class="setting-info" if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}" scrollamount="20" text-offset="20">{{ $t("displayUnitInfo") }}</marquee>
           </div>
-          <text class="unit-button" @click="changeUnit">{{ $t(displayUnit) }}</text>
+          <picker class="unit-picker" type="text" range="{{ unitOptions }}" selected="{{ unitKeys.indexOf(displayUnit) }}" @change="onUnitChange"></picker>
         </div>
         <div class="line color-picker-container">
           <text class="field-label">{{ $t("themeColor") }}</text>
@@ -151,6 +151,8 @@ export default {
     IFStaringDay: false,
     repeat: "none",
     displayUnit: "days",
+    unitKeys: ["days", "weeks", "months", "years"],
+    unitOptions: [],
     useWatchface: false,
     themeColor: "#3184d0",
     callback_uri: "/pages/index",
@@ -169,6 +171,7 @@ export default {
   },
 
   onInit() {
+    this.unitOptions = this.unitKeys.map((unit) => this.$t(unit))
     this.repeat = this.repeat === "yearly" ? "yearly" : "none"
     if (["days", "weeks", "months", "years"].indexOf(this.displayUnit) < 0) this.displayUnit = "days"
     // 只用标量标记当前子页请求，不把编辑页对象存入全局。
@@ -340,6 +343,11 @@ export default {
     if (value === "true") return true
     if (value === "false") return false
     return value
+  },
+
+  onUnitChange(event) {
+    const index = this.unitOptions.indexOf(event.newValue)
+    if (index >= 0) this.displayUnit = this.unitKeys[index]
   },
 
   showErrorToast(code) {
@@ -848,6 +856,23 @@ marquee {
     width: 48px;
     height: 48px;
     margin: 0 2px 10px;
+  }
+}
+.unit-picker {
+  width: 80px;
+  height: 48px;
+  margin-left: 10px;
+  selected-color: #ffffff;
+  selected-font-size: 32px;
+  font-size: 32px;
+}
+
+@media (shape: pill-shaped) {
+  .unit-picker {
+    margin-left: 0px;
+    margin-top: 4px;
+    font-size: 24px;
+    selected-font-size: 24px;
   }
 }
 </style>

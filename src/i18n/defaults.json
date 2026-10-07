@@ -52,7 +52,7 @@
   "useAsWatchfaceInfo": "Set as watchface event",
   "includeStartDayInfo": "Start day counts as day 1",
   "annualRepeatInfo": "Repeat yearly",
-  "displayUnitInfo": "Tap to change units",
+  "displayUnitInfo": "Choose time units",
   "themeColorInfo": "Choose card colors",
   "bgUpdateSuccess": "Background updated!",
   "bgSaveFail": "Failed to save background, error code: {code}"
