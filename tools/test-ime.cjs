@@ -587,23 +587,30 @@ test("默认形态兜底：非 rect / circle（含缺失值）一律按胶囊基
 test("C-20: 首页切换显示单位时原地修改属性，严格保留事件对象与数组引用", () => {
   const h = createHarness()
   h.files.set("internal://files/events.json", JSON.stringify([
-    {name: "测试事件", date: "2026-11-06", on_index: true, IFStaringDay: false, themeColor: "#3184d0"}
+    {name: "测试事件", date: "2026-11-06", on_index: true, IFStaringDay: false, themeColor: "#3184d0"},
+    {name: "另一个事件", date: "2030-11-06", on_index: true, IFStaringDay: false}
   ]))
   const home = h.router.push({uri: "/pages/index"})
-  assert.equal(home.events.length, 1)
+  assert.equal(home.events.length, 2)
 
   const arrayBefore = home.events
   const objBefore = home.events[0]
-  const modeBefore = home.currentDisplayModeIndex
+  const modeBefore = home.events[0].displayUnit
+  const otherBefore = home.events[1].displayText
 
   // 触发切换模式
   home.toggleDisplayMode(0)
 
   assert.equal(home.events, arrayBefore, "必须保持同一 events 数组引用，不重新赋值整个数组")
   assert.equal(home.events[0], objBefore, "必须保持同一事件对象引用，避免销毁已有 DOM / Swiper 节点")
-  assert.notEqual(home.currentDisplayModeIndex, modeBefore, "单位模式索引已推进")
+  assert.notEqual(home.events[0].displayUnit, modeBefore, "当前事件单位已推进")
   assert.ok(home.events[0].displayText, "更新了展示文本")
   assert.ok(home.events[0].fontSize > 0, "更新了字号大小")
+  assert.equal(home.events[1].displayText, otherBefore, "不改变其他事件")
+  const saved = JSON.parse(h.files.get("internal://files/events.json"))
+  assert.equal(saved.events[0].displayUnit, home.events[0].displayUnit)
+  home.completed()
+  assert.equal(home.events[0].displayUnit, saved.events[0].displayUnit, "重读保留单位")
 })
 
 test("C-08: 键盘候选列表按需构建：打字时不构建 2D 数组，展开时按需切片，收起立即释放", () => {

@@ -33,6 +33,7 @@ function parseDate(value) {
   const match = value.trim().match(DATE_PATTERN)
   if (!match) return null
   const year = Number(match[1])
+  if (year < 1 || year > 9999) return null
   const month = Number(match[2])
   const day = Number(match[3])
   if (month < 1 || month > 12) return null
@@ -41,7 +42,7 @@ function parseDate(value) {
 }
 
 function formatDate(year, month, day) {
-  return year + "-" + pad2(month) + "-" + pad2(day)
+  return ("0000" + year).slice(-4) + "-" + pad2(month) + "-" + pad2(day)
 }
 
 // 统一存储 / 展示格式：2026-1-5 -> 2026-01-05；非法返回 null
@@ -153,7 +154,34 @@ function getEventStatus(dateValue, includeStartDay, now) {
   }
 }
 
+function getOccurrence(event, now) {
+  const original = parseDate(event.date)
+  if (!original) return null
+  if (event.repeat !== "yearly") return {date: normalizeDate(event.date), anniversary: null}
+  const today = todayParts(now)
+  let year = Math.max(original.year, today.year)
+  let target = {year: year, month: original.month, day: Math.min(original.day, daysInMonth(year, original.month))}
+  if (compareParts(target, today) < 0) {
+    year++
+    if (year > 9999) return null
+    target = {year: year, month: original.month, day: Math.min(original.day, daysInMonth(year, original.month))}
+  }
+  return {date: formatDate(target.year, target.month, target.day), anniversary: year - original.year}
+}
+
+function getRecurringStatus(event, now) {
+  const occurrence = getOccurrence(event, now)
+  if (!occurrence) {
+    const status = getEventStatus(event.date, event.IFStaringDay, now)
+    return status ? Object.assign(status, {occurrenceDate: null, anniversary: null}) : null
+  }
+  return Object.assign(getEventStatus(occurrence.date, event.IFStaringDay, now),
+    {occurrenceDate: occurrence.date, anniversary: occurrence.anniversary})
+}
+
 export default {
+  getOccurrence: getOccurrence,
+  getRecurringStatus: getRecurringStatus,
   TODAY_STATUS: TODAY_STATUS,
   daysInMonth: daysInMonth,
   formatDate: formatDate,

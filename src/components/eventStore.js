@@ -434,6 +434,8 @@ function createEventStore(options) {
         return {ok: false, error: {code: "INVALID_BOOLEAN", field: field}}
       }
     }
+    if (input.repeat !== undefined && ["none", "yearly"].indexOf(input.repeat) === -1) return {ok: false, error: {code: "INVALID_REPEAT"}}
+    if (input.displayUnit !== undefined && ["days", "weeks", "months", "years"].indexOf(input.displayUnit) === -1) return {ok: false, error: {code: "INVALID_UNIT"}}
     if (input.themeColor !== undefined) {
       if (typeof input.themeColor !== "string") return {ok: false, error: {code: "INVALID_COLOR"}}
       if (input.themeColor !== "" && THEME_COLORS.indexOf(input.themeColor) === -1) {
@@ -458,6 +460,8 @@ function createEventStore(options) {
     return {
       id: createId(state.events),
       name: trimName(input.name),
+      repeat: input.repeat || "none",
+      displayUnit: input.displayUnit || "days",
       date: dateUtils.normalizeDate(input.date),
       on_index: onIndex.valid ? onIndex.value : true,
       IFStaringDay: includeStart.valid ? includeStart.value : false,
@@ -467,6 +471,8 @@ function createEventStore(options) {
 
   // 只更新消息中明确给出的字段，其余字段（主题色 / 显示设置 / 未来扩展）原样保留
   function applyPatch(event, patch) {
+    if (patch.repeat !== undefined) event.repeat = patch.repeat
+    if (patch.displayUnit !== undefined) event.displayUnit = patch.displayUnit
     if (patch.name !== undefined && patch.name !== event.name) event.name = trimName(patch.name)
     if (patch.date !== undefined) event.date = dateUtils.normalizeDate(patch.date)
     if (patch.on_index !== undefined) event.on_index = toBoolean(patch.on_index).value
@@ -492,11 +498,13 @@ function createEventStore(options) {
         // 迁移（含主事件规则落定）后立即升级落盘并维护表盘文件
         watchFaceChecked = true
         enqueue((done) => commitAndSync(result.state, null, () => done(null)), () => {})
-      } else if (watchFace && (!watchFaceChecked || result.state.watchfacePending)) {
-        // 会话内首次读取维护一次表盘文件（内容未变则跳过写入）；
-        // 上次写入失败标记的待补写状态在本次进入重试（D-20）
+      } else if (watchFace) {
+        // 每次进入/跨午夜维护年度日期，内容未变由表盘模块跳过写入。
         watchFaceChecked = true
-        enqueue((done) => syncWatchFace(result.state, () => done(null)), () => {})
+        enqueue((done) => loadState((error, latest) => {
+          if (error) return done(error)
+          syncWatchFace(latest.state, () => done(null))
+        }), () => {})
       }
       callback(null, {
         events: result.state.events,

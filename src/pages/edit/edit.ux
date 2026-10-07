@@ -64,6 +64,12 @@
           />
         </div>
         <div class="line color-picker-container">
+          <text @click="changeRepeat">{{ $t('annualRepeat') }}: {{ repeat === 'yearly' ? $t('enabled') : $t('disabled') }}</text>
+        </div>
+        <div class="line button" @click="changeUnit">
+          <text>{{ $t('displayUnit') }}: {{ $t(displayUnit) }}</text>
+        </div>
+        <div class="line color-picker-container">
           <text>{{ $t("themeColor") }}</text>
           <div class="color-picker">
             <div
@@ -135,6 +141,8 @@ export default {
     date: "",
     on_index: true,
     IFStaringDay: false,
+    repeat: "none",
+    displayUnit: "days",
     useWatchface: false,
     themeColor: "#3184d0",
     callback_uri: "/pages/index",
@@ -153,6 +161,8 @@ export default {
   },
 
   onInit() {
+    this.repeat = this.repeat === "yearly" ? "yearly" : "none"
+    if (["days", "weeks", "months", "years"].indexOf(this.displayUnit) < 0) this.displayUnit = "days"
     // 只用标量标记当前子页请求，不把编辑页对象存入全局。
     global.__daymatterEditSequence = (global.__daymatterEditSequence || 0) + 1
     this._editSessionId = String(global.__daymatterEditSequence)
@@ -293,6 +303,15 @@ export default {
     this.themeColor = color
   },
 
+  changeRepeat() {
+    this.repeat = this.repeat === "yearly" ? "none" : "yearly"
+  },
+
+  changeUnit() {
+    const units = ["days", "weeks", "months", "years"]
+    this.displayUnit = units[(units.indexOf(this.displayUnit) + 1) % units.length]
+  },
+
   normalizeBoolean(value) {
     if (value === "true") return true
     if (value === "false") return false
@@ -321,6 +340,8 @@ export default {
     this._saving = true
     const payload = {
       name: this.event_name,
+      repeat: this.repeat,
+      displayUnit: this.displayUnit,
       date: this.date,
       on_index: this.normalizeBoolean(this.on_index),
       IFStaringDay: this.normalizeBoolean(this.IFStaringDay),
@@ -394,6 +415,7 @@ export default {
     }
     if (
       code === "INVALID_BOOLEAN" ||
+      code === "INVALID_REPEAT" || code === "INVALID_UNIT" ||
       code === "INVALID_COLOR" ||
       code === "INVALID_EVENT"
     ) {

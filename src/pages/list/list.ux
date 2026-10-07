@@ -127,7 +127,7 @@ export default {
 
   formatEvent(event, storageIndex) {
     const status =
-      global.dateUtils.getEventStatus(event.date, event.IFStaringDay) || global.dateUtils.TODAY_STATUS
+      global.dateUtils.getRecurringStatus(event) || global.dateUtils.TODAY_STATUS
     let days,
       display_name = event.name,
       already = true
@@ -145,6 +145,7 @@ export default {
 
     // 表盘主事件与首页展示独立，列表只做标记，不新增节点
     const watchface = event.id === this._primaryId
+    if (event.repeat === "yearly" && status.anniversary !== null) display_name += " " + this.$t("anniversary", {count: status.anniversary})
     if (watchface) display_name += " " + this.$t("watchfaceBadge")
 
     const font_size = calculateListFontSize(days, this.$t("today")) + getExtraFontSize()
@@ -255,6 +256,8 @@ export default {
         event_id: event.id !== undefined ? String(event.id) : String(storageIndex),
         event_name: event.name,
         date: event.date,
+        repeat: event.repeat || "none",
+        displayUnit: event.displayUnit || "days",
         on_index: event.on_index,
         themeColor: event.themeColor,
         IFStaringDay: event.IFStaringDay || false,

@@ -85,7 +85,12 @@ function createWatchFace(options) {
 
   // 按当前状态维护表盘文件：callback(error, {skipped})
   function sync(state, fallbackName, callback) {
-    const text = buildText(findPrimary(state), fallbackName)
+    let event = findPrimary(state)
+    if (event && event.repeat === "yearly" && options.dateUtils) {
+      const occurrence = options.dateUtils.getOccurrence(event, options.now ? options.now() : undefined)
+      event = occurrence ? Object.assign({}, event, {date: occurrence.date}) : null
+    }
+    const text = buildText(event, fallbackName)
     if (lastText !== null && lastText === text) {
       callback(null, {skipped: true})
       return

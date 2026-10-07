@@ -16,6 +16,20 @@ function loadModule(source) {
 
 const dateUtils = loadModule(dateSource)
 
+test("F-01 年度发生日保留原日期，当日/跨年/闰日/未来起点", () => {
+  const event = {date: "2020-02-29", repeat: "yearly"}
+  assert.deepEqual(dateUtils.getOccurrence(event, nowAt(2026, 2, 28)), {date: "2026-02-28", anniversary: 6})
+  assert.deepEqual(dateUtils.getOccurrence(event, nowAt(2026, 3, 1)), {date: "2027-02-28", anniversary: 7})
+  assert.deepEqual(dateUtils.getOccurrence(event, nowAt(2028, 2, 28)), {date: "2028-02-29", anniversary: 8})
+  assert.equal(dateUtils.getRecurringStatus(event, nowAt(2026, 2, 28)).state, "today")
+  assert.equal(dateUtils.getRecurringStatus({...event, IFStaringDay: true}, nowAt(2026, 2, 28)).days, 1)
+  assert.equal(event.date, "2020-02-29")
+  assert.deepEqual(dateUtils.getOccurrence({date: "2030-01-01", repeat: "yearly"}, nowAt(2026, 12, 31)), {date: "2030-01-01", anniversary: 0})
+  assert.equal(dateUtils.getOccurrence({date: "9999-01-01", repeat: "yearly"}, nowAt(9999, 12, 31)), null)
+  assert.equal(dateUtils.normalizeDate("0001-1-1"), "0001-01-01")
+  assert.equal(dateUtils.normalizeDate("0000-1-1"), null)
+})
+
 // 固定"今天"的辅助函数：显式传入 now，纯日期断言不依赖运行时的真实日期
 function nowAt(year, month, day, hour = 12, minute = 0) {
   return new Date(year, month - 1, day, hour, minute)
@@ -178,11 +192,11 @@ test("入口一致性：app.ux 暴露 dateUtils，日期写入与插件消息使
   assert.ok(!pickerSource.includes("new Date("), "日期选择器不得再依赖 Date 解析日期")
 
   const indexSource = fs.readFileSync(path.join(root, "src/pages/index/index.ux"), "utf8")
-  assert.ok(indexSource.includes("getEventStatus"), "首页必须使用统一状态算法")
+  assert.ok(indexSource.includes("getRecurringStatus"), "首页必须使用统一重复状态算法")
   assert.ok(indexSource.includes("global.eventStore"), "首页读写必须走统一存储")
 
   const listSource = fs.readFileSync(path.join(root, "src/pages/list/list.ux"), "utf8")
-  assert.ok(listSource.includes("getEventStatus"), "列表必须使用统一状态算法")
+  assert.ok(listSource.includes("getRecurringStatus"), "列表必须使用统一重复状态算法")
 })
 
 test("多语言：非法日期提示在五种文案文件中齐全", () => {

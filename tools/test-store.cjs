@@ -120,6 +120,22 @@ function seedFile(fake, events, extra) {
   fake.files.set(URI, JSON.stringify(Object.assign({version: 2, revision: 100, events: events}, extra || {})))
 }
 
+test("F-01/F-07 扩展持久化、旧端修改保留与非法值回滚", async () => {
+  const fake = createFakeFile()
+  const store = createStore(fake)
+  const result = await call(store, "add", {name: "生日", date: "2020-02-29", repeat: "yearly", displayUnit: "weeks"})
+  const id = result.event.id
+  await call(store, "update", id, {name: "新生日"})
+  const event = (await call(createStore(fake), "read")).events[0]
+  assert.equal(event.date, "2020-02-29")
+  assert.equal(event.repeat, "yearly")
+  assert.equal(event.displayUnit, "weeks")
+  const before = fake.files.get(URI)
+  await assert.rejects(call(store, "update", id, {repeat: "daily"}), {code: "INVALID_REPEAT"})
+  await assert.rejects(call(store, "updateByIndex", 0, {displayUnit: "hours"}), {code: "INVALID_UNIT"})
+  assert.equal(fake.files.get(URI), before)
+})
+
 test("B-09 名称按码点计数、统一空白、保留未改旧长名称", async () => {
   for (const language of ["zh-CN", "zh-TW", "zh-HK", "en", "defaults"]) {
     const text = JSON.parse(fs.readFileSync(path.join(root, "src/i18n", language + ".json"), "utf8"))

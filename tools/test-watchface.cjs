@@ -25,6 +25,21 @@ const watchfaceModule = loadModule(
   fs.readFileSync(path.join(root, "src/components/watchface.js"), "utf8")
 )
 
+test("F-01 表盘年度日期滚动且不覆盖原始日期", async () => {
+  const fake = createFakeFile()
+  let now = new Date(2026, 1, 28)
+  const watchface = watchfaceModule.createWatchFace({file: fake.file, dateUtils, now: () => now})
+  const event = {id: "birthday", name: "生日", date: "2020-02-29", repeat: "yearly"}
+  const state = {primaryId: event.id, events: [event]}
+  const sync = () => new Promise((resolve, reject) => watchface.sync(state, "", error => error ? reject(error) : resolve()))
+  await sync()
+  assert.equal(fake.files.get(DATE_URI), "生日,2026-02-28,false")
+  now = new Date(2026, 2, 1)
+  await sync()
+  assert.equal(fake.files.get(DATE_URI), "生日,2027-02-28,false")
+  assert.equal(event.date, "2020-02-29")
+})
+
 function createFakeFile(options = {}) {
   const files = new Map()
   const stats = {dateWrites: 0, dateMoves: 0}

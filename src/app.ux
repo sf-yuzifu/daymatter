@@ -19,7 +19,7 @@ global.createMinuteTicker = minuteTicker.createMinuteTicker
 global.dateUtils = dateUtils
 
 // 表盘文件维护：名称兜底文案按当前语言取一次，模块本身不依赖多语言
-global.watchFace = watchFaceFactory.createWatchFace({file: file})
+global.watchFace = watchFaceFactory.createWatchFace({file: file, dateUtils: dateUtils})
 
 // 事件存储：腕端与插件消息统一走同一读写 / 校验 / 原子提交入口，提交后自动维护表盘文件
 global.eventStore = eventStoreFactory.createEventStore({

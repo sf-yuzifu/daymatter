@@ -190,7 +190,7 @@ export default {
       this._pluginCapabilities = Array.isArray(parsedData.capabilities) ? parsedData.capabilities : []
       this.sendProtocolResponse({type: "capabilities", protocolVersion: 2, sessionId: this._pluginSession,
         handshakeId: parsedData.handshakeId, deviceId: parsedData.deviceId,
-        capabilities: ["stableId", "mutationResult", "requestId", "listRequestId", "listBatches", "themeColor", "primaryId", "revision", "backgroundJpeg"]})
+        capabilities: ["stableId", "mutationResult", "requestId", "listRequestId", "listBatches", "themeColor", "primaryId", "revision", "backgroundJpeg", "yearlyRepeat", "displayUnit"]})
       return
     }
     if (parsedData.type === "capabilities") return
@@ -334,7 +334,7 @@ export default {
 
   formatEvent(event, mode, sourceIndex, nameMetrics) {
     const status =
-      global.dateUtils.getEventStatus(event.date, event.IFStaringDay) || global.dateUtils.TODAY_STATUS
+      global.dateUtils.getRecurringStatus(event) || global.dateUtils.TODAY_STATUS
     let name = event.name
     let days
     let already = true
@@ -354,18 +354,21 @@ export default {
     }
 
     // 根据事件状态调整主题色色调
+    if (event.repeat === "yearly" && status.anniversary !== null) name += " " + this.$t("anniversary", {count: status.anniversary})
     themeColor = global.adjustThemeColor(themeColor, already)
 
     // 根据显示模式生成显示文本和字体大小
     const displayInfo = this.getDisplayInfo(days, status.ymd, mode, isToday)
 
     return {
+      id: event.id,
+      displayUnit: mode,
       name,
       days: String(days),
       accurateDiff: status.ymd,
       displayText: displayInfo.text,
       fontSize: displayInfo.fontSize,
-      date: event.date,
+      date: status.occurrenceDate || event.date,
       already,
       themeColor,
       isToday,
@@ -456,6 +459,7 @@ export default {
   },
 
   toggleDisplayMode(index) {
+    if (this._unitSaving) return
     // 获取当前事件的信息（用于判断能否切换到某个模式）
     const currentEvent = this.events[index]
     if (!currentEvent) return
@@ -465,19 +469,20 @@ export default {
 
     // 尝试切换到下一个模式，如果无法显示则继续尝试
     let attempts = 0
+    let modeIndex = DISPLAY_MODES.indexOf(currentEvent.displayUnit || "days")
     let newMode
     do {
-      this.currentDisplayModeIndex = (this.currentDisplayModeIndex + 1) % DISPLAY_MODES.length
-      newMode = DISPLAY_MODES[this.currentDisplayModeIndex]
+      modeIndex = (modeIndex + 1) % DISPLAY_MODES.length
+      newMode = DISPLAY_MODES[modeIndex]
       attempts++
     } while (
       !this.canShowMode(days, accurateDiff, newMode, isToday) &&
       attempts < DISPLAY_MODES.length
     )
 
-    // 原地更新所有事件的展示文本和字号，避免重新创建对象及破坏 Swiper 节点池
-    for (let i = 0; i < this.events.length; i++) {
-      const event = this.events[i]
+    const apply = () => {
+      const event = currentEvent
+      event.displayUnit = newMode
       const eventDays = parseInt(event.days)
       const eventAccurateDiff = event.accurateDiff
       const eventIsToday = event.isToday !== undefined ? event.isToday : (event.displayText === this.$t("today"))
@@ -489,6 +494,16 @@ export default {
         event.fontSize = displayInfo.fontSize
       }
     }
+    if (!currentEvent.id) { apply(); return }
+    this._unitSaving = true
+    global.eventStore.update(currentEvent.id, {displayUnit: newMode}, (error) => {
+      this._unitSaving = false
+      if (this._destroyed) return
+      if (error && error.code !== "WATCHFACE_FAIL") { this.showEventError(error); return }
+      if (this.pageVisible) apply()
+      else this._needsRefresh = true
+      if (error) showToast({message: this.$t("watchfaceSyncFail"), duration: 2000})
+    })
   },
 
   canShowMode(days, accurateDiff, mode, isToday) {
@@ -523,11 +538,10 @@ export default {
       }
       const events = result.events
       this.allEvents = events.length
-      const currentMode = DISPLAY_MODES[this.currentDisplayModeIndex]
       const nameMetrics = getNameMetrics()
       this.events = events
         .filter((e) => e.on_index)
-        .map((e, i) => this.formatEvent(e, currentMode, i, nameMetrics))
+         .map((e, i) => this.formatEvent(e, e.displayUnit || "days", i, nameMetrics))
       this._needsRefresh = false
       this.setupSlots()
     })
@@ -649,6 +663,7 @@ export default {
     }
     if (
       code === "INVALID_BOOLEAN" ||
+      code === "INVALID_REPEAT" || code === "INVALID_UNIT" ||
       code === "INVALID_COLOR" ||
       code === "INVALID_EVENT"
     ) {
@@ -788,7 +803,9 @@ export default {
       date: data.date,
       on_index: data.on_index,
       IFStaringDay: data.IFStaringDay,
-      themeColor: data.themeColor
+      themeColor: data.themeColor,
+      repeat: data.repeat,
+      displayUnit: data.displayUnit
     }
     const onDone = (error, result) => {
       this.finishPluginMutation("changeSuccess", error, result, this.readWatchfaceFlag(data.watchface), request)
