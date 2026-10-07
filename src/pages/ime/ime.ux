@@ -20,11 +20,11 @@
     <div class="page" style="flex-direction: column">
     <div style="background-color: black">
       <!-- 圆屏62 -->
-      <div if.static="{{ screentype==='circle' }}" style="width: 480px; height: 321px">
+      <div if="{{ screentype==='circle' }}" style="width: 480px; height: 321px">
         <!-- 全键盘 -->
         <div
           id="full-keyboard"
-          if.static="{{ keyboardtype!='T9' }}"
+           if="{{ keyboardtype!='T9' }}"
           style="width: 480px; height: 321px"
         >
           <img
@@ -467,7 +467,7 @@
       </div>
       <!-- 方屏67 -->
       <div
-        if.static="{{ screentype==='rect' }}"
+        if="{{ screentype==='rect' }}"
         style="width: 100%; height: 255px; flex-direction: column"
       >
         <!-- 九键中文 -->
@@ -753,7 +753,7 @@
         </div>
       </div>
       <!-- 胶囊屏66 -->
-      <div if.static="{{ screentype==='pill-shaped' }}" style="width: 100%; height: 305px">
+      <div if="{{ screentype==='pill-shaped' }}" style="width: 100%; height: 305px">
         <div
           if="{{ downFlag !== 'down' }}"
           style="position: absolute; left: 0px; top: 34px; width: 100%; height: 276px"
@@ -812,7 +812,6 @@
           </scroll>
         </div>
         <div
-          static
           style="position: absolute;left: {{ (screenWidth - 192)/2 }}px;top: 0px;width: 192px;height: 110px;"
         >
           <img
@@ -846,10 +845,16 @@
           />
           <!-- 带变量的相对路径在 aiot-tookit 2.0.4 中修复 -->
           <img
-            src="/pages/ime/assets/arc/{{ lang }}.png"
+            src="./assets/arc/cn.png"
             style="position: absolute; top: 0px; left: 9px; width: 48px; height: 42px"
             @click="onBtnClick('lang')"
-            show="{{ downFlag==='' && !numFlag }}"
+            if="{{ downFlag==='' && !numFlag && lang==='cn' }}"
+          />
+          <img
+            src="./assets/arc/en.png"
+            style="position: absolute; top: 0px; left: 9px; width: 48px; height: 42px"
+            @click="onBtnClick('lang')"
+            if="{{ downFlag==='' && !numFlag && lang==='en' }}"
           />
           <img
             src="./assets/arc/back2.png"
@@ -976,6 +981,10 @@ export default {
     // $emit 事件改直接维护自身 context，完成/取消经 global.__imeResult 回传
     context: "",
     label: "",
+    keyboardtype: "QWERTY",
+    screentype: "pill-shaped",
+    cvalList: [0, 1, 2, 3, 4],
+    lastWaitingStr: "",
     cval: "",
     resultList: [],
     resultList2: [],
@@ -989,7 +998,7 @@ export default {
     percent66: 0,
     // 针对screenShape为rect的设备，会自动获取screenWidth并绑定到根div
     // 这样便能同时适配n67和o65甚至是后续设备，但实际效果可能受designWidth影响
-    screenWidth: 336,
+    screenWidth: 192,
   },
   onInit() {
     this.keys = KEYS;
@@ -998,18 +1007,13 @@ export default {
     // 非响应式查词缓存：拼音 -> 候选数组，相同拼音直接复用，避免重复查词与分割
     this._searchCache = {};
     this._destroyed = false;
-    // 不变配置移出响应式数据：输入类型、屏幕类型与候选索引表仅在初始化时赋值一次
-    this.keyboardtype = "QWERTY";
-    this.screentype = global.screenShape || "pill-shaped";
+    // 模板依赖的数据显式声明在 private；未知设备形态沿用跑道屏基准。
+    this.screentype = global.screenShape === "circle" || global.screenShape === "rect"
+      ? global.screenShape : "pill-shaped";
     this._lastResetWord = "";
     // 调用方通过 global 传入初始文本与输入行标题（保持与调用页一致的 UI）
     this.context = global.__imeText || "";
     this.label = global.__imeLabel || "";
-    const tempCvalList = [];
-    for (let i = 0; i < MAX_CANDIDATE_LENGTH; i++) {
-      tempCvalList.push(i);
-    }
-    this.cvalList = tempCvalList;
     if (this.screentype === "rect" || this.screentype === "pill-shaped") {
       this.adjustScreenWidth();
     }
@@ -1344,9 +1348,23 @@ export default {
 }
 .page {
   width: 100%;
+  flex-shrink: 0;
   /* 保持文档流（位于 .line 之下即屏幕底部）；relative 使其仍是内部
      绝对定位键位的定位上下文，与组件时代 absolute 的定位语义一致 */
   position: relative;
+}
+
+@media (shape: pill-shaped) {
+  .line {
+    padding-top: 36px;
+  }
+  .input-line {
+    width: 88%;
+  }
+  .page {
+    height: 305px;
+    margin-bottom: 24px;
+  }
 }
 .item {
   height: 52px;

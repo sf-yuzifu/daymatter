@@ -579,9 +579,45 @@ test("默认形态兜底：非 rect / circle（含缺失值）一律按胶囊基
     appSource.includes('global.isPillShaped = deviceRet.screenShape !== "rect" && deviceRet.screenShape !== "circle"'),
     "胶囊基准必须按非 rect / circle 判定"
   )
-  assert.ok(imeSource.includes('global.screenShape || "pill-shaped"'), "键盘页兜底必须是胶囊基准")
+  for (const shape of ["unknown", "", null]) {
+    const other = createHarness()
+    other.global.screenShape = shape
+    other.openEditor().editEventName()
+    assert.equal(other.current().screentype, "pill-shaped", "未知形态不能落入空白分支")
+  }
   const indexSource = fs.readFileSync(path.join(root, "src/pages/index/index.ux"), "utf8")
   assert.ok(!indexSource.includes('global.screenShape || "rect"'), "首页不得再回退到 rect")
+})
+
+test("跑道屏 192/212：中文候选、语言切换及固定图标分支", () => {
+  for (const [width, height] of [[192, 490], [212, 520]]) {
+    const h = createHarness()
+    h.global.screenSize = {width, height}
+    h.openEditor({event_name: ""}).editEventName()
+    const ime = h.current()
+    assert.equal(ime.screenWidth, width)
+    ime.onSelect("N")
+    ime.onSelect("I")
+    assert.ok(ime.resultList.includes("你"))
+    assert.equal(ime.cvalList.length, 5)
+    ime.onRsSelect("你")
+    ime.onBtnClick("lang")
+    assert.equal(ime.lang, "en")
+    ime.onSelect("A")
+    assert.equal(ime.context, "你a")
+    ime.onBtnClick("lang")
+    assert.equal(ime.lang, "cn")
+    ime.onSelect("H")
+    ime.onSelect("A")
+    ime.onSelect("O")
+    assert.ok(ime.resultList.includes("好"))
+  }
+  const pill = imeSource.slice(imeSource.indexOf("<!-- 胶囊屏66 -->"), imeSource.indexOf("</template>"))
+  for (const lang of ["cn", "en"]) {
+    assert.ok(pill.includes(`src="./assets/arc/${lang}.png"`))
+    assert.ok(pill.includes(`if="{{ downFlag==='' && !numFlag && lang==='${lang}' }}"`))
+  }
+  assert.ok(/@media \(shape: pill-shaped\)[\s\S]*?\.input-line\s*\{\s*width: 88%;/.test(imeSource))
 })
 
 test("C-20: 首页切换显示单位时原地修改属性，严格保留事件对象与数组引用", () => {
@@ -683,16 +719,16 @@ test("C-09: 相同拼音复用查词缓存；缓存有界，切换模式与销�
   assert.equal(ime.resultList2.length, 0, "页面销毁后候选分组必须释放")
 })
 
-test("C-10: 不变配置移出响应式数据；相同查询不重复清空 / 重建候选数组", () => {
+test("C-10: 模板配置显式声明；相同查询不重复清空 / 重建候选数组", () => {
   const h = createHarness()
   const editor = h.openEditor({event_name: ""})
   editor.editEventName()
   const ime = h.current()
 
-  // 不变配置不应留在 private 响应式视图模型中
+  // 模板依赖必须在视图模型中声明，普通对象模拟无法验证运行时代理。
   const imeDefinition = h.definitions.get("pages/ime")
   for (const key of ["keyboardtype", "screentype", "cvalList"]) {
-    assert.equal(key in imeDefinition.private, false, key + " 不应留在 private 响应式数据中")
+    assert.equal(key in imeDefinition.private, true, key + " 必须在 private 声明")
     assert.ok(ime[key] !== undefined, key + " 必须在 onInit 后可用")
   }
   assert.equal(ime.keyboardtype, "QWERTY")
@@ -846,15 +882,14 @@ test("C-14: 默认无震动且无逐按键日志，保持源键盘默认体验",
   assert.equal(h.vibrations[0].mode, "short", "震动参数必须原样透传")
 })
 
-test("C-15: 设备分支使用 if.static 固定，候选 / 语言 / 数字 / 输入与滚动保持动态", () => {
-  // 屏幕信息在 onInit 就绪后固定设备分支
-  assert.ok(imeSource.includes(`if.static="{{ screentype==='circle' }}"`), "圆屏分支必须 if.static")
-  assert.ok(imeSource.includes(`if.static="{{ screentype==='rect' }}"`), "方屏分支必须 if.static")
+test("C-15: 沿用漫画动态设备分支，候选 / 语言 / 数字 / 输入与滚动保持动态", () => {
+  assert.ok(imeSource.includes(`if="{{ screentype==='circle' }}"`), "圆屏分支保持动态")
+  assert.ok(imeSource.includes(`if="{{ screentype==='rect' }}"`), "方屏分支保持动态")
   assert.ok(
-    imeSource.includes(`if.static="{{ screentype==='pill-shaped' }}"`),
-    "胶囊屏分支必须 if.static"
+    imeSource.includes(`if="{{ screentype==='pill-shaped' }}"`),
+    "胶囊屏分支保持动态"
   )
-  assert.ok(imeSource.includes(`if.static="{{ keyboardtype!='T9' }}"`), "键盘类型分支必须 if.static")
+  assert.ok(imeSource.includes(`if="{{ keyboardtype!='T9' }}"`), "键盘类型分支保持动态")
 
   // 动态内容不得被静态化
   assert.ok(imeSource.includes(`for="{{ cvalList }}"`), "候选索引循环必须保持动态")
