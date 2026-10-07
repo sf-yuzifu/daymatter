@@ -559,6 +559,19 @@ marquee {
   align-items: center;
 }
 
+/* 跑道屏固定三列：48px 色块 + 左右各 2px，末行不再两端分散。 */
+@media (shape: pill-shaped) {
+  .color-picker {
+    width: 156px;
+    justify-content: flex-start;
+  }
+
+  .color-option {
+    flex-shrink: 0;
+    margin: 0 2px 10px;
+  }
+}
+
 @media (device-type: band) and (shape: rect) {
   .line {
     width: 83%;
