@@ -1,4 +1,11 @@
 {
+  "quickTemplate": "快捷模板",
+  "templateNone": "自定义",
+  "templateBirthday": "生日",
+  "templateExam": "考试",
+  "templateAnniversary": "纪念日",
+  "todayEvents": "今天事项",
+  "upcomingEvents": "未来30天",
   "sortLabel": "排序",
   "sortAndFilter": "排序与筛选",
   "sortModeLabel": "排序方式",

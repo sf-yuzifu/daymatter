@@ -248,6 +248,19 @@ test("F-02 临近排序使用发生日，今天计入首日不后置，同值稳
   assert.deepEqual(order.select(events, "created", fixed, {archived: true}).map(e => e.id), ["archive"])
 })
 
+test("F-09 今天/未来30天按年度发生日筛选，含首日不影响范围且归档排除", () => {
+  const order = loadModule(fs.readFileSync(path.join(root,"src/components/eventOrder.js"),"utf8"))
+  const fixed = Object.assign({},dateUtils,{getRecurringStatus:e=>dateUtils.getRecurringStatus(e,new Date(2026,1,28))})
+  const events = [
+    {id:"leap",date:"2020-02-29",repeat:"yearly",IFStaringDay:true},
+    {id:"today",date:"2026-02-28",IFStaringDay:true}, {id:"past",date:"2026-02-27"},
+    {id:"edge",date:"2026-03-30"}, {id:"outside",date:"2026-03-31"},
+    {id:"archive",date:"2026-02-28",archived:true}
+  ]
+  assert.deepEqual(order.select(events,"created",fixed,{period:"today"}).map(e=>e.id),["leap","today"])
+  assert.deepEqual(order.select(events,"created",fixed,{period:"upcoming"}).map(e=>e.id),["leap","today","edge"])
+})
+
 test("B-09 名称按码点计数、统一空白、保留未改旧长名称", async () => {
   for (const language of ["zh-CN", "zh-TW", "zh-HK", "defaults"]) {
     const text = JSON.parse(fs.readFileSync(path.join(root, "src/i18n", language + ".json"), "utf8"))

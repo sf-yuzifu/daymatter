@@ -1,4 +1,11 @@
 {
+  "quickTemplate": "快捷範本",
+  "templateNone": "自訂",
+  "templateBirthday": "生日",
+  "templateExam": "考試",
+  "templateAnniversary": "紀念日",
+  "todayEvents": "今天事項",
+  "upcomingEvents": "未來30天",
   "sortLabel": "排序",
   "sortAndFilter": "排序與篩選",
   "sortModeLabel": "排序方式",

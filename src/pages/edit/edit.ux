@@ -6,6 +6,10 @@
     </text>
     <div class="box padding" if="{{ contentVisible }}">
       <scroll id="edit-scroll" class="box" scroll-x="false" scroll-y="true" bounces="true">
+        <div class="line button" if="{{ extend === 'true' }}">
+          <div class="setting-content"><text class="setting-label">{{ $t("quickTemplate") }}</text></div>
+          <picker class="unit-picker category-picker" type="text" range="{{ templateOptions }}" selected="{{ templateIndex }}" @change="onTemplateChange"></picker>
+        </div>
         <div class="line field-card">
           <text class="field-label input-label">{{ $t("eventName") }}</text>
           <div class="input-line" @click="editEventName">
@@ -331,6 +335,8 @@ import {showToast} from "@system.prompt"
 export default {
   private: {
     event_name: "",
+    templateIndex: 0,
+    templateOptions: [],
     extend: "true",
     date: "",
     on_index: true,
@@ -364,6 +370,7 @@ export default {
   },
 
   onInit() {
+    this.templateOptions = ["templateNone", "templateBirthday", "templateExam", "templateAnniversary"].map(key => this.$t(key))
     this.unitOptions = this.unitKeys.map((unit) => this.$t(unit))
     this.pinned = this.normalizeBoolean(this.pinned)
     this.archived = this.normalizeBoolean(this.archived)
@@ -420,6 +427,18 @@ export default {
     this._pendingField = ""
     this._pendingRequestId = ""
     this._ticker.start()
+  },
+
+  onTemplateChange(event) {
+    if (this.extend !== "true" || this._saving) return
+    const index = this.templateOptions.indexOf(event.newValue)
+    if (![1, 2, 3].includes(index)) { this.templateIndex = 0; return }
+    this.templateIndex = index
+    if (!this.event_name || this.templateOptions.slice(1).includes(this.event_name))
+      this.event_name = this.$t(["", "templateBirthday", "templateExam", "templateAnniversary"][index])
+    this.category = ["", "birthday", "study", "anniversary"][index]
+    this.repeat = index === 2 ? "none" : "yearly"
+    this.displayUnit = "days"
   },
 
   handleMinuteTick() {

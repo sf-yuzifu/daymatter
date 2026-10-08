@@ -1,4 +1,11 @@
 {
+  "quickTemplate": "Template",
+  "templateNone": "Custom",
+  "templateBirthday": "Birthday",
+  "templateExam": "Exam",
+  "templateAnniversary": "Anniversary",
+  "todayEvents": "Today",
+  "upcomingEvents": "Next 30 days",
   "sortLabel": "Sort",
   "sortAndFilter": "Sort & filter",
   "sortModeLabel": "Sort order",

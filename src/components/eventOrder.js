@@ -6,7 +6,12 @@ function select(events, mode, dateUtils, options) {
   const filter = options || {}
   return events.map((event, index) => ({event, index}))
     .filter(({event}) => (filter.archived === undefined || !!event.archived === filter.archived) &&
-      (!filter.home || event.on_index) && (!filter.category || filter.category === "all" || event.category === filter.category))
+      (!filter.home || event.on_index) && (!filter.category || filter.category === "all" || event.category === filter.category) &&
+      (!filter.period || filter.period === "all" || (() => {
+        if (event.archived) return false
+        const status = dateUtils.getRecurringStatus(event)
+        return !!status && (filter.period === "today" ? status.totalDays === 0 : status.totalDays <= 0 && status.totalDays >= -30)
+      })()))
     .sort((a, b) => {
       const pin = Number(!!b.event.pinned) - Number(!!a.event.pinned)
       if (pin) return pin

@@ -364,6 +364,23 @@ test("P-08: 全项目优化后图片与资源完整性校验（无损解码、�
   assert.equal(pngCount, 70, "优化后的 PNG 文件数量应为 70")
 })
 
+test("F-06 模板只更新新增草稿，保留日期名称且取消不提交", () => {
+  const h = createHarness()
+  h.router.push({uri:"/pages/index"})
+  const editor = h.router.push({uri:"/pages/edit",params:{extend:"true",date:"2000-02-29",event_name:"我的生日"}})
+  const before = h.files.get("internal://files/events.json")
+  editor.onTemplateChange({newValue:editor.templateOptions[1]})
+  assert.equal(editor.repeat,"yearly")
+  assert.equal(editor.category,"birthday")
+  assert.equal(editor.date,"2000-02-29")
+  assert.equal(editor.event_name,"我的生日")
+  editor.onTemplateChange({newValue:editor.templateOptions[2]})
+  assert.equal(editor.repeat,"none")
+  assert.equal(editor.category,"study")
+  editor.routeBack()
+  assert.equal(h.files.get("internal://files/events.json"),before)
+})
+
 test("原名称和本地化标题进入新版键盘，确认只改名称草稿", () => {
   const h = createHarness()
   const editor = h.openEditor()

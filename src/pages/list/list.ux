@@ -36,7 +36,7 @@
           </div>
           <div class="filter-row" @click="cycleDraftScope">
             <text class="filter-label">{{ $t("displayScope") }}</text>
-            <marquee class="filter-value" scrollamount="20" text-offset="20">{{ $t(draftArchived ? "archived" : "activeEvents") }}</marquee>
+            <marquee class="filter-value" scrollamount="20" text-offset="20">{{ $t(periodFilter === 'today' ? 'todayEvents' : periodFilter === 'upcoming' ? 'upcomingEvents' : draftArchived ? 'archived' : 'activeEvents') }}</marquee>
           </div>
         </div>
       </div>
@@ -128,6 +128,7 @@ export default {
     sortMode: "created",
     categoryFilter: "all",
     archiveFilter: false,
+    periodFilter: "all",
     filterSummary: "",
     settingsExpanded: false,
     draftSort: "created",
@@ -265,9 +266,11 @@ export default {
           " · " +
           this.$t(this.archiveFilter ? "archived" : "activeEvents")
     // 每次列表变更后按原始存储下标重建当前页映射
+    if (this.periodFilter !== "all") this.filterSummary += " · " + this.$t(this.periodFilter === "today" ? "todayEvents" : "upcomingEvents")
     const ordered = global.eventOrder.select(this._allEvents, this.sortMode, global.dateUtils, {
       archived: this.archiveFilter,
-      category: this.categoryFilter
+      category: this.categoryFilter,
+      period: this.periodFilter
     })
     const total = ordered.length
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -333,7 +336,11 @@ export default {
   },
   cycleDraftScope() {
     if (this._savingSettings) return
-    this.draftArchived = !this.draftArchived
+    const scopes = ["all", "archived", "today", "upcoming"]
+    const current = this.archiveFilter ? "archived" : this.periodFilter
+    const next = scopes[(scopes.indexOf(current) + 1) % scopes.length]
+    this.periodFilter = next === "archived" ? "all" : next
+    this.draftArchived = next === "archived"
     this.archiveFilter = this.draftArchived
     this.showPage(1)
   },
