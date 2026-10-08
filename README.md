@@ -14,6 +14,7 @@
 - **便捷输入**：沿用[腕上漫画](https://github.com/sf-yuzifu/bandcomic)的独立键盘页面，基于[喵喵输入法](https://github.com/NEORUAA/Vela_input_method)。
 - **表盘联动**：独立选择表盘主事件，提交后维护表盘数据文件。
 - **AstroBox 联动**：通过[配套插件](https://github.com/sf-yuzifu/Daymatter-AstroBox-Plugin)管理腕端事件、同步列表和上传背景。
+- **JSON 备份与恢复**：插件导出完整事件数据，校验预览后按合并或替换恢复。
 - **多语言与多屏布局**：提供简体中文、繁体中文和英文文案，针对胶囊、方形、圆形屏幕设计布局。
 
 界面采用[无源流沙](https://www.bandbbs.cn/threads/14584/)的设计风格。具体设备、固件的渲染与触控兼容性仍需实际验证，多屏布局不等同于所有型号均已通过测试。
@@ -137,6 +138,7 @@ daymatter/
 ## 📚 文档与贡献
 
 - [事件数据模型](docs/event-model.md)：字段、日期、排序、归档、存储与表盘规则。
+- [JSON 备份与恢复](docs/backup.md)：文件格式、冲突处理、合并 / 替换与预算。
 - [同步与兼容说明](docs/sync-compatibility.md)：能力协商、保存确认、新旧端行为和验证范围。
 - [Vela 快应用官方文档](https://iot.mi.com/vela/quickapp)：平台 API 与开发指南。
 

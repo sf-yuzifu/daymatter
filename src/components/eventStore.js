@@ -679,6 +679,73 @@ function createEventStore(options) {
     }, callback)
   }
 
+  function backupChecksum(value) {
+    const canonical = (v) => {
+      if (Array.isArray(v)) return "[" + v.map(canonical).join(",") + "]"
+      if (v && typeof v === "object") return "{" + Object.keys(v).sort().map(k => JSON.stringify(k) + ":" + canonical(v[k])).join(",") + "}"
+      if (typeof v === "number") {
+        const bytes = new DataView(new ArrayBuffer(8))
+        bytes.setFloat64(0, v, false)
+        return "n" + ("00000000" + bytes.getUint32(0, false).toString(16)).slice(-8) + ("00000000" + bytes.getUint32(4, false).toString(16)).slice(-8)
+      }
+      return JSON.stringify(v)
+    }
+    const text = canonical(value)
+    let hash = 5381
+    for (let i = 0; i < text.length; i++) hash = (hash * 33 + text.charCodeAt(i)) >>> 0
+    return ("00000000" + hash.toString(16)).slice(-8)
+  }
+
+  function restoreBackup(input, callback) {
+    let backup
+    try { backup = JSON.parse(JSON.stringify(input.backup)) } catch (e) { callback({code: "INVALID_BACKUP"}); return }
+    const data = backup && backup.data
+    const bounded = (value, depth) => {
+      if (depth > 32) return false
+      if (Array.isArray(value)) return value.every(v => bounded(v, depth + 1))
+      if (value && typeof value === "object") return Object.keys(value).every(k => ["__proto__", "constructor", "prototype"].indexOf(k) < 0 && bounded(value[k], depth + 1))
+      return true
+    }
+    if (!bounded(backup, 0)) { callback({code: "INVALID_BACKUP"}); return }
+    if (!data || backup.format !== "daymatter-backup" || backup.backupVersion !== 1 || data.version !== DATA_VERSION ||
+        backup.checksum !== backupChecksum(data) || JSON.stringify(backup).length > 240 * 1024 ||
+        !Array.isArray(data.events) || data.events.length > MAX_EVENTS ||
+        ["created", "near", "manual"].indexOf(data.sortMode) < 0 || typeof data.primaryId !== "string" ||
+        ["merge", "replace"].indexOf(input.mode) < 0 || ["keep", "overwrite"].indexOf(input.conflict) < 0 ||
+        !Number.isSafeInteger(input.expectedRevision)) { callback({code: "INVALID_BACKUP"}); return }
+    const ids = []
+    for (const event of data.events) {
+      const validation = validateEventInput(event, false, event && event.name)
+      if (!validation.ok || typeof event.id !== "string" || !event.id || event.id.length > 128 ||
+          ids.indexOf(event.id) >= 0 || typeof event.on_index !== "boolean" || typeof event.IFStaringDay !== "boolean" ||
+          event.date !== dateUtils.normalizeDate(event.date) || event.name.length > 4096 || typeof event.themeColor !== "string" ||
+          ["pinned", "archived"].some(k => event[k] !== undefined && typeof event[k] !== "boolean")) {
+        callback({code: "INVALID_BACKUP"}); return
+      }
+      ids.push(event.id)
+    }
+    if (data.primaryId && !data.events.some(e => e.id === data.primaryId && !e.archived)) { callback({code: "INVALID_BACKUP"}); return }
+    enqueue((done) => loadState((error, result) => {
+      if (error) return done(error)
+      const state = result.state
+      if (state.revision !== input.expectedRevision) return done({code: "REVISION_CHANGED"})
+      let events = state.events.slice()
+      if (input.mode === "replace") events = data.events
+      else for (const incoming of data.events) {
+        const index = indexOfId(events, incoming.id)
+        if (index < 0) events.push(incoming)
+        else if (input.conflict === "overwrite") events[index] = incoming
+      }
+      if (events.length > MAX_EVENTS) return done({code: "LIMIT_REACHED"})
+      state.events = events.map((event, index) => normalizeEvent(event, index).event)
+      if (input.mode === "replace") { state.primaryId = data.primaryId; state.sortMode = data.sortMode }
+      if (state.primaryId && !state.events.some(e => e.id === state.primaryId && !e.archived)) state.primaryId = defaultPrimaryId(state.events)
+      state.watchfacePending = false
+      state.revision += 1
+      commitAndSync(state, current => ({revision:current.revision, primaryId:current.primaryId, sortMode:current.sortMode, events:current.events}), done)
+    }), callback)
+  }
+
   function setSortMode(mode, callback) {
     if (["created", "near", "manual"].indexOf(mode) < 0) return callback({code: "INVALID_SORT"})
     enqueue((done) => loadState((error, result) => {
@@ -725,7 +792,8 @@ function createEventStore(options) {
     update: update,
     updateByIndex: updateByIndex,
     remove: remove,
-    setPrimary: setPrimary
+    setPrimary: setPrimary,
+    restoreBackup: restoreBackup
   }
 }
 

@@ -213,6 +213,7 @@ export default {
           "themeColor",
           "primaryId",
           "primaryMutation",
+          "backupRestore",
           "revision",
           "backgroundJpeg",
           "yearlyRepeat",
@@ -285,6 +286,8 @@ export default {
           if (!this._destroyed && (!error || error.code === "WATCHFACE_FAIL")) this.afterMutation("changeSuccess")
         }, parsedData.expectedPrimaryId)
       },
+      restoreBackup: () => global.eventStore.restoreBackup(parsedData, (error, result) =>
+        this.finishPluginMutation("changeSuccess", error, result, null, request)),
       addBG: () => this.handleAddBG(parsedData)
     }
 
@@ -294,7 +297,7 @@ export default {
     if (handler) {
       if (
         requestId &&
-        ["addEvent", "changeEvent", "deleteEvent", "moveEvent", "setSortMode", "setPrimary"].includes(
+        ["addEvent", "changeEvent", "deleteEvent", "moveEvent", "setSortMode", "setPrimary", "restoreBackup"].includes(
           parsedData.type
         )
       ) {
@@ -311,7 +314,7 @@ export default {
         )
           return
         const fingerprint = canonicalProtocolValue(parsedData)
-        if (fingerprint.length > PROTOCOL_PAYLOAD_LIMIT) {
+        if (fingerprint.length > (parsedData.type === "restoreBackup" ? 250 * 1024 : PROTOCOL_PAYLOAD_LIMIT)) {
           this.rejectProtocolRequest(parsedData, "REQUEST_TOO_LARGE")
           return
         }
@@ -339,6 +342,10 @@ export default {
         }
         // 不淘汰仍可重试的请求，否则被淘汰的新增会再次执行。
         if (this._protocolLedger.requests.length >= PROTOCOL_REQUEST_LIMIT) {
+          this.rejectProtocolRequest(parsedData, "REQUEST_CACHE_FULL")
+          return
+        }
+        if (this._protocolLedger.requests.reduce((size, item) => size + item.fingerprint.length, 0) + fingerprint.length > 512 * 1024) {
           this.rejectProtocolRequest(parsedData, "REQUEST_CACHE_FULL")
           return
         }

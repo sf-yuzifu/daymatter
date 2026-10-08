@@ -120,6 +120,43 @@ function seedFile(fake, events, extra) {
   fake.files.set(URI, JSON.stringify(Object.assign({version: 2, revision: 100, events: events}, extra || {})))
 }
 
+test("F-04/F-05 恢复单次提交、替换失败回滚、修订冲突不写入", async () => {
+  const fake = createFakeFile(), store = createStore(fake)
+  await call(store, "add", {name:"原事件", date:"2026-10-08"})
+  const original = fake.files.get(URI), revision = JSON.parse(original).revision
+  const data = {version:2, primaryId:"backup-id", sortMode:"manual", events:[{
+    id:"backup-id", name:"备份", date:"2020-02-29", on_index:false, IFStaringDay:true,
+    themeColor:"#3184d0", repeat:"yearly", displayUnit:"weeks", pinned:true, archived:false,
+    category:"birthday", sortOrder:7, unknown:{keep:"保留"}
+  }]}
+  const canonical = value => {
+    if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]"
+    if (value && typeof value === "object") return "{" + Object.keys(value).sort().map(k => JSON.stringify(k) + ":" + canonical(value[k])).join(",") + "}"
+    if (typeof value === "number") {const buffer = Buffer.alloc(8); buffer.writeDoubleBE(value); return "n" + buffer.toString("hex")}
+    return JSON.stringify(value)
+  }
+  let hash = 5381
+  for (const unit of canonical(data).split("")) hash = (hash * 33 + unit.charCodeAt(0)) >>> 0
+  const backup = {format:"daymatter-backup", backupVersion:1, checksum:hash.toString(16).padStart(8,"0"), data}
+  const input = {backup, expectedRevision:revision, mode:"replace", conflict:"keep"}
+  await assert.rejects(call(store,"restoreBackup", Object.assign({},input,{expectedRevision:revision-1})), {code:"REVISION_CHANGED"})
+  assert.equal(fake.files.get(URI),original)
+  fake.controls.failWriteFor = uri => uri === TMP
+  await assert.rejects(call(store,"restoreBackup",input),{code:"SAVE_FAIL"})
+  assert.equal(fake.files.get(URI),original)
+  fake.controls.failWriteFor = null
+  fake.controls.failMoveFor = src => src === TMP
+  await assert.rejects(call(store,"restoreBackup",input),{code:"SAVE_FAIL"})
+  assert.equal(fake.files.get(URI),original,"交换失败后恢复旧文件")
+  fake.controls.failMoveFor = null
+  const result = await call(store,"restoreBackup",input)
+  assert.equal(result.revision,revision+1)
+  assert.equal(result.primaryId,"backup-id")
+  assert.equal(result.sortMode,"manual")
+  assert.deepEqual(result.events[0].unknown,{keep:"保留"})
+  assert.equal(result.events[0].date,"2020-02-29")
+})
+
 test("F-01/F-07 扩展持久化、旧端修改保留与非法值回滚", async () => {
   const fake = createFakeFile()
   const store = createStore(fake)

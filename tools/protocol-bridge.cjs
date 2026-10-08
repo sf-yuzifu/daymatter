@@ -12,6 +12,7 @@ h.router.push({uri: "/pages/index"})
 if (input.events) h.files.set("internal://files/events.json", JSON.stringify({version: 2,
   revision: 10, primaryId: "", events: input.events}))
 h.deferWrites = !!input.deferWrites
+if (input.failWrites) h.failWrites = true
 const connection = h.connection
 if (input.failBatch !== undefined) {
   connection.send = (options) => {
