@@ -1,154 +1,146 @@
 <p align="center">
-  <img src="src/common/logo.png" />
+  <img src="src/common/logo.png" alt="倒数日图标" />
 </p>
 <h1 align="center">倒数日 快应用</h1>
-<p align="center">
-    一款专为Vela系统设计的倒数日快应用，帮助你在手腕上轻松管理重要日子的倒计时
-</p>
+<p align="center">面向小米 / Redmi Vela 穿戴设备的倒数日工具，在手腕上管理重要日子。</p>
 
 ## ✨ 功能特性
 
-- **倒数日管理** - 添加、编辑、删除倒数日事件
-- **年度重复与显示单位** - 保留原始日期计算下次发生日和周年数，非闰年2月29日按2月28日；每事件独立保存天/周/月/年显示偏好
-- **排序、置顶与归档** - 创建/临近/手动排序持久化，固定分类筛选、同组前移/后移和可恢复归档；归档主事件自动维护表盘替代
-- **精美UI界面** - 采用[无源流沙](https://www.bandbbs.cn/threads/14584/)设计的UI风格
-- **便捷输入** - 沿用[腕上漫画](https://github.com/sf-yuzifu/bandcomic)新版页面化键盘，基于[喵喵输入法](https://github.com/NEORUAA/Vela_input_method)，支持多种输入模式与多屏适配
-- **表盘联动** - 对接倒数日表盘，实时同步数据
-- **多语言支持** - 支持简体中文、繁体中文、英文等多语言
-- **性能优化** - 内存占用优化，运行更流畅
-- **多屏幕适配** - 支持不同屏幕尺寸，包括手环、手表等
+- **事件管理**：添加、编辑、删除事件，查看目标日的倒计时或已过去时间。
+- **年度重复**：保留原始日期，计算本次 / 下次发生日和周年数；非闰年的 2 月 29 日按 2 月 28 日处理。
+- **独立显示单位**：每个事件分别保存天、周、月、年的显示偏好。
+- **排序与置顶**：支持创建顺序、临近日期和手动顺序，首页与列表共用排序规则。
+- **分类与归档**：提供未分类、生日、学习、生活、纪念日分类；归档保留数据，可随时恢复。
+- **便捷输入**：沿用[腕上漫画](https://github.com/sf-yuzifu/bandcomic)的独立键盘页面，基于[喵喵输入法](https://github.com/NEORUAA/Vela_input_method)。
+- **表盘联动**：独立选择表盘主事件，提交后维护表盘数据文件。
+- **AstroBox 联动**：通过[配套插件](https://github.com/sf-yuzifu/Daymatter-AstroBox-Plugin)管理腕端事件、同步列表和上传背景。
+- **多语言与多屏布局**：提供简体中文、繁体中文和英文文案，针对胶囊、方形、圆形屏幕设计布局。
+
+界面采用[无源流沙](https://www.bandbbs.cn/threads/14584/)的设计风格。具体设备、固件的渲染与触控兼容性仍需实际验证，多屏布局不等同于所有型号均已通过测试。
 
 ## 📱 预览
 
 <p align="center">
-    <img src="images/band.png" />
-    <img src="images/pro.png" />
-    <img src="images/rw.png" />
-    <img src="images/s.png" />
+  <img src="images/band.png" alt="手环界面预览" />
+  <img src="images/pro.png" alt="方屏手环界面预览" />
+  <img src="images/rw.png" alt="方屏手表界面预览" />
+  <img src="images/s.png" alt="圆屏手表界面预览" />
 </p>
 
-## 📦 安装与使用
+## ⌚ 使用说明
+
+1. 在支持 Vela 快应用的设备上安装 RPK，打开倒数日。
+2. 新建事件，填写名称与日期，按需设置年度重复、显示单位和首页展示。
+3. 键盘确认只更新编辑草稿；返回键取消输入，编辑页点击保存才提交事件。
+4. 在列表顶部展开“排序与筛选”，切换排序、分类或正常 / 已归档事件。
+5. 在编辑页设置置顶、归档和手动移动；表盘主事件与首页展示、置顶互相独立。
+
+事件和日期规则见[事件数据模型](docs/event-model.md)。AstroBox 宿主门槛、新旧端互通及已知背景限制见[同步与兼容说明](docs/sync-compatibility.md)。
+
+年度事件的表盘日期在应用提交、页面进入或前台跨午夜时维护。应用退出期间没有可靠后台调度，需要重新打开应用才能更新年度发生日。
+
+## 🛠️ 开发与构建
 
 ### 环境要求
-- Node.js >= 18.10
 
-### 安装依赖
+- Node.js ≥18.10。
+- Yarn：仓库使用 `yarn.lock` 锁定依赖。
+- 构建工具：`aiot-toolkit` 与 JSC 编译器，由项目依赖提供。
+
 ```bash
+# 安装依赖
 yarn
-```
 
-### 开发调试
-```bash
+# 开发调试
 npm run start
-# 或
-yarn start
-```
 
-### 构建发布
-```bash
+# 普通构建
+npm run build
+
+# 发布构建（包含 JSC 编译）
 npm run release
-# 或
-yarn release
 ```
 
-### 键盘与编辑流程回归
+也可以使用对应的 `yarn start`、`yarn build`、`yarn release` 命令。产物位于 `dist/`，发布构建使用本地 `sign/` 签名材料；签名文件不纳入版本控制。
+
+### 本地验证
+
+| 命令 | 验证范围 |
+| --- | --- |
+| `npm run test:ime` | 键盘确认 / 取消、编辑草稿、页面生命周期及同步协议模拟 |
+| `npm run test:date` | 日期归一、非法日期、计入起始日、月末、闰年与年度重复 |
+| `npm run test:store` | 稳定 ID、旧数据迁移、串行提交、校验与写入失败恢复 |
+| `npm run test:watchface` | 主事件选择、替代 / 清空、表盘文件及失败补写 |
+| `npm run test:memory` | Node 页面栈与资源释放模拟，输出 GC 前后 JS 堆数值 |
+
+运行全部主要回归：
+
 ```bash
-npm run test:ime
+node --test tools/test-ime.cjs tools/test-date.cjs tools/test-store.cjs tools/test-watchface.cjs
 ```
-该检查运行页面脚本，覆盖键盘确认 / 取消、草稿保留、资源路径及编辑往返流程；实际触控、渲染和内存表现需在设备上验证。键盘采用腕上漫画的新版独立页面，点击输入行确认，系统返回取消，事件仍在编辑页点击保存后写入。
 
-### 内存回落复核（模拟）
+这些工具运行实际页面脚本或纯逻辑，但不能替代设备上的渲染、触控、文件系统与内存测试。内存模拟数值来自 Node，不代表 Vela 的 JS 堆或原生内存。
+
+### 资源与包体工具
+
 ```bash
-npm run test:memory
-```
-在 Node 模拟页面栈中连续进入 / 退出键盘、日期、更多候选、分页列表、首页和关于页，断言隐藏 / 销毁后大块数据与缓存已释放，并输出数组规模及 GC 前后 JS 堆数值。该数值来自 Node 模拟（`--expose-gc`），真机 JS 堆 / 原生内存仍需在设备上按 A-05 记录。
-
-### 日期规则与边界验证
-```bash
-npm run test:date
-```
-覆盖日期格式归一（`YYYY-M-D` → `YYYY-MM-DD`）、非法日期拒绝、今天 / 过去 / 未来差值、计入起始日语义、月末 / 闰年锚点与跨月 / 跨年 / 夏令时切换日边界；纯日期算法不依赖 `new Date(字符串)`，不受时区与引擎解析差异影响。
-
-### 事件存储与迁移验证
-```bash
-npm run test:store
-```
-覆盖旧数据迁移（补零日期、字符串布尔、稳定 ID）、旧下标协议兼容、并发串行提交、损坏数据 `.bad` 备份与 `.bak` 恢复、原子写失败回滚与输入 / 数量校验；真机 `file.move` 覆盖行为与恢复表现按 A-05 在设备上记录。
-
-### 表盘主事件与导出文件验证
-```bash
-npm run test:watchface
-```
-覆盖主事件与「首页展示」相互独立、迁移主事件规则、删除主事件的替代 / 清空规则、`date.txt` 导出格式（名称含逗号 / 换行不破坏解析、布尔归一）、所有提交路径维护表盘，以及表盘写入失败时的分项结果与下次进入补写。
-
-年度重复的原始日期不会被改写，表盘导出当前/下次发生日；应用提交、页面进入或前台跨午夜时维护。应用退出期间没有可靠后台调度，表盘年度日期需要重新打开应用后更新。模型和兼容规则见 [事件扩展模型](docs/event-model.md)。
-
-### 无损图片优化
-```bash
-# 检查并无损优化 src/ 下的 PNG 图片（保证 RGBA 像素 100% 一致）
+# 无损优化 PNG，校验解码后的 RGBA 像素一致
 npm run optimize:png
 
-# 仅检查可优化空间，不改写文件
+# 只检查可优化空间，不改写图片
 node tools/optimize-png.cjs --check
-```
 
-### 图片尺寸与解码预算复核
-```bash
-# 检查全部图片的物理分辨率与页面组件显示尺寸比值、解码内存占用
+# 检查图片尺寸和解码预算
 npm run check:budget
-```
 
-### 包体基线与逐项优化验收
-```bash
-# 分析当前版本的已有 release RPK
+# 分析已有 release RPK
 npm run analyze:size
 
-# 对照固定的优化前基线；差值为负数表示缩小
+# 与固定历史基线对比
 npm run analyze:size -- --baseline tools/size-baseline.json
 
-# 指定其他发布包
-npm run analyze:size -- dist/com.yzf.daymatter.release.2.1.rpk --baseline tools/size-baseline.json
-
-# 输出纯 JSON，便于记录分析结果
+# 输出 JSON 报告
 node tools/analyze-size.cjs --json
 ```
-命令只读取已有产物，输出完整包体、资源分类 / 目录的压缩与未压缩体积、文件数、产物 SHA-256、构建元数据及可核实的签名证书指纹。
 
-`tools/size-baseline.json` 固定记录优化前的 `2.1 / 21001` 发布包。优化后保持同一构建命令和签名方式，再与该基线对照。报告中的 release 命令来自分析时的项目配置，历史构建信息来自 RPK；配置变化会单独列出。未压缩体积与图片文件体积均不代表真实运行内存。
+包体分析只读取已有产物，输出压缩 / 未压缩体积、文件数、SHA-256、构建元数据与可核实的签名指纹。`tools/size-baseline.json` 是历史 `2.1 / 21001` 发布包基线；比较时应核对构建参数和签名方式。图片编码体积、包体大小均不代表运行内存。
 
 ## 📁 项目结构
 
-```
+```text
 daymatter/
-├── src/                    # 源代码目录
-│   ├── common/            # 公共资源（图片、样式、字体）
-│   ├── i18n/              # 国际化文件
-│   ├── pages/             # 页面
-│   │   ├── index/         # 首页
-│   │   ├── list/          # 列表页
-│   │   ├── edit/          # 编辑页
-│   │   ├── datepicker/    # 日期选择器
-│   │   ├── ime/           # 新版独立键盘页及完整输入法资源
-│   │   └── about/         # 关于页
-│   ├── app.ux             # 应用入口
-│   ├── manifest.json      # 应用配置
-│   └── config-watch.json  # 手表配置
-├── images/                # 预览图片
-├── package.json           # 项目配置
-└── README.md              # 项目说明
+├── src/
+│   ├── common/           # 图片、样式、字体
+│   ├── components/       # 日期、排序、存储、通信与表盘逻辑
+│   ├── i18n/             # 语言文件
+│   ├── pages/
+│   │   ├── index/        # 首页
+│   │   ├── list/         # 事件列表与筛选
+│   │   ├── edit/         # 编辑页
+│   │   ├── datepicker/   # 日期选择器
+│   │   ├── ime/          # 独立键盘与输入法资源
+│   │   └── about/        # 关于页
+│   ├── app.ux            # 应用入口
+│   ├── manifest.json     # 应用配置
+│   └── config-watch.json # 手表配置
+├── docs/                 # 数据模型与同步兼容说明
+├── tools/                # 回归、资源和包体工具
+├── images/               # 文档预览图片
+├── package.json          # 依赖与开发命令
+└── yarn.lock             # 依赖版本锁定
 ```
 
-## 👁️ 了解更多
+`node_modules/` 是安装依赖，`build/` 是构建中间产物，`dist/` 是生成的 RPK，均不提交 Git，可以重新安装或构建生成。`sign/` 是需要保留的本地签名材料。编辑器配置、开发待办与历史记录保留在本地。
 
-你可以通过小米快应用的[官方文档](https://iot.mi.com/vela/quickapp)熟悉和了解快应用开发。
+`.prettierrc.js` 提供编辑器格式化规则；目前未配置项目级 lint / 格式检查命令。
 
+## 📚 文档与贡献
 
+- [事件数据模型](docs/event-model.md)：字段、日期、排序、归档、存储与表盘规则。
+- [同步与兼容说明](docs/sync-compatibility.md)：能力协商、保存确认、新旧端行为和验证范围。
+- [Vela 快应用官方文档](https://iot.mi.com/vela/quickapp)：平台 API 与开发指南。
 
-**注意**：请遵守相关法律法规，合理使用本项目。如有版权问题，请及时联系处理。
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request 来帮助改进这个项目。
+欢迎提交 Issue 和 Pull Request。反馈问题时请附设备型号、固件、应用 / 插件 / AstroBox 版本、复现步骤及日志或截图。
 
 ## 📄 许可证
 
@@ -156,9 +148,7 @@ daymatter/
 
 ## 🙏 致谢
 
-- [chiyuki0325](https://github.com/chiyuki0325/) - 原始项目作者
-- [无源流沙](https://www.bandbbs.cn/threads/14584/) - UI界面设计
-- [NEORUAA](https://github.com/NEORUAA/) - 输入法组件
-
-
-
+- [chiyuki0325](https://github.com/chiyuki0325/)：原始项目作者。
+- [无源流沙](https://www.bandbbs.cn/threads/14584/)：UI 界面设计。
+- [NEORUAA](https://github.com/NEORUAA/)：输入法组件。
+- [腕上漫画](https://github.com/sf-yuzifu/bandcomic)：独立键盘页面与适配参考。

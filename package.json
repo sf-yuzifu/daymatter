@@ -19,20 +19,7 @@
     "test:date": "node --test tools/test-date.cjs",
     "test:store": "node --test tools/test-store.cjs",
     "test:watchface": "node --test tools/test-watchface.cjs",
-    "test:memory": "node --expose-gc --test tools/test-ime.cjs",
-    "lint": "eslint --format codeframe --fix --ext .ux,.js src/"
-  },
-  "lint-staged": {
-    "*.{ux,js}": [
-      "prettier --write",
-      "eslint --format codeframe --fix",
-      "git add"
-    ],
-    "*.{less,css}": [
-      "prettier --write",
-      "stylelint --fix --custom-syntax postcss-less",
-      "git add"
-    ]
+    "test:memory": "node --expose-gc --test tools/test-ime.cjs"
   },
   "devDependencies": {
     "@aiot-toolkit/jsc": "^1.0.3",

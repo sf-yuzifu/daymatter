@@ -5,3 +5,16 @@
 /dist
 /build
 .husky/
+
+# 本地编辑器配置
+/.vscode/
+/.idea/
+
+# 本地开发待办与历史记录
+/todo.md
+/docs/todo-history-*.md
+
+# 日志与系统临时文件
+*.log
+.DS_Store
+Thumbs.db
