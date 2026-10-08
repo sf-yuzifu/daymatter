@@ -659,12 +659,13 @@ function createEventStore(options) {
   }
 
   // 主事件切换（D-17 / D-18）：与 on_index 无关，传空串取消主事件
-  function setPrimary(id, callback) {
+  function setPrimary(id, callback, expectedPrimaryId) {
     const target = id === undefined || id === null ? "" : String(id)
     enqueue((done) => {
       loadState((error, result) => {
         if (error) return done(error)
         const state = result.state
+        if (expectedPrimaryId !== undefined && state.primaryId !== expectedPrimaryId) return done({code: "PRIMARY_CHANGED"})
         if (target !== "" && indexOfId(state.events, target) < 0) return done({code: "NOT_FOUND"})
         if (target !== "" && state.events[indexOfId(state.events, target)].archived) return done({code: "ARCHIVED_PRIMARY"})
         state.primaryId = target

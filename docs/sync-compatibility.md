@@ -38,10 +38,13 @@
 | `yearlyRepeat` / `displayUnit` | 年度重复和每事件显示单位 |
 | `pinned` / `category` / `archived` | 置顶、分类和归档字段 |
 | `manualOrder` / `sortMode` | 同组移动与排序模式持久化 |
+| `primaryMutation` | 独立设置/取消表盘主事件；还要求 `primaryId`、稳定 ID 与保存回执能力 |
 
 新增字段未确认能力时，插件只省略缺省值，拒绝非缺省值及相关新操作，并提示更新腕端。旧客户端修改未携带的新字段由腕端保留。颜色和未知事件扩展也由腕端保留，插件读取模型保留扩展，但传输受预算限制。
 
 `moveEvent` 使用稳定 ID 并复用请求账本、回执与查询；`setSortMode` 保存顶层模式。整包 / 分批列表与排序回执携带 `sortMode`。
+
+`setPrimary` 只修改已保存事件的主事件引用，不提交插件编辑草稿。设置携带目标 `id`；取消携带空 `id` 和 `expectedPrimaryId`，腕端在提交队列中核对当前引用，不一致返回 `PRIMARY_CHANGED`。成功回执携带最终 `primaryId` / `revision` 和主事件、表盘文件分项；插件据此更新标记。旧腕端未确认该能力时拒绝发送。
 
 ## 4. 保存确认与超时处理
 

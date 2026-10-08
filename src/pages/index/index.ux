@@ -212,6 +212,7 @@ export default {
           "listBatches",
           "themeColor",
           "primaryId",
+          "primaryMutation",
           "revision",
           "backgroundJpeg",
           "yearlyRepeat",
@@ -268,6 +269,22 @@ export default {
         global.eventStore.setSortMode(parsedData.sortMode, (error, result) =>
           this.finishPluginMutation("changeSuccess", error, result, null, request)
         ),
+      setPrimary: () => {
+        if (typeof parsedData.id !== "string" ||
+            (parsedData.id === "" && (typeof parsedData.expectedPrimaryId !== "string" || !parsedData.expectedPrimaryId))) {
+          this.finishProtocolRequest(request, {code: "INVALID_PRIMARY"}, null)
+          return
+        }
+        global.eventStore.setPrimary(parsedData.id, (error, result) => {
+          if (request) request.parts = {
+            event: {ok: !error || error.code === "WATCHFACE_FAIL"},
+            primary: {ok: !error || error.code === "WATCHFACE_FAIL", requested: true, code: (error && error.code) || ""},
+            watchface: {ok: !error}
+          }
+          this.finishProtocolRequest(request, error, result)
+          if (!this._destroyed && (!error || error.code === "WATCHFACE_FAIL")) this.afterMutation("changeSuccess")
+        }, parsedData.expectedPrimaryId)
+      },
       addBG: () => this.handleAddBG(parsedData)
     }
 
@@ -277,7 +294,7 @@ export default {
     if (handler) {
       if (
         requestId &&
-        ["addEvent", "changeEvent", "deleteEvent", "moveEvent", "setSortMode"].includes(
+        ["addEvent", "changeEvent", "deleteEvent", "moveEvent", "setSortMode", "setPrimary"].includes(
           parsedData.type
         )
       ) {
@@ -376,6 +393,7 @@ export default {
       code: error && error.code ? error.code : ""
     }
     if (result && result.sortMode) response.sortMode = result.sortMode
+    if (result && typeof result.primaryId === "string") response.primaryId = result.primaryId
     if (request.parts) {
       response.event = request.parts.event
       response.primary = request.parts.primary
