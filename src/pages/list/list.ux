@@ -17,6 +17,29 @@
     <img else class="top" src="/common/back.png" @click="routeBack" />
     <text class="count" if="{{ global.isPillShaped }}">{{ $t("eventCount", {count: count}) }}</text>
     <div class="box">
+      <div class="filter-panel" if="{{ contentVisible }}">
+        <div class="filter-header" @click="toggleSettings">
+          <marquee class="filter-summary" scrollamount="20" text-offset="20">{{ filterSummary }}</marquee>
+          <text class="filter-arrow iconfont" if="{{ settingsExpanded }}">&#xe686;</text>
+          <text class="filter-arrow iconfont" else>&#xe685;</text>
+        </div>
+        <div class="filter-body" if="{{ settingsExpanded }}">
+          <div class="filter-row" @click="cycleDraftSort">
+            <text class="filter-label">{{ $t("sortModeLabel") }}</text>
+            <marquee class="filter-value" scrollamount="20" text-offset="20">{{ $t(draftSort) }}</marquee>
+          </div>
+          <div class="filter-row" @click="cycleDraftCategory">
+            <text class="filter-label">{{ $t("category") }}</text>
+            <marquee class="filter-value" scrollamount="20" text-offset="20">
+              {{ $t(draftCategory === "anniversary" ? "categoryAnniversary" : draftCategory) }}
+            </marquee>
+          </div>
+          <div class="filter-row" @click="cycleDraftScope">
+            <text class="filter-label">{{ $t("displayScope") }}</text>
+            <marquee class="filter-value" scrollamount="20" text-offset="20">{{ $t(draftArchived ? "archived" : "activeEvents") }}</marquee>
+          </div>
+        </div>
+      </div>
       <list class="event-list" bounces="true" if="{{ contentVisible }}">
         <list-item
           for="{{ events }}"
@@ -101,7 +124,15 @@ export default {
     time: "",
     page: 1,
     totalPages: 1,
-    contentVisible: false
+    contentVisible: false,
+    sortMode: "created",
+    categoryFilter: "all",
+    archiveFilter: false,
+    filterSummary: "",
+    settingsExpanded: false,
+    draftSort: "created",
+    draftCategory: "all",
+    draftArchived: false
   },
 
   onInit() {
@@ -113,6 +144,10 @@ export default {
   },
 
   onBackPress() {
+    if (this.settingsExpanded) {
+      this.toggleSettings()
+      return true
+    }
     this.routeBack()
     return true
   },
@@ -126,8 +161,7 @@ export default {
   },
 
   formatEvent(event, storageIndex) {
-    const status =
-      global.dateUtils.getRecurringStatus(event) || global.dateUtils.TODAY_STATUS
+    const status = global.dateUtils.getRecurringStatus(event) || global.dateUtils.TODAY_STATUS
     let days,
       display_name = event.name,
       already = true
@@ -145,7 +179,8 @@ export default {
 
     // 表盘主事件与首页展示独立，列表只做标记，不新增节点
     const watchface = event.id === this._primaryId
-    if (event.repeat === "yearly" && status.anniversary !== null) display_name += " " + this.$t("anniversary", {count: status.anniversary})
+    if (event.repeat === "yearly" && status.anniversary !== null)
+      display_name += " " + this.$t("anniversary", {count: status.anniversary})
     if (watchface) display_name += " " + this.$t("watchfaceBadge")
 
     const font_size = calculateListFontSize(days, this.$t("today")) + getExtraFontSize()
@@ -185,6 +220,7 @@ export default {
         showToast({message: this.$t("loadFail"), duration: 2000})
         return
       }
+      this.sortMode = result.sortMode || "created"
       this._allEvents = result.events
       this._primaryId = result.primaryId || ""
       this.showPage(restorePage > 0 ? restorePage : this.page)
@@ -201,6 +237,7 @@ export default {
   },
 
   onHide() {
+    this.settingsExpanded = false
     // 隐藏时释放列表节点与展示数据，页码 / 原始下标在重新显示时重新校验
     this.contentVisible = false
     this._allEvents = []
@@ -219,8 +256,20 @@ export default {
   },
 
   showPage(targetPage) {
+    this.filterSummary =
+      this.categoryFilter === "all" && !this.archiveFilter
+        ? this.$t("sortAndFilter")
+        : this.$t(
+            this.categoryFilter === "anniversary" ? "categoryAnniversary" : this.categoryFilter
+          ) +
+          " · " +
+          this.$t(this.archiveFilter ? "archived" : "activeEvents")
     // 每次列表变更后按原始存储下标重建当前页映射
-    const total = this._allEvents.length
+    const ordered = global.eventOrder.select(this._allEvents, this.sortMode, global.dateUtils, {
+      archived: this.archiveFilter,
+      category: this.categoryFilter
+    })
+    const total = ordered.length
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
     let page = targetPage > 0 ? targetPage : 1
     if (page > totalPages) page = totalPages
@@ -231,7 +280,12 @@ export default {
     const end = Math.min(start + PAGE_SIZE, total)
     const pageEvents = []
     for (let i = start; i < end; i++) {
-      pageEvents.push(this.formatEvent(this._allEvents[i], i))
+      pageEvents.push(
+        this.formatEvent(
+          ordered[i],
+          this._allEvents.findIndex((e) => e.id === ordered[i].id)
+        )
+      )
     }
     this.events = pageEvents
   },
@@ -239,6 +293,61 @@ export default {
   changePage(targetPage) {
     if (targetPage < 1 || targetPage > this.totalPages || targetPage === this.page) return
     this.showPage(targetPage)
+  },
+
+  toggleSettings() {
+    if (this._savingSettings) return
+    this.settingsExpanded = !this.settingsExpanded
+    if (this.settingsExpanded) {
+      this.draftSort = this.sortMode
+      this.draftCategory = this.categoryFilter
+      this.draftArchived = this.archiveFilter
+    }
+  },
+
+  cycleDraftSort() {
+    if (this._savingSettings) return
+    const modes = global.eventOrder.MODES
+    const mode = modes[(modes.indexOf(this.sortMode) + 1) % modes.length]
+    this._savingSettings = true
+    global.eventStore.setSortMode(mode, (error) => {
+      this._savingSettings = false
+      if (this._destroyed) return
+      if (error && error.code !== "WATCHFACE_FAIL") {
+        showToast({message: this.$t("saveFail", {code: error.code})})
+        return
+      }
+      this.sortMode = mode
+      this.draftSort = mode
+      if (this.contentVisible) this.showPage(1)
+      if (error) showToast({message: this.$t("watchfaceSyncFail")})
+    })
+  },
+  cycleDraftCategory() {
+    if (this._savingSettings) return
+    const categories = ["all"].concat(global.eventOrder.CATEGORIES)
+    this.draftCategory =
+      categories[(categories.indexOf(this.draftCategory) + 1) % categories.length]
+    this.categoryFilter = this.draftCategory
+    this.showPage(1)
+  },
+  cycleDraftScope() {
+    if (this._savingSettings) return
+    this.draftArchived = !this.draftArchived
+    this.archiveFilter = this.draftArchived
+    this.showPage(1)
+  },
+
+  changeCategory() {
+    const categories = ["all"].concat(global.eventOrder.CATEGORIES)
+    this.categoryFilter =
+      categories[(categories.indexOf(this.categoryFilter) + 1) % categories.length]
+    this.showPage(1)
+  },
+
+  changeArchive() {
+    this.archiveFilter = !this.archiveFilter
+    this.showPage(1)
   },
 
   onRefresh() {
@@ -258,6 +367,9 @@ export default {
         date: event.date,
         repeat: event.repeat || "none",
         displayUnit: event.displayUnit || "days",
+        pinned: event.pinned,
+        archived: event.archived,
+        category: event.category || "uncategorized",
         on_index: event.on_index,
         themeColor: event.themeColor,
         IFStaringDay: event.IFStaringDay || false,
@@ -285,6 +397,153 @@ export default {
 
 <style>
 @import "../../common/app.css";
+.filter-item {
+  width: 100%;
+}
+.filter-panel {
+  width: 100%;
+  padding: 0 12px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+  flex-direction: column;
+  background-color: #262626;
+  border-radius: 14px;
+}
+.filter-header {
+  width: 100%;
+  height: 44px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.filter-summary {
+  flex: 1;
+  height: 28px;
+  font-size: 22px;
+  font-weight: bold;
+  color: #eeeeee;
+  lines: 1;
+  text-overflow: ellipsis;
+}
+.filter-arrow {
+  width: 20px;
+  height: 24px;
+  font-size: 20px;
+  color: #aaaaaa;
+  text-align: center;
+  flex-shrink: 0;
+}
+.filter-body {
+  width: 100%;
+  flex-direction: column;
+}
+.filter-row {
+  width: 100%;
+  height: 42px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.filter-label {
+  font-size: 22px;
+  font-weight: bold;
+  color: #999999;
+  flex-shrink: 0;
+  margin-right: 6px;
+}
+.filter-value {
+  flex: 1;
+  height: 28px;
+  font-size: 22px;
+  font-weight: bold;
+  color: #eeeeee;
+  text-align: right;
+  lines: 1;
+  text-overflow: ellipsis;
+}
+
+@media (shape: pill-shaped) {
+  .filter-panel {
+    padding: 0 10px;
+    border-radius: 14px;
+  }
+  .filter-header {
+    height: 40px;
+  }
+  .filter-summary {
+    font-size: 22px;
+    text-align: center;
+  }
+  .filter-header {
+    position: relative;
+    justify-content: center;
+  }
+  .filter-arrow {
+    position: absolute;
+    right: 0px;
+  }
+  .filter-row {
+    height: 64px;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+  .filter-label,
+  .filter-value {
+    width: 100%;
+    height: 28px;
+    font-size: 22px;
+    text-align: center;
+    margin-right: 0px;
+    flex-grow: 0;
+    flex-basis: auto;
+    flex-shrink: 0;
+  }
+}
+
+@media (shape: rect) {
+  .filter-panel {
+    padding: 0 16px;
+    border-radius: 14px;
+  }
+  .filter-header {
+    height: 48px;
+  }
+  .filter-summary {
+    font-size: 24px;
+    height: 32px;
+  }
+  .filter-row {
+    height: 48px;
+  }
+  .filter-label,
+  .filter-value {
+    font-size: 24px;
+    height: 32px;
+  }
+}
+
+@media (shape: circle) {
+  .filter-panel {
+    padding: 0 16px;
+    border-radius: 14px;
+  }
+  .filter-header {
+    height: 48px;
+  }
+  .filter-summary {
+    font-size: 24px;
+    height: 32px;
+  }
+  .filter-row {
+    height: 48px;
+  }
+  .filter-label,
+  .filter-value {
+    font-size: 24px;
+    height: 32px;
+  }
+}
 
 .list-page {
   flex-direction: column;

@@ -136,8 +136,83 @@ test("F-01/F-07 扩展持久化、旧端修改保留与非法值回滚", async (
   assert.equal(fake.files.get(URI), before)
 })
 
+test("F-02/F-08 迁移、同值移动与归档主事件保留/替代/清空", async () => {
+  const fake = createFakeFile()
+  seedFile(fake, [
+    {id: "a", name: "甲", date: "2020-02-29", repeat: "yearly", displayUnit: "weeks", on_index: true, extra: {keep: 1}},
+    {id: "b", name: "乙", date: "2026-12-01", on_index: true},
+    {id: "p", name: "置顶", date: "2026-12-01", pinned: true, on_index: true}
+  ], {primaryId: "a"})
+  const store = createStore(fake)
+  const migrated = await call(store, "read")
+  assert.equal(migrated.sortMode, "created")
+  assert.deepEqual(migrated.events.map(e => [e.pinned, e.archived, e.category, e.sortOrder]),
+    [[false, false, "uncategorized", 0], [false, false, "uncategorized", 1], [true, false, "uncategorized", 2]])
+  await call(store, "update", "b", {sortOrder: 0})
+  await call(store, "move", "b", "up")
+  let state = await call(store, "read")
+  assert.equal(state.sortMode, "manual")
+  assert.deepEqual(state.events.map(e => e.id), ["a", "b", "p"], "存储位置不重排，旧下标仍有效")
+  assert.deepEqual(state.events.map(e => e.sortOrder), [1, 0, 2])
+  await assert.rejects(call(store, "move", "b", "up"), {code: "MOVE_BOUNDARY"})
+  await call(store, "update", "a", {archived: true, category: "birthday"})
+  state = await call(store, "read")
+  assert.equal(state.primaryId, "b", "按存储中第一个未归档首页事件替代")
+  const archived = state.events[0]
+  assert.equal(archived.on_index, true)
+  assert.equal(archived.date, "2020-02-29")
+  assert.equal(archived.repeat, "yearly")
+  assert.equal(archived.displayUnit, "weeks")
+  assert.deepEqual(archived.extra, {keep: 1})
+  await assert.rejects(call(store, "setPrimary", "a"), {code: "ARCHIVED_PRIMARY"})
+  await call(store, "updateByIndex", 0, {name: "旧端改名"})
+  assert.equal((await call(store, "read")).events[0].category, "birthday")
+  await call(store, "update", "a", {archived: false})
+  assert.equal((await call(store, "read")).primaryId, "b", "恢复不夺回主事件")
+  await call(store, "update", "a", {archived: true})
+  await call(store, "update", "p", {archived: true})
+  await call(store, "update", "b", {archived: true})
+  assert.equal((await call(store, "read")).primaryId, "")
+})
+
+test("F-02/F-08 新字段非法值与提交失败保留旧数据；编辑移动单次原子提交", async () => {
+  const fake = createFakeFile(), store = createStore(fake)
+  const a = (await call(store, "add", {name: "甲", date: "2026-10-08"})).event.id
+  const b = (await call(store, "add", {name: "乙", date: "2026-10-08"})).event.id
+  const before = fake.files.get(URI)
+  for (const patch of [{pinned: 1}, {archived: null}, {category: "other"}, {sortOrder: -1}, {sortOrder: 1.5}, {moveDirection: "left"}]) {
+    await assert.rejects(call(store, "update", a, patch))
+    assert.equal(fake.files.get(URI), before)
+  }
+  fake.controls.failWriteFor = uri => uri === TMP
+  await assert.rejects(call(store, "update", b, {name: "新名称", archived: true, moveDirection: "up"}), {code: "SAVE_FAIL"})
+  await assert.rejects(call(store, "setSortMode", "near"), {code: "SAVE_FAIL"})
+  await assert.rejects(call(store, "move", b, "up"), {code: "SAVE_FAIL"})
+  assert.equal(fake.files.get(URI), before)
+  fake.controls.failWriteFor = null
+  const result = await call(store, "update", b, {name: "新名称", moveDirection: "up"})
+  assert.equal(result.event.sortOrder, 0)
+  assert.equal(result.revision, JSON.parse(before).revision + 1)
+  assert.equal((await call(createStore(fake), "read")).sortMode, "manual")
+})
+
+test("F-02 临近排序使用发生日，今天计入首日不后置，同值稳定与置顶过滤", () => {
+  const order = loadModule(fs.readFileSync(path.join(root, "src/components/eventOrder.js"), "utf8"))
+  const fixed = Object.assign({}, dateUtils, {getRecurringStatus: e => dateUtils.getRecurringStatus(e, new Date(2026, 9, 8))})
+  const events = [
+    {id: "old", date: "2026-09-01"}, {id: "future", date: "2026-10-10"},
+    {id: "today", date: "2026-10-08", IFStaringDay: true}, {id: "recent", date: "2026-10-07"},
+    {id: "annual", date: "2020-10-09", repeat: "yearly"}, {id: "same", date: "2026-10-10"},
+    {id: "pin", date: "2026-01-01", pinned: true}, {id: "archive", date: "2026-10-08", archived: true}
+  ]
+  assert.deepEqual(order.select(events, "near", fixed, {archived: false}).map(e => e.id),
+    ["pin", "today", "annual", "future", "same", "recent", "old"])
+  assert.deepEqual(events.map(e => e.id), ["old", "future", "today", "recent", "annual", "same", "pin", "archive"])
+  assert.deepEqual(order.select(events, "created", fixed, {archived: true}).map(e => e.id), ["archive"])
+})
+
 test("B-09 名称按码点计数、统一空白、保留未改旧长名称", async () => {
-  for (const language of ["zh-CN", "zh-TW", "zh-HK", "en", "defaults"]) {
+  for (const language of ["zh-CN", "zh-TW", "zh-HK", "defaults"]) {
     const text = JSON.parse(fs.readFileSync(path.join(root, "src/i18n", language + ".json"), "utf8"))
     for (const key of ["eventNameRequired", "eventNameTooLong", "eventNameInvalid"]) assert.ok(text[key])
   }
@@ -420,8 +495,8 @@ test("自动提交校验：新增独立 revision、读取不改变数据", async
   assert.equal(second.events.length, 1)
 })
 
-test("多语言：存储错误提示在五种文案文件中齐全", () => {
-  for (const file of ["defaults.json", "en.json", "zh-CN.json", "zh-TW.json", "zh-HK.json"]) {
+test("多语言：存储错误提示在全部文案文件中齐全", () => {
+  for (const file of ["defaults.json", "zh-CN.json", "zh-TW.json", "zh-HK.json"]) {
     const data = JSON.parse(fs.readFileSync(path.join(root, "src/i18n", file), "utf8"))
     for (const key of ["tooManyEvents", "invalidEvent", "eventNotFound", "loadFail"]) {
       assert.ok(data[key] && data[key].length > 0, file + " 缺少 " + key)

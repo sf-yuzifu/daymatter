@@ -9,10 +9,7 @@
         <div class="line field-card">
           <text class="field-label input-label">{{ $t("eventName") }}</text>
           <div class="input-line" @click="editEventName">
-            <scroll
-              class="input-scroll"
-              scroll-x="true"
-            >
+            <scroll class="input-scroll" scroll-x="true">
               <text class="input-text">
                 {{ event_name }}
               </text>
@@ -22,63 +19,227 @@
         <div class="line field-card">
           <text class="field-label input-label">{{ $t("targetDateLabel") }}</text>
           <div class="input-line" @click="editDate">
-            <scroll
-              class="input-scroll"
-              scroll-x="true"
-            >
+            <scroll class="input-scroll" scroll-x="true">
               <text class="input-text">{{ date }}</text>
             </scroll>
           </div>
         </div>
         <div class="line button" style="margin-bottom: 8px">
           <div class="setting-content">
-            <marquee if="{{ global.isPillShaped && pageVisible }}" scrollamount="20" text-offset="20">{{ $t("showOnHome") }}</marquee>
+            <marquee
+              if="{{ global.isPillShaped && pageVisible }}"
+              scrollamount="20"
+              text-offset="20"
+            >
+              {{ $t("showOnHome") }}
+            </marquee>
             <text class="setting-label" else>{{ $t("showOnHome") }}</text>
-            <marquee class="setting-info" if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}" scrollamount="20" text-offset="20">{{ $t("showOnHomeInfo") }}</marquee>
+            <marquee
+              class="setting-info"
+              if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}"
+              scrollamount="20"
+              text-offset="20"
+            >
+              {{ $t("showOnHomeInfo") }}
+            </marquee>
           </div>
-          <img if="{{ global.isPillShaped }}" style="height: 48px" src="/common/{{ on_index }}.png" @click="changeDisplayOnIndex" />
-          <switch else class="setting-switch" checked="{{ on_index === true || on_index === 'true' }}" @change="onHomeChange"></switch>
+          <img
+            if="{{ global.isPillShaped }}"
+            style="height: 48px"
+            src="/common/{{ on_index }}.png"
+            @click="changeDisplayOnIndex"
+          />
+          <switch
+            else
+            class="setting-switch"
+            checked="{{ on_index === true || on_index === 'true' }}"
+            @change="onHomeChange"
+          ></switch>
         </div>
         <div class="line button" style="margin-bottom: 8px">
           <div class="setting-content">
-            <marquee if="{{ global.isPillShaped && pageVisible }}" scrollamount="20" text-offset="20">{{ $t("useAsWatchface") }}</marquee>
+            <marquee
+              if="{{ global.isPillShaped && pageVisible }}"
+              scrollamount="20"
+              text-offset="20"
+            >
+              {{ $t("useAsWatchface") }}
+            </marquee>
             <text class="setting-label" else>{{ $t("useAsWatchface") }}</text>
-            <marquee class="setting-info" if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}" scrollamount="20" text-offset="20">{{ $t("useAsWatchfaceInfo") }}</marquee>
+            <marquee
+              class="setting-info"
+              if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}"
+              scrollamount="20"
+              text-offset="20"
+            >
+              {{ $t("useAsWatchfaceInfo") }}
+            </marquee>
           </div>
-          <img if="{{ global.isPillShaped }}" style="height: 48px" src="/common/{{ useWatchface }}.png" @click="changeUseWatchface" />
-          <switch else class="setting-switch" checked="{{ useWatchface === true || useWatchface === 'true' }}" @change="onWatchfaceChange"></switch>
+          <img
+            if="{{ global.isPillShaped }}"
+            style="height: 48px"
+            src="/common/{{ useWatchface }}.png"
+            @click="changeUseWatchface"
+          />
+          <switch
+            else
+            class="setting-switch"
+            checked="{{ useWatchface === true || useWatchface === 'true' }}"
+            @change="onWatchfaceChange"
+          ></switch>
         </div>
         <div class="line button" style="margin-bottom: 8px">
           <div class="setting-content">
-            <marquee if="{{ global.isPillShaped && pageVisible }}" scrollamount="20" text-offset="20">{{ $t("includeStartDay") }}</marquee>
+            <marquee
+              if="{{ global.isPillShaped && pageVisible }}"
+              scrollamount="20"
+              text-offset="20"
+            >
+              {{ $t("includeStartDay") }}
+            </marquee>
             <text class="setting-label" else>{{ $t("includeStartDay") }}</text>
-            <marquee class="setting-info" if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}" scrollamount="20" text-offset="20">{{ $t("includeStartDayInfo") }}</marquee>
+            <marquee
+              class="setting-info"
+              if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}"
+              scrollamount="20"
+              text-offset="20"
+            >
+              {{ $t("includeStartDayInfo") }}
+            </marquee>
           </div>
-          <img if="{{ global.isPillShaped }}" style="height: 48px" src="/common/{{ IFStaringDay }}.png" @click="changeDisplayIFStaringDay" />
-          <switch else class="setting-switch" checked="{{ IFStaringDay === true || IFStaringDay === 'true' }}" @change="onStartDayChange"></switch>
+          <img
+            if="{{ global.isPillShaped }}"
+            style="height: 48px"
+            src="/common/{{ IFStaringDay }}.png"
+            @click="changeDisplayIFStaringDay"
+          />
+          <switch
+            else
+            class="setting-switch"
+            checked="{{ IFStaringDay === true || IFStaringDay === 'true' }}"
+            @change="onStartDayChange"
+          ></switch>
         </div>
         <div class="line button" style="margin-bottom: 8px">
           <div class="setting-content">
-            <marquee if="{{ global.isPillShaped && pageVisible }}" scrollamount="20" text-offset="20">{{ $t("annualRepeat") }}</marquee>
+            <marquee
+              if="{{ global.isPillShaped && pageVisible }}"
+              scrollamount="20"
+              text-offset="20"
+            >
+              {{ $t("annualRepeat") }}
+            </marquee>
             <text class="setting-label" else>{{ $t("annualRepeat") }}</text>
-            <marquee class="setting-info" if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}" scrollamount="20" text-offset="20">{{ $t("annualRepeatInfo") }}</marquee>
+            <marquee
+              class="setting-info"
+              if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}"
+              scrollamount="20"
+              text-offset="20"
+            >
+              {{ $t("annualRepeatInfo") }}
+            </marquee>
           </div>
           <div if="{{ global.isPillShaped }}">
-            <img if="{{ repeat === 'yearly' }}" style="height: 48px" src="/common/true.png" @click="changeRepeat" />
+            <img
+              if="{{ repeat === 'yearly' }}"
+              style="height: 48px"
+              src="/common/true.png"
+              @click="changeRepeat"
+            />
             <img else style="height: 48px" src="/common/false.png" @click="changeRepeat" />
           </div>
-          <switch else class="setting-switch" checked="{{ repeat === 'yearly' }}" @change="onRepeatChange"></switch>
+          <switch
+            else
+            class="setting-switch"
+            checked="{{ repeat === 'yearly' }}"
+            @change="onRepeatChange"
+          ></switch>
         </div>
         <div class="line button" style="margin-bottom: 8px">
           <div class="setting-content">
             <text class="setting-label">{{ $t("displayUnit") }}</text>
-            <marquee class="setting-info" if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}" scrollamount="20" text-offset="20">{{ $t("displayUnitInfo") }}</marquee>
+            <marquee
+              class="setting-info"
+              if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}"
+              scrollamount="20"
+              text-offset="20"
+            >
+              {{ $t("displayUnitInfo") }}
+            </marquee>
           </div>
-          <picker class="unit-picker" type="text" range="{{ unitOptions }}" selected="{{ unitKeys.indexOf(displayUnit) }}" @change="onUnitChange"></picker>
+          <picker
+            class="unit-picker"
+            type="text"
+            range="{{ unitOptions }}"
+            selected="{{ unitKeys.indexOf(displayUnit) }}"
+            @change="onUnitChange"
+          ></picker>
+        </div>
+        <div class="line button">
+          <div class="setting-content">
+            <text class="setting-label">{{ $t("pinned") }}</text>
+          </div>
+          <img
+            if="{{ global.isPillShaped }}"
+            style="height: 48px"
+            src="/common/{{ pinned }}.png"
+            @click="changePinned"
+          />
+          <switch
+            else
+            class="setting-switch"
+            checked="{{ pinned === true || pinned === 'true' }}"
+            @change="onPinnedChange"
+          ></switch>
+        </div>
+        <div class="line button">
+          <div class="setting-content">
+            <text class="setting-label">{{ $t("archived") }}</text>
+          </div>
+          <img
+            if="{{ global.isPillShaped }}"
+            style="height: 48px"
+            src="/common/{{ archived }}.png"
+            @click="changeArchived"
+          />
+          <switch
+            else
+            class="setting-switch"
+            checked="{{ archived === true || archived === 'true' }}"
+            @change="onArchivedChange"
+          ></switch>
+        </div>
+        <div class="line button">
+          <div class="setting-content">
+            <text class="setting-label">{{ $t("category") }}</text>
+          </div>
+          <picker
+            class="unit-picker category-picker"
+            type="text"
+            range="{{ categoryOptions }}"
+            selected="{{ categoryKeys.indexOf(category) }}"
+            @change="onCategoryChange"
+          ></picker>
+        </div>
+        <div class="line field-card move-card" if="{{ extend !== 'true' }}">
+          <div class="move-actions">
+            <text class="move-button" @click="moveEvent('up')">{{ $t("moveUp") }}</text>
+            <text class="move-button" @click="moveEvent('down')">{{ $t("moveDown") }}</text>
+          </div>
+          <text class="move-hint" if="{{ moveDirection }}">
+            {{ $t(moveDirection === "up" ? "moveUp" : "moveDown") }} · {{ $t("saveToApply") }}
+          </text>
         </div>
         <div class="line color-picker-container">
           <text class="field-label">{{ $t("themeColor") }}</text>
-          <marquee class="setting-info" if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}" scrollamount="20" text-offset="20">{{ $t("themeColorInfo") }}</marquee>
+          <marquee
+            class="setting-info"
+            if="{{ pageVisible && (global.screenShape === 'rect' || global.screenShape === 'circle') }}"
+            scrollamount="20"
+            text-offset="20"
+          >
+            {{ $t("themeColorInfo") }}
+          </marquee>
           <div class="color-picker">
             <div
               class="color-option"
@@ -107,14 +268,25 @@
             ></div>
           </div>
         </div>
-        <div class="line delete-card" if="{{ global.screenShape === 'circle' && extend != 'true' && !deleteConfirmVisible }}" @click="confirmDeleteEvent">
+        <div
+          class="line delete-card"
+          if="{{ global.screenShape === 'circle' && extend != 'true' && !deleteConfirmVisible }}"
+          @click="confirmDeleteEvent"
+        >
           <text class="delete-label">{{ $t("deleteEvent") }}</text>
         </div>
-        <div class="line delete-confirm" if="{{ global.screenShape === 'circle' && extend != 'true' && deleteConfirmVisible }}">
-          <text class="delete-confirm-message">{{ $t("deleteEventConfirm", {name: event_name}) }}</text>
+        <div
+          class="line delete-confirm"
+          if="{{ global.screenShape === 'circle' && extend != 'true' && deleteConfirmVisible }}"
+        >
+          <text class="delete-confirm-message">
+            {{ $t("deleteEventConfirm", {name: event_name}) }}
+          </text>
           <div class="delete-confirm-actions">
             <text class="delete-confirm-button" @click="cancelDeleteEvent">{{ $t("cancel") }}</text>
-            <text class="delete-confirm-button delete-label" @click="deleteEvent">{{ $t("deleteEvent") }}</text>
+            <text class="delete-confirm-button delete-label" @click="deleteEvent">
+              {{ $t("deleteEvent") }}
+            </text>
           </div>
         </div>
       </scroll>
@@ -165,6 +337,12 @@ export default {
     IFStaringDay: false,
     repeat: "none",
     displayUnit: "days",
+    pinned: false,
+    archived: false,
+    category: "uncategorized",
+    moveDirection: "",
+    categoryKeys: ["uncategorized", "birthday", "study", "life", "anniversary"],
+    categoryOptions: [],
     unitKeys: ["days", "weeks", "months", "years"],
     unitOptions: [],
     useWatchface: false,
@@ -187,8 +365,14 @@ export default {
 
   onInit() {
     this.unitOptions = this.unitKeys.map((unit) => this.$t(unit))
+    this.pinned = this.normalizeBoolean(this.pinned)
+    this.archived = this.normalizeBoolean(this.archived)
+    this.categoryOptions = this.categoryKeys.map((key) =>
+      this.$t(key === "anniversary" ? "categoryAnniversary" : key)
+    )
     this.repeat = this.repeat === "yearly" ? "yearly" : "none"
-    if (["days", "weeks", "months", "years"].indexOf(this.displayUnit) < 0) this.displayUnit = "days"
+    if (["days", "weeks", "months", "years"].indexOf(this.displayUnit) < 0)
+      this.displayUnit = "days"
     // 只用标量标记当前子页请求，不把编辑页对象存入全局。
     global.__daymatterEditSequence = (global.__daymatterEditSequence || 0) + 1
     this._editSessionId = String(global.__daymatterEditSequence)
@@ -331,6 +515,32 @@ export default {
     this.themeColor = color
   },
 
+  changePinned() {
+    this.pinned = !this.normalizeBoolean(this.pinned)
+  },
+  onPinnedChange(event) {
+    this.pinned = event.checked
+  },
+  onArchivedChange(event) {
+    this.archived = event.checked
+    if (this.archived) this.useWatchface = false
+  },
+  onCategoryChange(event) {
+    const index = this.categoryOptions.indexOf(event.newValue)
+    if (index >= 0) this.category = this.categoryKeys[index]
+  },
+  changeArchived() {
+    this.archived = !this.normalizeBoolean(this.archived)
+    if (this.archived) this.useWatchface = false
+  },
+  changeCategory() {
+    const categories = global.eventOrder.CATEGORIES
+    this.category = categories[(categories.indexOf(this.category) + 1) % categories.length]
+  },
+  moveEvent(direction) {
+    if (!this._saving) this.moveDirection = direction
+  },
+
   onHomeChange(event) {
     this.on_index = event.checked
   },
@@ -391,6 +601,9 @@ export default {
       name: this.event_name,
       repeat: this.repeat,
       displayUnit: this.displayUnit,
+      pinned: this.normalizeBoolean(this.pinned),
+      archived: this.normalizeBoolean(this.archived),
+      category: this.category,
       date: this.date,
       on_index: this.normalizeBoolean(this.on_index),
       IFStaringDay: this.normalizeBoolean(this.IFStaringDay),
@@ -398,8 +611,10 @@ export default {
     }
 
     // 页面收到的「当前是否表盘事件」与开关最终值不一致才需要切换主事件
-    const wantedWatchface = this.useWatchface === true || this.useWatchface === "true"
-    this._primaryChange = wantedWatchface !== this._wasWatchface
+    if (this.moveDirection && this.extend !== "true") payload.moveDirection = this.moveDirection
+    const wantedWatchface =
+      !payload.archived && (this.useWatchface === true || this.useWatchface === "true")
+    this._primaryChange = !payload.archived && wantedWatchface !== this._wasWatchface
 
     const finish = (error) => {
       if (this._destroyed) return
@@ -425,11 +640,7 @@ export default {
         return
       }
       const id = this.extend === "true" ? result.event.id : String(this.event_id)
-      if (!this._primaryChange) {
-        finish(null)
-        return
-      }
-      // 主事件切换单独提交，取消主事件传空串
+      if (!this._primaryChange) return finish(null)
       global.eventStore.setPrimary(wantedWatchface ? id : "", finish)
     }
 
@@ -447,7 +658,9 @@ export default {
       return
     }
     if (code === "NAME_TOO_LONG" || code === "NAME_INVALID") {
-      showToast({message: this.$t(code === "NAME_TOO_LONG" ? "eventNameTooLong" : "eventNameInvalid")})
+      showToast({
+        message: this.$t(code === "NAME_TOO_LONG" ? "eventNameTooLong" : "eventNameInvalid")
+      })
       return
     }
     if (code === "DATE_INVALID") {
@@ -464,7 +677,12 @@ export default {
     }
     if (
       code === "INVALID_BOOLEAN" ||
-      code === "INVALID_REPEAT" || code === "INVALID_UNIT" ||
+      code === "INVALID_REPEAT" ||
+      code === "INVALID_UNIT" ||
+      code === "INVALID_CATEGORY" ||
+      code === "INVALID_ORDER" ||
+      code === "INVALID_MOVE" ||
+      code === "ARCHIVED_PRIMARY" ||
       code === "INVALID_COLOR" ||
       code === "INVALID_EVENT"
     ) {
@@ -523,6 +741,30 @@ export default {
 <style>
 @import "../../common/app.css";
 
+.move-actions {
+  width: 100%;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+.move-button {
+  width: 48%;
+  height: 56px;
+  font-size: 32px;
+  text-align: center;
+  background-color: #363636;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+.move-hint {
+  font-size: 28px;
+  color: #aaaaaa;
+  width: 100%;
+  text-align: center;
+  margin-top: 8px;
+}
+
 .new-page {
   flex-direction: column;
   align-items: center;
@@ -539,7 +781,7 @@ export default {
   display: flex;
   flex-direction: column;
   justify-content: left;
-   width: 92%;
+  width: 92%;
 }
 
 text,
@@ -904,9 +1146,34 @@ marquee {
   selected-color: #ffffff;
   selected-font-size: 32px;
   font-size: 32px;
+  flex-shrink: 0;
+}
+
+.category-picker {
+  width: 128px;
 }
 
 @media (shape: pill-shaped) {
+  .category-picker {
+    width: 108px;
+  }
+  .move-card {
+    width: 85%;
+  }
+  .move-actions {
+    flex-direction: column;
+  }
+  .move-button {
+    width: 100%;
+    height: 48px;
+    font-size: 24px;
+    border-radius: 24px;
+    margin-top: 6px;
+    background-color: #262626;
+  }
+  .move-hint {
+    font-size: 24px;
+  }
   .unit-picker {
     margin-left: 0px;
     margin-top: 4px;

@@ -72,6 +72,7 @@ function createHarness() {
     "unused"
   )
   state.global.dateUtils = dateUtils
+  state.global.eventOrder = loadModule(fs.readFileSync(path.join(root, "src/components/eventOrder.js"), "utf8"), {}, "unused")
   state.clock = clock
   state.pendingTimers = () => timeoutQueue.size
   state.timerDelays = () => Array.from(timeoutQueue.values()).map((task) => task.delay)
@@ -116,6 +117,7 @@ function createHarness() {
         const script = source.match(/<script>([\s\S]*?)<\/script>/)[1]
         definition = loadModule(script, {
           router, file, showToast() {}, SimpleInputMethod, global: state.global,
+          setTimeout: fakeSetTimeout, clearTimeout: fakeClearTimeout,
           console: {log() {}, error() {}},
           app: {getInfo: () => ({versionName: "2.1"})},
           vibrator: {vibrate(options) { state.vibrations.push(options) }},
@@ -324,8 +326,8 @@ test("P-08: 全项目优化后图片与资源完整性校验（无损解码、�
       let variants = [src]
       if (src.includes("{{ lang }}")) {
         variants = ["cn", "en"].map((lang) => src.replace(/\{\{\s*lang\s*\}\}/g, lang))
-      } else if (/\{\{\s*(?:on_index|IFStaringDay|useWatchface)\s*\}\}/.test(src)) {
-        variants = ["true", "false"].map((bool) => src.replace(/\{\{\s*(?:on_index|IFStaringDay|useWatchface)\s*\}\}/g, bool))
+      } else if (/\{\{\s*(?:on_index|IFStaringDay|useWatchface|pinned|archived)\s*\}\}/.test(src)) {
+        variants = ["true", "false"].map((bool) => src.replace(/\{\{\s*(?:on_index|IFStaringDay|useWatchface|pinned|archived)\s*\}\}/g, bool))
       } else if (src.includes("{{ bgImage }}")) {
         variants = ["/common/blank.png"]
       }
@@ -366,6 +368,7 @@ test("原名称和本地化标题进入新版键盘，确认只改名称草稿",
   const h = createHarness()
   const editor = h.openEditor()
   const preserved = otherFields(editor)
+  const writesBefore = h.writes.slice()
   editor.editEventName()
   const ime = h.current()
   assert.equal(ime.uri, "/pages/ime")
@@ -376,10 +379,71 @@ test("原名称和本地化标题进入新版键盘，确认只改名称草稿",
   assert.equal(h.current(), editor)
   assert.equal(editor.event_name, '新名称 "\\测试"')
   assert.equal(otherFields(editor), preserved)
-  assert.deepEqual(h.writes, [])
+  assert.deepEqual(h.writes, writesBefore)
   assert.equal(h.global.__imeResult, null)
   assert.equal(h.global.__imeText, "")
   assert.equal(h.global.__daymatterImeOwner, null)
+})
+
+test("F-02/F-08 排序筛选分页后编辑仍按ID，归档首页隐藏、恢复保留字段", () => {
+  const h = createHarness()
+  h.files.set("internal://files/events.json", JSON.stringify({version: 2, revision: 1, primaryId: "e0", sortMode: "near", events:
+    Array.from({length: 23}, (_, i) => ({id: "e" + i, name: "同名" + i, date: "2026-10-" + String(30 - i).padStart(2, "0"), on_index: true,
+      IFStaringDay: false, pinned: false, archived: false, category: i === 22 ? "life" : "birthday", sortOrder: i}))}))
+  h.router.push({uri: "/pages/index"})
+  const home = h.current()
+  assert.equal(home.events[0].id, "e22")
+  h.router.push({uri: "/pages/list"})
+  const list = h.current()
+  assert.equal(list.events.length, 10)
+  list.changePage(2)
+  const selected = list.events[0]
+  assert.equal(selected.id, "e12")
+  list.routeEditEvent(selected.storageIndex)
+  const editor = h.current()
+  assert.equal(editor.event_id, "e12")
+  editor.archived = true
+  editor.pinned = true
+  editor.category = "study"
+  editor.saveEvent()
+  assert.equal(list.count, 22)
+  list.changeArchive()
+  assert.equal(list.events.length, 1)
+  assert.equal(list.events[0].id, "e12")
+  list.routeEditEvent(list.events[0].storageIndex)
+  const restored = h.current()
+  assert.equal(restored.category, "study")
+  assert.equal(restored.pinned, true)
+  restored.archived = false
+  restored.saveEvent()
+  list.routeBack()
+  assert.equal(home.events[0].id, "e12", "恢复保留置顶，首页采用共享排序")
+})
+
+test("固定筛选框点击即生效，排序失败保留原值，返回仅收起", () => {
+  const h = createHarness()
+  h.router.push({uri: "/pages/list"})
+  const list = h.current()
+  list.toggleSettings()
+  assert.equal(h.current(), list)
+  list.cycleDraftCategory()
+  list.cycleDraftScope()
+  assert.equal(list.categoryFilter, "uncategorized")
+  assert.equal(list.archiveFilter, true)
+  h.failWrites = true
+  list.cycleDraftSort()
+  assert.equal(list.settingsExpanded, true)
+  assert.equal(list.sortMode, "created")
+  h.failWrites = false
+  list.cycleDraftSort()
+  assert.equal(h.current(), list)
+  assert.equal(list.sortMode, "near")
+  assert.equal(list.categoryFilter, "uncategorized")
+  assert.equal(list.archiveFilter, true)
+  assert.equal(list.page, 1)
+  list.onBackPress()
+  assert.equal(list.settingsExpanded, false)
+  assert.equal(list.archiveFilter, true)
 })
 
 test("系统返回取消输入保留原名称与其他草稿，再次进入没有旧结果", () => {

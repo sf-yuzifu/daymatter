@@ -143,13 +143,13 @@ function createEventStore(options) {
   }
 
   function emptyState() {
-    return {version: DATA_VERSION, revision: 0, primaryId: "", watchfacePending: false, events: []}
+    return {version: DATA_VERSION, revision: 0, primaryId: "", watchfacePending: false, sortMode: "created", events: []}
   }
 
   // 主事件默认规则：文件中第一个「首页展示」的事件；都没有则不设主事件
   function defaultPrimaryId(events) {
     for (let i = 0; i < events.length; i++) {
-      if (events[i].on_index === true) return events[i].id
+      if (events[i].on_index === true && !events[i].archived) return events[i].id
     }
     return ""
   }
@@ -200,6 +200,14 @@ function createEventStore(options) {
       event.themeColor = ""
       changed = true
     }
+    for (const field of ["pinned", "archived"]) {
+      const flag = toBoolean(source[field])
+      event[field] = flag.valid ? flag.value : false
+      if (event[field] !== source[field]) changed = true
+    }
+    event.sortOrder = Number.isSafeInteger(source.sortOrder) && source.sortOrder >= 0 ? source.sortOrder : index
+    event.category = ["uncategorized", "birthday", "study", "life", "anniversary"].indexOf(source.category) >= 0 ? source.category : "uncategorized"
+    if (event.sortOrder !== source.sortOrder || event.category !== source.category) changed = true
     return {event: event, changed: changed}
   }
 
@@ -234,7 +242,7 @@ function createEventStore(options) {
     if (typeof rawPrimary === "string") {
       if (rawPrimary === "") {
         primaryId = ""
-      } else if (indexOfId(events, rawPrimary) >= 0) {
+      } else if (indexOfId(events, rawPrimary) >= 0 && !events[indexOfId(events, rawPrimary)].archived) {
         primaryId = rawPrimary
       } else {
         primaryId = defaultPrimaryId(events)
@@ -250,8 +258,11 @@ function createEventStore(options) {
     if (typeof rawPending === "boolean") watchfacePending = rawPending
     else if (rawPending !== undefined) migrated = true
 
+    const sortMode = ["created", "near", "manual"].indexOf(parsed.sortMode) >= 0 ? parsed.sortMode : "created"
+    if (parsed.sortMode !== sortMode) migrated = true
     return {
       state: {
+        sortMode: sortMode,
         version: DATA_VERSION,
         revision: revision,
         primaryId: primaryId,
@@ -429,13 +440,16 @@ function createEventStore(options) {
     if (!partial || input.date !== undefined) {
       if (!dateUtils.normalizeDate(input.date)) return {ok: false, error: {code: "DATE_INVALID"}}
     }
-    for (const field of ["on_index", "IFStaringDay"]) {
+    for (const field of ["on_index", "IFStaringDay", "pinned", "archived"]) {
       if (input[field] !== undefined && !toBoolean(input[field]).valid) {
         return {ok: false, error: {code: "INVALID_BOOLEAN", field: field}}
       }
     }
     if (input.repeat !== undefined && ["none", "yearly"].indexOf(input.repeat) === -1) return {ok: false, error: {code: "INVALID_REPEAT"}}
     if (input.displayUnit !== undefined && ["days", "weeks", "months", "years"].indexOf(input.displayUnit) === -1) return {ok: false, error: {code: "INVALID_UNIT"}}
+    if (input.category !== undefined && ["uncategorized", "birthday", "study", "life", "anniversary"].indexOf(input.category) < 0) return {ok: false, error: {code: "INVALID_CATEGORY"}}
+    if (input.sortOrder !== undefined && (!Number.isSafeInteger(input.sortOrder) || input.sortOrder < 0)) return {ok: false, error: {code: "INVALID_ORDER"}}
+    if (input.moveDirection !== undefined && ["up", "down"].indexOf(input.moveDirection) < 0) return {ok: false, error: {code: "INVALID_MOVE"}}
     if (input.themeColor !== undefined) {
       if (typeof input.themeColor !== "string") return {ok: false, error: {code: "INVALID_COLOR"}}
       if (input.themeColor !== "" && THEME_COLORS.indexOf(input.themeColor) === -1) {
@@ -462,6 +476,10 @@ function createEventStore(options) {
       name: trimName(input.name),
       repeat: input.repeat || "none",
       displayUnit: input.displayUnit || "days",
+      pinned: toBoolean(input.pinned).value,
+      archived: toBoolean(input.archived).value,
+      category: input.category || "uncategorized",
+      sortOrder: Math.min(Number.MAX_SAFE_INTEGER, state.events.reduce((max, e) => Math.max(max, e.sortOrder), -1) + 1),
       date: dateUtils.normalizeDate(input.date),
       on_index: onIndex.valid ? onIndex.value : true,
       IFStaringDay: includeStart.valid ? includeStart.value : false,
@@ -471,6 +489,8 @@ function createEventStore(options) {
 
   // 只更新消息中明确给出的字段，其余字段（主题色 / 显示设置 / 未来扩展）原样保留
   function applyPatch(event, patch) {
+    for (const field of ["pinned", "archived"]) if (patch[field] !== undefined) event[field] = toBoolean(patch[field]).value
+    for (const field of ["category", "sortOrder"]) if (patch[field] !== undefined) event[field] = patch[field]
     if (patch.repeat !== undefined) event.repeat = patch.repeat
     if (patch.displayUnit !== undefined) event.displayUnit = patch.displayUnit
     if (patch.name !== undefined && patch.name !== event.name) event.name = trimName(patch.name)
@@ -510,6 +530,7 @@ function createEventStore(options) {
         events: result.state.events,
         revision: result.state.revision,
         primaryId: result.state.primaryId,
+        sortMode: result.state.sortMode,
         migrated: result.migrated
       })
     })
@@ -551,10 +572,15 @@ function createEventStore(options) {
         const validation = validateEventInput(patch, true, result.state.events[index].name)
         if (!validation.ok) return done(validation.error)
         applyPatch(result.state.events[index], patch)
+        if (result.state.events[index].archived) dropPrimaryIfNeeded(result.state, id)
+        if (patch.moveDirection) {
+          reorder(result.state, id, patch.moveDirection)
+          result.state.sortMode = "manual"
+        }
         result.state.revision += 1
         commitAndSync(
           result.state,
-          (state) => ({event: state.events[index], revision: state.revision, events: state.events, primaryId: state.primaryId}),
+           (state) => ({event: state.events[index], revision: state.revision, events: state.events, primaryId: state.primaryId, sortMode: state.sortMode}),
           done
         )
       })
@@ -575,6 +601,7 @@ function createEventStore(options) {
         const validation = validateEventInput(patch, true, result.state.events[index].name)
         if (!validation.ok) return done(validation.error)
         applyPatch(result.state.events[index], patch)
+        if (result.state.events[index].archived) dropPrimaryIfNeeded(result.state, result.state.events[index].id)
         result.state.revision += 1
         commitAndSync(
           result.state,
@@ -639,6 +666,7 @@ function createEventStore(options) {
         if (error) return done(error)
         const state = result.state
         if (target !== "" && indexOfId(state.events, target) < 0) return done({code: "NOT_FOUND"})
+        if (target !== "" && state.events[indexOfId(state.events, target)].archived) return done({code: "ARCHIVED_PRIMARY"})
         state.primaryId = target
         state.revision += 1
         commitAndSync(
@@ -650,7 +678,47 @@ function createEventStore(options) {
     }, callback)
   }
 
+  function setSortMode(mode, callback) {
+    if (["created", "near", "manual"].indexOf(mode) < 0) return callback({code: "INVALID_SORT"})
+    enqueue((done) => loadState((error, result) => {
+      if (error) return done(error)
+      result.state.sortMode = mode
+      result.state.revision++
+      commitAndSync(result.state, (state) => ({revision: state.revision, sortMode: state.sortMode}), done)
+    }), callback)
+  }
+
+  function reorder(state, id, direction) {
+    const event = state.events[indexOfId(state.events, id)]
+    const group = state.events.map((e, i) => ({e, i})).filter(({e}) => e.pinned === event.pinned && e.archived === event.archived)
+      .sort((a, b) => a.e.sortOrder - b.e.sortOrder || a.i - b.i)
+    const position = group.findIndex(({e}) => e.id === id)
+    const next = position + (direction === "up" ? -1 : 1)
+    if (next < 0 || next >= group.length) return false
+    const other = group[next]; group[next] = group[position]; group[position] = other
+    group.forEach(({e}, i) => { e.sortOrder = i })
+    return true
+  }
+
+  // 整组重编号避免同值无法移动和安全整数溢出；不重排存储数组/旧下标。
+  function move(id, direction, callback) {
+    if (direction !== "up" && direction !== "down") return callback({code: "INVALID_MOVE"})
+    enqueue((done) => loadState((error, result) => {
+      if (error) return done(error)
+      const state = result.state
+      const index = indexOfId(state.events, id)
+      if (index < 0) return done({code: "NOT_FOUND"})
+      const event = state.events[index]
+      if (!reorder(state, id, direction)) return done({code: "MOVE_BOUNDARY"})
+      state.sortMode = "manual"
+      state.revision++
+      commitAndSync(state, (current) => ({event, events: current.events, primaryId: current.primaryId, revision: current.revision, sortMode: current.sortMode}), done)
+    }), callback)
+  }
+
   return {
+    setSortMode: setSortMode,
+    move: move,
     read: read,
     add: add,
     update: update,

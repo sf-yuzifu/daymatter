@@ -158,6 +158,26 @@ function dateText(fake) {
   return fake.files.get(DATE_URI)
 }
 
+test("F-08 归档主事件实际导出替代/清空，恢复不夺回；表盘失败可补写", async () => {
+  const fake = createFakeFile()
+  seedFile(fake, {primaryId: "a", events: [
+    {id: "a", name: "甲", date: "2026-12-01", on_index: true},
+    {id: "b", name: "乙", date: "2026-12-02", on_index: true}
+  ]})
+  const {store} = createStore(fake)
+  await call(store, "update", "a", {archived: true})
+  assert.equal(dateText(fake), "乙,2026-12-02,false")
+  await call(store, "update", "a", {archived: false})
+  assert.equal(dateText(fake), "乙,2026-12-02,false")
+  await call(store, "update", "a", {archived: true})
+  fake.controls.failDateWrite = true
+  await assert.rejects(call(store, "update", "b", {archived: true}), {code: "WATCHFACE_FAIL"})
+  assert.equal(JSON.parse(fake.files.get(URI)).primaryId, "")
+  fake.controls.failDateWrite = false
+  await call(store, "read")
+  assert.equal(dateText(fake), "")
+})
+
 test("D-17 主事件与「首页展示」独立：on_index=false 也可作为表盘事件", async () => {
   const fake = createFakeFile()
   seedFile(fake, {

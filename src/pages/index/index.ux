@@ -86,8 +86,14 @@ const PROTOCOL_PAYLOAD_LIMIT = 16384
 function canonicalProtocolValue(value) {
   if (Array.isArray(value)) return "[" + value.map(canonicalProtocolValue).join(",") + "]"
   if (value && typeof value === "object") {
-    return "{" + Object.keys(value).sort().map((key) =>
-      JSON.stringify(key) + ":" + canonicalProtocolValue(value[key])).join(",") + "}"
+    return (
+      "{" +
+      Object.keys(value)
+        .sort()
+        .map((key) => JSON.stringify(key) + ":" + canonicalProtocolValue(value[key]))
+        .join(",") +
+      "}"
+    )
   }
   return JSON.stringify(value)
 }
@@ -182,24 +188,55 @@ export default {
       this._pluginSession = typeof parsedData.sessionId === "string" ? parsedData.sessionId : ""
       if (this._pluginSession && this._protocolLedger.sessionId !== this._pluginSession) {
         // 新会话只释放旧的完成记录；旧在途操作仍持有自己的上下文。
-        this._protocolLedger.requests = this._protocolLedger.requests.filter((item) => !item.response)
+        this._protocolLedger.requests = this._protocolLedger.requests.filter(
+          (item) => !item.response
+        )
         this._protocolLedger.sessionId = this._pluginSession
         this._protocolLedger.deviceId = ""
       }
       this._pluginProtocolV2 = parsedData.protocolVersion >= 2
-      this._pluginCapabilities = Array.isArray(parsedData.capabilities) ? parsedData.capabilities : []
-      this.sendProtocolResponse({type: "capabilities", protocolVersion: 2, sessionId: this._pluginSession,
-        handshakeId: parsedData.handshakeId, deviceId: parsedData.deviceId,
-        capabilities: ["stableId", "mutationResult", "requestId", "listRequestId", "listBatches", "themeColor", "primaryId", "revision", "backgroundJpeg", "yearlyRepeat", "displayUnit"]})
+      this._pluginCapabilities = Array.isArray(parsedData.capabilities)
+        ? parsedData.capabilities
+        : []
+      this.sendProtocolResponse({
+        type: "capabilities",
+        protocolVersion: 2,
+        sessionId: this._pluginSession,
+        handshakeId: parsedData.handshakeId,
+        deviceId: parsedData.deviceId,
+        capabilities: [
+          "stableId",
+          "mutationResult",
+          "requestId",
+          "listRequestId",
+          "listBatches",
+          "themeColor",
+          "primaryId",
+          "revision",
+          "backgroundJpeg",
+          "yearlyRepeat",
+          "displayUnit",
+          "pinned",
+          "category",
+          "archived",
+          "manualOrder",
+          "sortMode"
+        ]
+      })
       return
     }
     if (parsedData.type === "capabilities") return
     if (parsedData && parsedData.type === "getRequestResult") {
       const prior = this.findProtocolRequest(parsedData)
       if (prior && prior.response) this.sendProtocolResponse(prior.response)
-      else this.sendProtocolResponse({type: "requestStatus", requestId: parsedData.requestId,
-        sessionId: parsedData.sessionId, deviceId: parsedData.deviceId,
-        status: prior ? "processing" : "unknown"})
+      else
+        this.sendProtocolResponse({
+          type: "requestStatus",
+          requestId: parsedData.requestId,
+          sessionId: parsedData.sessionId,
+          deviceId: parsedData.deviceId,
+          status: prior ? "processing" : "unknown"
+        })
       return
     }
     if (parsedData && parsedData.type === "mutationResult") return
@@ -207,23 +244,55 @@ export default {
     if (requestId && this._pluginSession && parsedData.sessionId !== this._pluginSession) return
     let request = null
     const handlers = {
-      getAllEvent: () => this.handleGetAllEvent(requestId ? {
-        requestId: requestId, sessionId: parsedData.sessionId, deviceId: parsedData.deviceId,
-        batches: parsedData.listBatches === true && (this._pluginCapabilities || []).includes("listBatches")
-      } : null),
+      getAllEvent: () =>
+        this.handleGetAllEvent(
+          requestId
+            ? {
+                requestId: requestId,
+                sessionId: parsedData.sessionId,
+                deviceId: parsedData.deviceId,
+                batches:
+                  parsedData.listBatches === true &&
+                  (this._pluginCapabilities || []).includes("listBatches")
+              }
+            : null
+        ),
       addEvent: () => this.handleAddEvent(parsedData, request),
       changeEvent: () => this.handleChangeEvent(parsedData, request),
       deleteEvent: () => this.handleDeleteEvent(parsedData, request),
+      moveEvent: () =>
+        global.eventStore.move(parsedData.id, parsedData.direction, (error, result) =>
+          this.finishPluginMutation("changeSuccess", error, result, null, request)
+        ),
+      setSortMode: () =>
+        global.eventStore.setSortMode(parsedData.sortMode, (error, result) =>
+          this.finishPluginMutation("changeSuccess", error, result, null, request)
+        ),
       addBG: () => this.handleAddBG(parsedData)
     }
 
-    const handler = Object.prototype.hasOwnProperty.call(handlers, parsedData.type) ? handlers[parsedData.type] : null
+    const handler = Object.prototype.hasOwnProperty.call(handlers, parsedData.type)
+      ? handlers[parsedData.type]
+      : null
     if (handler) {
-      if (requestId && ["addEvent", "changeEvent", "deleteEvent"].includes(parsedData.type)) {
-        if (!this._pluginProtocolV2 || !this._pluginCapabilities || !this._pluginCapabilities.includes("requestId") ||
+      if (
+        requestId &&
+        ["addEvent", "changeEvent", "deleteEvent", "moveEvent", "setSortMode"].includes(
+          parsedData.type
+        )
+      ) {
+        if (
+          !this._pluginProtocolV2 ||
+          !this._pluginCapabilities ||
+          !this._pluginCapabilities.includes("requestId") ||
           parsedData.sessionId !== this._protocolLedger.sessionId ||
-          typeof requestId !== "string" || requestId.length > 128 ||
-          typeof parsedData.deviceId !== "string" || !parsedData.deviceId || parsedData.deviceId.length > 128) return
+          typeof requestId !== "string" ||
+          requestId.length > 128 ||
+          typeof parsedData.deviceId !== "string" ||
+          !parsedData.deviceId ||
+          parsedData.deviceId.length > 128
+        )
+          return
         const fingerprint = canonicalProtocolValue(parsedData)
         if (fingerprint.length > PROTOCOL_PAYLOAD_LIMIT) {
           this.rejectProtocolRequest(parsedData, "REQUEST_TOO_LARGE")
@@ -231,13 +300,23 @@ export default {
         }
         const prior = this.findProtocolRequest(parsedData)
         if (prior) {
-          if (prior.fingerprint !== fingerprint) this.rejectProtocolRequest(parsedData, "REQUEST_CONFLICT")
+          if (prior.fingerprint !== fingerprint)
+            this.rejectProtocolRequest(parsedData, "REQUEST_CONFLICT")
           else if (prior.response) this.sendProtocolResponse(prior.response)
-          else this.sendProtocolResponse({type: "requestStatus", requestId: requestId,
-            sessionId: prior.sessionId, deviceId: prior.deviceId, status: "processing"})
+          else
+            this.sendProtocolResponse({
+              type: "requestStatus",
+              requestId: requestId,
+              sessionId: prior.sessionId,
+              deviceId: prior.deviceId,
+              status: "processing"
+            })
           return
         }
-        if (this._protocolLedger.deviceId && this._protocolLedger.deviceId !== parsedData.deviceId) {
+        if (
+          this._protocolLedger.deviceId &&
+          this._protocolLedger.deviceId !== parsedData.deviceId
+        ) {
           this.rejectProtocolRequest(parsedData, "REQUEST_DEVICE_MISMATCH")
           return
         }
@@ -247,8 +326,13 @@ export default {
           return
         }
         this._protocolLedger.deviceId = parsedData.deviceId
-        request = {requestId: requestId, sessionId: parsedData.sessionId,
-          deviceId: parsedData.deviceId, fingerprint: fingerprint, response: null}
+        request = {
+          requestId: requestId,
+          sessionId: parsedData.sessionId,
+          deviceId: parsedData.deviceId,
+          fingerprint: fingerprint,
+          response: null
+        }
         this._protocolLedger.requests.push(request)
       }
       handler()
@@ -260,21 +344,38 @@ export default {
   },
 
   findProtocolRequest(data) {
-    return this._protocolLedger.requests.find((item) => item.requestId === data.requestId &&
-      item.sessionId === data.sessionId && item.deviceId === data.deviceId)
+    return this._protocolLedger.requests.find(
+      (item) =>
+        item.requestId === data.requestId &&
+        item.sessionId === data.sessionId &&
+        item.deviceId === data.deviceId
+    )
   },
 
   rejectProtocolRequest(data, code) {
-    this.sendProtocolResponse({type: "mutationResult", requestId: data.requestId,
-      sessionId: data.sessionId, deviceId: data.deviceId, ok: false, code: code})
+    this.sendProtocolResponse({
+      type: "mutationResult",
+      requestId: data.requestId,
+      sessionId: data.sessionId,
+      deviceId: data.deviceId,
+      ok: false,
+      code: code
+    })
   },
 
   finishProtocolRequest(request, error, result) {
     if (!request || !request.requestId) return
     if (request.response) return
-    const response = {type: "mutationResult", requestId: request.requestId, sessionId: request.sessionId,
-      deviceId: request.deviceId, ok: !error || error.code === "WATCHFACE_FAIL",
-      revision: result && result.revision, code: error && error.code ? error.code : ""}
+    const response = {
+      type: "mutationResult",
+      requestId: request.requestId,
+      sessionId: request.sessionId,
+      deviceId: request.deviceId,
+      ok: !error || error.code === "WATCHFACE_FAIL",
+      revision: result && result.revision,
+      code: error && error.code ? error.code : ""
+    }
+    if (result && result.sortMode) response.sortMode = result.sortMode
     if (request.parts) {
       response.event = request.parts.event
       response.primary = request.parts.primary
@@ -333,8 +434,7 @@ export default {
   },
 
   formatEvent(event, mode, sourceIndex, nameMetrics) {
-    const status =
-      global.dateUtils.getRecurringStatus(event) || global.dateUtils.TODAY_STATUS
+    const status = global.dateUtils.getRecurringStatus(event) || global.dateUtils.TODAY_STATUS
     let name = event.name
     let days
     let already = true
@@ -354,7 +454,8 @@ export default {
     }
 
     // 根据事件状态调整主题色色调
-    if (event.repeat === "yearly" && status.anniversary !== null) name += " " + this.$t("anniversary", {count: status.anniversary})
+    if (event.repeat === "yearly" && status.anniversary !== null)
+      name += " " + this.$t("anniversary", {count: status.anniversary})
     themeColor = global.adjustThemeColor(themeColor, already)
 
     // 根据显示模式生成显示文本和字体大小
@@ -465,7 +566,10 @@ export default {
     if (!currentEvent) return
     const days = parseInt(currentEvent.days)
     const accurateDiff = currentEvent.accurateDiff
-    const isToday = currentEvent.isToday !== undefined ? currentEvent.isToday : (currentEvent.displayText === this.$t("today"))
+    const isToday =
+      currentEvent.isToday !== undefined
+        ? currentEvent.isToday
+        : currentEvent.displayText === this.$t("today")
 
     // 尝试切换到下一个模式，如果无法显示则继续尝试
     let attempts = 0
@@ -485,7 +589,8 @@ export default {
       event.displayUnit = newMode
       const eventDays = parseInt(event.days)
       const eventAccurateDiff = event.accurateDiff
-      const eventIsToday = event.isToday !== undefined ? event.isToday : (event.displayText === this.$t("today"))
+      const eventIsToday =
+        event.isToday !== undefined ? event.isToday : event.displayText === this.$t("today")
       const displayInfo = this.getDisplayInfo(eventDays, eventAccurateDiff, newMode, eventIsToday)
       if (event.displayText !== displayInfo.text) {
         event.displayText = displayInfo.text
@@ -494,12 +599,18 @@ export default {
         event.fontSize = displayInfo.fontSize
       }
     }
-    if (!currentEvent.id) { apply(); return }
+    if (!currentEvent.id) {
+      apply()
+      return
+    }
     this._unitSaving = true
     global.eventStore.update(currentEvent.id, {displayUnit: newMode}, (error) => {
       this._unitSaving = false
       if (this._destroyed) return
-      if (error && error.code !== "WATCHFACE_FAIL") { this.showEventError(error); return }
+      if (error && error.code !== "WATCHFACE_FAIL") {
+        this.showEventError(error)
+        return
+      }
       if (this.pageVisible) apply()
       else this._needsRefresh = true
       if (error) showToast({message: this.$t("watchfaceSyncFail"), duration: 2000})
@@ -539,9 +650,12 @@ export default {
       const events = result.events
       this.allEvents = events.length
       const nameMetrics = getNameMetrics()
-      this.events = events
-        .filter((e) => e.on_index)
-         .map((e, i) => this.formatEvent(e, e.displayUnit || "days", i, nameMetrics))
+      this.events = global.eventOrder
+        .select(events, result.sortMode || "created", global.dateUtils, {
+          archived: false,
+          home: true
+        })
+        .map((e, i) => this.formatEvent(e, e.displayUnit || "days", i, nameMetrics))
       this._needsRefresh = false
       this.setupSlots()
     })
@@ -646,7 +760,10 @@ export default {
       return
     }
     if (code === "NAME_TOO_LONG" || code === "NAME_INVALID") {
-      showToast({message: this.$t(code === "NAME_TOO_LONG" ? "eventNameTooLong" : "eventNameInvalid"), duration: 2000})
+      showToast({
+        message: this.$t(code === "NAME_TOO_LONG" ? "eventNameTooLong" : "eventNameInvalid"),
+        duration: 2000
+      })
       return
     }
     if (code === "DATE_INVALID") {
@@ -663,7 +780,13 @@ export default {
     }
     if (
       code === "INVALID_BOOLEAN" ||
-      code === "INVALID_REPEAT" || code === "INVALID_UNIT" ||
+      code === "INVALID_REPEAT" ||
+      code === "INVALID_UNIT" ||
+      code === "INVALID_CATEGORY" ||
+      code === "INVALID_ORDER" ||
+      code === "INVALID_MOVE" ||
+      code === "INVALID_SORT" ||
+      code === "ARCHIVED_PRIMARY" ||
       code === "INVALID_COLOR" ||
       code === "INVALID_EVENT"
     ) {
@@ -679,12 +802,23 @@ export default {
     global.eventStore.read((error, result) => {
       if (this._destroyed) return
       if (error) {
-        if (request) this.sendProtocolResponse({type: "eventListError", requestId: request.requestId,
-          sessionId: request.sessionId, deviceId: request.deviceId, code: "LIST_READ_FAILED"})
+        if (request)
+          this.sendProtocolResponse({
+            type: "eventListError",
+            requestId: request.requestId,
+            sessionId: request.sessionId,
+            deviceId: request.deviceId,
+            code: "LIST_READ_FAILED"
+          })
         showToast({message: this.$t("syncFail"), duration: 2000})
         return
       }
-      const responseData = {data: result.events, primaryId: result.primaryId, revision: result.revision}
+      const responseData = {
+        data: result.events,
+        primaryId: result.primaryId,
+        revision: result.revision,
+        sortMode: result.sortMode
+      }
       if (request) {
         responseData.requestId = request.requestId
         responseData.sessionId = request.sessionId
@@ -712,9 +846,19 @@ export default {
   sendEventBatches(snapshot) {
     const batches = []
     let items = []
-    const makeBatch = (data, index, count) => ({type: "eventListBatch", requestId: snapshot.requestId,
-      sessionId: snapshot.sessionId, deviceId: snapshot.deviceId, revision: snapshot.revision,
-      primaryId: snapshot.primaryId, total: snapshot.data.length, batchIndex: index, batchCount: count, data: data})
+    const makeBatch = (data, index, count) => ({
+      type: "eventListBatch",
+      requestId: snapshot.requestId,
+      sessionId: snapshot.sessionId,
+      deviceId: snapshot.deviceId,
+      revision: snapshot.revision,
+      primaryId: snapshot.primaryId,
+      sortMode: snapshot.sortMode,
+      total: snapshot.data.length,
+      batchIndex: index,
+      batchCount: count,
+      data: data
+    })
     // UTF-8 长度上界：每个 UTF-16 单元最多 3 字节（代理对实际更小）。
     const fits = (data) => JSON.stringify(makeBatch(data, 199, 200)).length * 3 <= 8192
     for (let i = 0; i < snapshot.data.length; i++) {
@@ -724,8 +868,13 @@ export default {
         items = []
       }
       if (!fits([event])) {
-        this.sendProtocolResponse({type: "eventListError", requestId: snapshot.requestId,
-          sessionId: snapshot.sessionId, deviceId: snapshot.deviceId, code: "LIST_ITEM_TOO_LARGE"})
+        this.sendProtocolResponse({
+          type: "eventListError",
+          requestId: snapshot.requestId,
+          sessionId: snapshot.sessionId,
+          deviceId: snapshot.deviceId,
+          code: "LIST_ITEM_TOO_LARGE"
+        })
         return
       }
       items.push(event)
@@ -735,9 +884,18 @@ export default {
     const sendNext = () => {
       if (this._destroyed || index >= batches.length) return
       const current = index++
-      connect.send({data: makeBatch(batches[current], current, batches.length), success: sendNext,
-        fail: () => this.sendProtocolResponse({type: "eventListError", requestId: snapshot.requestId,
-          sessionId: snapshot.sessionId, deviceId: snapshot.deviceId, code: "LIST_SEND_FAILED"})})
+      connect.send({
+        data: makeBatch(batches[current], current, batches.length),
+        success: sendNext,
+        fail: () =>
+          this.sendProtocolResponse({
+            type: "eventListError",
+            requestId: snapshot.requestId,
+            sessionId: snapshot.sessionId,
+            deviceId: snapshot.deviceId,
+            code: "LIST_SEND_FAILED"
+          })
+      })
     }
     sendNext()
   },
@@ -752,9 +910,12 @@ export default {
   // 分项结果：事件数据已提交但表盘文件失败时单独报告，不当作整体失败
   finishPluginMutation(messageKey, error, result, wanted, request) {
     const eventSaved = !error || error.code === "WATCHFACE_FAIL"
-    if (request) request.parts = {event: {ok: eventSaved},
-      primary: {ok: null, requested: wanted !== null},
-      watchface: {ok: eventSaved ? !(error && error.code === "WATCHFACE_FAIL") : null}}
+    if (request)
+      request.parts = {
+        event: {ok: eventSaved},
+        primary: {ok: null, requested: wanted !== null},
+        watchface: {ok: eventSaved ? !(error && error.code === "WATCHFACE_FAIL") : null}
+      }
     if (error) {
       if (!eventSaved) {
         this.finishProtocolRequest(request, error, result)
@@ -774,8 +935,10 @@ export default {
     global.eventStore.setPrimary(wanted ? eventId : "", (primaryError, primaryResult) => {
       if (request) {
         request.parts.primary.ok = !primaryError || primaryError.code === "WATCHFACE_FAIL"
-        request.parts.primary.code = primaryError && primaryError.code || ""
-        request.parts.watchface.ok = request.parts.primary.ok ? !(primaryError && primaryError.code === "WATCHFACE_FAIL") : request.parts.watchface.ok
+        request.parts.primary.code = (primaryError && primaryError.code) || ""
+        request.parts.watchface.ok = request.parts.primary.ok
+          ? !(primaryError && primaryError.code === "WATCHFACE_FAIL")
+          : request.parts.watchface.ok
       }
       this.finishProtocolRequest(request, primaryError, primaryResult || result)
       if (this._destroyed) return
@@ -791,7 +954,13 @@ export default {
   handleAddEvent(data, request) {
     if (this._destroyed) return
     global.eventStore.add(data, (error, result) => {
-      this.finishPluginMutation("addSuccess", error, result, this.readWatchfaceFlag(data.watchface), request)
+      this.finishPluginMutation(
+        "addSuccess",
+        error,
+        result,
+        this.readWatchfaceFlag(data.watchface),
+        request
+      )
     })
   },
 
@@ -805,10 +974,19 @@ export default {
       IFStaringDay: data.IFStaringDay,
       themeColor: data.themeColor,
       repeat: data.repeat,
-      displayUnit: data.displayUnit
+      displayUnit: data.displayUnit,
+      pinned: data.pinned,
+      archived: data.archived,
+      category: data.category
     }
     const onDone = (error, result) => {
-      this.finishPluginMutation("changeSuccess", error, result, this.readWatchfaceFlag(data.watchface), request)
+      this.finishPluginMutation(
+        "changeSuccess",
+        error,
+        result,
+        this.readWatchfaceFlag(data.watchface),
+        request
+      )
     }
     if (data.id !== undefined) {
       global.eventStore.update(String(data.id), patch, onDone)
@@ -887,7 +1065,7 @@ export default {
       success: (data) => {
         if (this._destroyed) return
         const bgFiles = (data.fileList || [])
-          .filter(f => f.uri && f.uri.match(/bg_\d+\.png$/))
+          .filter((f) => f.uri && f.uri.match(/bg_\d+\.png$/))
           .sort((a, b) => {
             const timeA = parseInt(a.uri.match(/bg_(\d+)\.png/)[1])
             const timeB = parseInt(b.uri.match(/bg_(\d+)\.png/)[1])

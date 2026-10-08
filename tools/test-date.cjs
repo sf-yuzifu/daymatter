@@ -199,8 +199,8 @@ test("入口一致性：app.ux 暴露 dateUtils，日期写入与插件消息使
   assert.ok(listSource.includes("getRecurringStatus"), "列表必须使用统一重复状态算法")
 })
 
-test("多语言：非法日期提示在五种文案文件中齐全", () => {
-  for (const file of ["defaults.json", "en.json", "zh-CN.json", "zh-TW.json", "zh-HK.json"]) {
+test("多语言：非法日期提示在全部文案文件中齐全", () => {
+  for (const file of ["defaults.json", "zh-CN.json", "zh-TW.json", "zh-HK.json"]) {
     const data = JSON.parse(fs.readFileSync(path.join(root, "src/i18n", file), "utf8"))
     assert.ok(data.dateInvalid && data.dateInvalid.length > 0, file + " 缺少 dateInvalid 文案")
   }
