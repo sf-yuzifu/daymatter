@@ -5,7 +5,7 @@
       {{ extend == "true" ? $t("addEvent") : $t("editEvent") }}
     </text>
     <div class="box padding" if="{{ contentVisible }}">
-      <scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
+      <scroll id="edit-scroll" class="box" scroll-x="false" scroll-y="true" bounces="true">
         <div class="line field-card">
           <text class="field-label input-label">{{ $t("eventName") }}</text>
           <div class="input-line" @click="editEventName">
@@ -107,6 +107,16 @@
             ></div>
           </div>
         </div>
+        <div class="line delete-card" if="{{ global.screenShape === 'circle' && extend != 'true' && !deleteConfirmVisible }}" @click="confirmDeleteEvent">
+          <text class="delete-label">{{ $t("deleteEvent") }}</text>
+        </div>
+        <div class="line delete-confirm" if="{{ global.screenShape === 'circle' && extend != 'true' && deleteConfirmVisible }}">
+          <text class="delete-confirm-message">{{ $t("deleteEventConfirm", {name: event_name}) }}</text>
+          <div class="delete-confirm-actions">
+            <text class="delete-confirm-button" @click="cancelDeleteEvent">{{ $t("cancel") }}</text>
+            <text class="delete-confirm-button delete-label" @click="deleteEvent">{{ $t("deleteEvent") }}</text>
+          </div>
+        </div>
       </scroll>
     </div>
     <img
@@ -116,7 +126,7 @@
       @click="deleteEvent"
     />
     <img
-      elif="{{ extend != 'true' && global.screenShape != 'rect' }}"
+      elif="{{ extend != 'true' && global.isPillShaped }}"
       class="top"
       src="/common/del.png"
       @click="deleteEvent"
@@ -127,6 +137,10 @@
       src="/common/back_rect.png"
       @click="routeBack"
     />
+    <text elif="{{ global.screenShape === 'circle' }}" class="title" @click="routeBack">
+      <span class="iconfont">&#xe685;</span>
+      <span>{{ extend == "true" ? $t("addEvent") : $t("editEvent") }}</span>
+    </text>
     <img else class="top" src="/common/back.png" @click="routeBack" />
     <img
       if="{{ global.screenShape == 'rect' }}"
@@ -159,7 +173,8 @@ export default {
     event_id: "0",
     time: "",
     pageVisible: false,
-    contentVisible: false
+    contentVisible: false,
+    deleteConfirmVisible: false
   },
 
   routeBack() {
@@ -230,6 +245,7 @@ export default {
   },
 
   onHide() {
+    clearTimeout(this._deleteScrollTimer)
     // 离开页面时移除跑马灯与表单节点，停止滚动与分钟时钟；草稿数据保留在 this 中
     this.pageVisible = false
     this.contentVisible = false
@@ -237,6 +253,7 @@ export default {
   },
 
   onDestroy() {
+    clearTimeout(this._deleteScrollTimer)
     this._destroyed = true
     this._ticker.stop()
     this.clearImeResult()
@@ -456,6 +473,28 @@ export default {
     }
     const causeCode = error && error.cause ? error.cause.code : code
     this.showErrorToast(causeCode)
+  },
+
+  confirmDeleteEvent() {
+    if (this._saving) return
+    this.deleteConfirmVisible = true
+    clearTimeout(this._deleteScrollTimer)
+    this._deleteScrollTimer = setTimeout(() => {
+      if (this._destroyed || !this.pageVisible || !this.deleteConfirmVisible) return
+      const scroll = this.$element("edit-scroll")
+      if (!scroll || typeof scroll.getScrollRect !== "function") return
+      scroll.getScrollRect({
+        success: ({height}) => {
+          if (this._destroyed || !this.pageVisible || !this.deleteConfirmVisible) return
+          scroll.scrollTo({top: height, behavior: "smooth"})
+        }
+      })
+    }, 50)
+  },
+
+  cancelDeleteEvent() {
+    clearTimeout(this._deleteScrollTimer)
+    if (!this._saving) this.deleteConfirmVisible = false
   },
 
   deleteEvent() {
@@ -874,5 +913,51 @@ marquee {
     font-size: 24px;
     selected-font-size: 24px;
   }
+}
+.delete-card {
+  flex-shrink: 0;
+  margin-top: 0px;
+  margin-bottom: 8px;
+  height: 64px;
+  border-radius: 24px;
+  background-color: #262626;
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-label {
+  font-size: 32px;
+  color: #ff6b6b;
+  text-align: center;
+}
+
+.delete-confirm {
+  margin-top: 0px;
+  margin-bottom: 8px;
+  padding: 16px;
+  border-radius: 24px;
+  background-color: #262626;
+  flex-shrink: 0;
+}
+
+.delete-confirm-message {
+  width: 100%;
+  font-size: 28px;
+  color: #ffffff;
+}
+
+.delete-confirm-actions {
+  width: 100%;
+  margin-top: 14px;
+  justify-content: space-between;
+}
+
+.delete-confirm-button {
+  width: 48%;
+  height: 56px;
+  border-radius: 20px;
+  background-color: #363636;
+  font-size: 28px;
+  text-align: center;
 }
 </style>
