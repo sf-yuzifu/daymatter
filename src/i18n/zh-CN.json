@@ -1,4 +1,10 @@
 {
+  "calendarLabel": "历法",
+  "lunarCalendar": "农历",
+  "solarCalendar": "公历",
+  "leapMonth": "闰",
+  "lunarRange": "农历支持1900～2100年",
+  "lunarRule": "无闰月用普通月，三十遇小月用廿九。",
   "quickTemplate": "快捷模板",
   "templateNone": "自定义",
   "templateBirthday": "生日",

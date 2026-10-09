@@ -5,6 +5,86 @@
 const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 const DATE_PATTERN = /^(\d{4})-(\d{1,2})-(\d{1,2})$/
 
+// ISC year data: yize/solarlunar b1d4328; see common/lunar-LICENSE.txt.
+// dm-hko-v1: 2057/2097 month lengths corrected to HKO reference dates.
+const LUNAR_TABLE = [
+  19416,19168,42352,21717,53856,55632,91476,22176,39632,21970,
+  19168,42422,42192,53840,119381,46400,54944,44450,38320,84343,
+  18800,42160,46261,27216,27968,109396,11104,38256,21234,18800,
+  25958,54432,59984,28309,23248,11104,100067,37600,116951,51536,
+  54432,120998,46416,22176,107956,9680,37584,53938,43344,46423,
+  27808,46416,86869,19872,42416,83315,21168,43432,59728,27296,
+  44710,43856,19296,43748,42352,21088,62051,55632,23383,22176,
+  38608,19925,19152,42192,54484,53840,54616,46400,46752,103846,
+  38320,18864,43380,42160,45690,27216,27968,44870,43872,38256,
+  19189,18800,25776,29859,59984,27480,23232,43872,38613,37600,
+  51552,55636,54432,55888,30034,22176,43959,9680,37584,51893,
+  43344,46240,47780,44368,21977,19360,42416,86390,21168,43312,
+  31060,27296,44368,23378,19296,42726,42208,53856,60005,54576,
+  23200,30371,38608,19195,19152,42192,118966,53840,54560,56645,
+  46496,22224,21938,18864,42359,42160,43600,111189,27936,44448,
+  84835,37744,18936,18800,25776,92326,59984,27296,108228,43744,
+  37600,53987,51552,54615,54432,55888,23893,22176,42704,21972,
+  21200,43448,43344,46240,46758,44368,21920,43940,42416,21168,
+  45683,26928,29495,27296,44368,84821,19296,42352,21732,53600,
+  59752,54560,55968,92838,22224,19168,43476,41680,53584,62034,54560
+]
+const LUNAR_VERSION = "dm-hko-v1"
+let lunarStarts = null
+
+function lunarMonths(year) {
+  if (!Number.isInteger(year) || year < 1900 || year > 2100) return []
+  const info = LUNAR_TABLE[year - 1900], leap = info & 15, result = []
+  for (let month = 1; month <= 12; month++) {
+    result.push({month, leap: false, days: 29 + Number(!!(info & (0x10000 >> month)))})
+    if (month === leap) result.push({month, leap: true, days: 29 + Number(!!(info & 0x10000))})
+  }
+  return result
+}
+function getLunarStarts() {
+  if (!lunarStarts) {
+    lunarStarts = [toDayNumber(1900, 1, 31)]
+    for (let year = 1900; year <= 2100; year++)
+      lunarStarts.push(lunarStarts[lunarStarts.length - 1] + lunarMonths(year).reduce((n, m) => n + m.days, 0))
+  }
+  return lunarStarts
+}
+function lunarToSolar(value) {
+  if (!value || typeof value.leap !== "boolean" || !Number.isInteger(value.day)) return null
+  const months = lunarMonths(value.year)
+  if (!months.length) return null
+  let number = getLunarStarts()[value.year - 1900]
+  for (const month of months) {
+    if (month.month === value.month && month.leap === value.leap) {
+      if (value.day < 1 || value.day > month.days) return null
+      const date = fromDayNumber(number + value.day - 1)
+      return formatDate(date.year, date.month, date.day)
+    }
+    number += month.days
+  }
+  return null
+}
+function solarToLunar(value) {
+  const date = parseDate(value)
+  if (!date) return null
+  const number = toDayNumber(date.year, date.month, date.day), starts = getLunarStarts()
+  if (number < starts[0] || number >= starts[201]) return null
+  let index = 0
+  while (number >= starts[index + 1]) index++
+  let offset = number - starts[index]
+  for (const month of lunarMonths(index + 1900)) {
+    if (offset < month.days) return {year:index + 1900, month:month.month, day:offset + 1, leap:month.leap}
+    offset -= month.days
+  }
+  return null
+}
+function validCalendar(event) {
+  if (event.calendar !== undefined && !["solar", "lunar"].includes(event.calendar)) return false
+  if (event.calendar !== "lunar") return event.lunarDate === undefined || event.lunarDate === null
+  return event.lunarTableVersion === LUNAR_VERSION && event.lunarLeapPolicy === "regularFallback" &&
+    event.lunarShortMonthPolicy === "lastDay" && lunarToSolar(event.lunarDate) === normalizeDate(event.date)
+}
+
 // 解析失败时的展示兜底：按今天处理，避免 NaN 或误判方向
 const TODAY_STATUS = Object.freeze({
   state: "today",
@@ -157,6 +237,21 @@ function getEventStatus(dateValue, includeStartDay, now) {
 function getOccurrence(event, now) {
   const original = parseDate(event.date)
   if (!original) return null
+  if (event.calendar === "lunar") {
+    if (!validCalendar(event)) return null
+    if (event.repeat !== "yearly") return {date:normalizeDate(event.date), anniversary:null}
+    const today = todayParts(now), todayString = formatDate(today.year, today.month, today.day)
+    const todayLunar = solarToLunar(todayString)
+    if (!todayLunar) return null
+    const source = event.lunarDate
+    for (let year = Math.max(source.year, todayLunar.year); year <= 2100; year++) {
+      const months = lunarMonths(year)
+      const month = months.find(m => m.month === source.month && m.leap === source.leap) || months.find(m => m.month === source.month && !m.leap)
+      const date = lunarToSolar({year, month:source.month, day:Math.min(source.day, month.days), leap:month.leap})
+      if (date >= todayString) return {date, anniversary:year - source.year}
+    }
+    return null
+  }
   if (event.repeat !== "yearly") return {date: normalizeDate(event.date), anniversary: null}
   const today = todayParts(now)
   let year = Math.max(original.year, today.year)
@@ -172,6 +267,7 @@ function getOccurrence(event, now) {
 function getRecurringStatus(event, now) {
   const occurrence = getOccurrence(event, now)
   if (!occurrence) {
+    if (event.calendar === "lunar") return null
     const status = getEventStatus(event.date, event.IFStaringDay, now)
     return status ? Object.assign(status, {occurrenceDate: null, anniversary: null}) : null
   }
@@ -180,6 +276,7 @@ function getRecurringStatus(event, now) {
 }
 
 export default {
+  LUNAR_VERSION, lunarMonths, lunarToSolar, solarToLunar, validCalendar,
   getOccurrence: getOccurrence,
   getRecurringStatus: getRecurringStatus,
   TODAY_STATUS: TODAY_STATUS,

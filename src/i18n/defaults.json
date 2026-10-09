@@ -1,4 +1,10 @@
 {
+  "calendarLabel": "Calendar",
+  "lunarCalendar": "Lunar",
+  "solarCalendar": "Gregorian",
+  "leapMonth": "Leap ",
+  "lunarRange": "Lunar years: 1900-2100",
+  "lunarRule": "Yearly: missing leap month uses regular month; day 30 falls back to 29.",
   "quickTemplate": "Template",
   "templateNone": "Custom",
   "templateBirthday": "Birthday",

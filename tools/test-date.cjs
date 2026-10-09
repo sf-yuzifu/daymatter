@@ -16,6 +16,32 @@ function loadModule(source) {
 
 const dateUtils = loadModule(dateSource)
 
+test("F-10 农历往返、闰月回退、小月月末与表上界", () => {
+  let days = 0
+  for (let year=1900;year<=2100;year++) for (const month of dateUtils.lunarMonths(year)) for (let day=1;day<=month.days;day++) {
+    const value={year,month:month.month,day,leap:month.leap}
+    assert.deepEqual(dateUtils.solarToLunar(dateUtils.lunarToSolar(value)),value)
+    days++
+  }
+  assert.equal(days,73412)
+  for (const [solar,lunar] of [["2020-05-23",{year:2020,month:4,day:1,leap:true}],
+    ["2033-12-22",{year:2033,month:11,day:1,leap:true}],
+    ["2057-09-28",{year:2057,month:9,day:1,leap:false}],
+    ["2097-08-07",{year:2097,month:7,day:1,leap:false}]]) {
+    assert.deepEqual(dateUtils.solarToLunar(solar),lunar)
+    assert.equal(dateUtils.lunarToSolar(lunar),solar)
+  }
+  const lunarDate = {year:2020,month:4,day:30,leap:true}
+  assert.equal(dateUtils.lunarToSolar(lunarDate),null,"不存在的原始闰月三十拒绝")
+  lunarDate.day = 29
+  const event = {calendar:"lunar",lunarDate,date:dateUtils.lunarToSolar(lunarDate),repeat:"yearly",
+    lunarTableVersion:dateUtils.LUNAR_VERSION,lunarLeapPolicy:"regularFallback",lunarShortMonthPolicy:"lastDay"}
+  const expected = dateUtils.lunarToSolar({year:2026,month:4,day:29,leap:false})
+  assert.equal(dateUtils.getOccurrence(event,nowAt(2026,1,1)).date,expected)
+  assert.equal(dateUtils.getOccurrence(event,nowAt(2102,1,1)),null)
+  assert.equal(dateUtils.getRecurringStatus(event,nowAt(2102,1,1)),null)
+})
+
 test("F-01 年度发生日保留原日期，当日/跨年/闰日/未来起点", () => {
   const event = {date: "2020-02-29", repeat: "yearly"}
   assert.deepEqual(dateUtils.getOccurrence(event, nowAt(2026, 2, 28)), {date: "2026-02-28", anniversary: 6})

@@ -1,4 +1,10 @@
 {
+  "calendarLabel": "曆法",
+  "lunarCalendar": "農曆",
+  "solarCalendar": "公曆",
+  "leapMonth": "閏",
+  "lunarRange": "農曆支援1900～2100年",
+  "lunarRule": "無閏月用普通月，三十遇小月用廿九。",
   "quickTemplate": "快捷範本",
   "templateNone": "自訂",
   "templateBirthday": "生日",

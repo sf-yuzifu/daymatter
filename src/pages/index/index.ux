@@ -214,6 +214,9 @@ export default {
           "primaryId",
           "primaryMutation",
           "backupRestore",
+          "lunarDate",
+          "lunarYearly",
+          "lunarTable:dm-hko-v1",
           "revision",
           "backgroundJpeg",
           "yearlyRepeat",
@@ -485,6 +488,10 @@ export default {
 
     // 根据显示模式生成显示文本和字体大小
     const displayInfo = this.getDisplayInfo(days, status.ymd, mode, isToday)
+    if (event.calendar === "lunar" && !global.dateUtils.getOccurrence(event)) {
+      displayInfo.text = "--"
+      isToday = false
+    }
 
     return {
       id: event.id,
@@ -993,6 +1000,11 @@ export default {
     if (this._destroyed) return
     // 只提交消息里出现的字段，未提供的字段由存储层原样保留
     const patch = {
+      calendar: data.calendar,
+      lunarDate: data.lunarDate,
+      lunarTableVersion: data.lunarTableVersion,
+      lunarLeapPolicy: data.lunarLeapPolicy,
+      lunarShortMonthPolicy: data.lunarShortMonthPolicy,
       name: data.name,
       date: data.date,
       on_index: data.on_index,

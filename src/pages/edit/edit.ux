@@ -24,9 +24,23 @@
           <text class="field-label input-label">{{ $t("targetDateLabel") }}</text>
           <div class="input-line" @click="editDate">
             <scroll class="input-scroll" scroll-x="true">
-              <text class="input-text">{{ date }}</text>
+              <text class="input-text">{{ dateLabel }}</text>
             </scroll>
           </div>
+        </div>
+        <div class="line button">
+          <div class="setting-content"><text class="setting-label">{{ $t('calendarLabel') }}</text></div>
+          <picker
+            class="unit-picker"
+            type="text"
+            range="{{ calendarOptions }}"
+            selected="{{ calendar === 'lunar' ? 1 : 0 }}"
+            @change="onCalendarChange"
+          ></picker>
+        </div>
+        <div class="line lunar-note" if="{{ calendar === 'lunar' }}">
+          <text class="lunar-note-text">{{ $t('lunarRule') }}</text>
+          <text class="lunar-note-date">{{ $t('solarCalendar') }} · {{ date }}</text>
         </div>
         <div class="line button" style="margin-bottom: 8px">
           <div class="setting-content">
@@ -339,6 +353,10 @@ export default {
     templateOptions: [],
     extend: "true",
     date: "",
+    calendar: "solar",
+    calendarOptions: [],
+    lunarDate: null,
+    dateLabel: "",
     on_index: true,
     IFStaringDay: false,
     repeat: "none",
@@ -370,6 +388,8 @@ export default {
   },
 
   onInit() {
+    this.calendarOptions = [this.$t("solarCalendar"), this.$t("lunarCalendar")]
+    if (typeof this.lunarDate === "string") { try { this.lunarDate = JSON.parse(this.lunarDate) } catch (e) { this.lunarDate = null } }
     this.templateOptions = ["templateNone", "templateBirthday", "templateExam", "templateAnniversary"].map(key => this.$t(key))
     this.unitOptions = this.unitKeys.map((unit) => this.$t(unit))
     this.pinned = this.normalizeBoolean(this.pinned)
@@ -401,6 +421,7 @@ export default {
       const today = global.dateUtils.todayParts()
       this.date = global.dateUtils.formatDate(today.year, today.month, today.day)
     }
+    this.updateDateLabel()
   },
 
   onShow() {
@@ -421,6 +442,8 @@ export default {
       if (result && result.requestId === this._pendingRequestId) {
         const normalized = global.dateUtils.normalizeDate(result.date)
         if (normalized) this.date = normalized
+        if (result.lunarDate) this.lunarDate = result.lunarDate
+        this.updateDateLabel()
         global.__daymatterDateResult = null
       }
     }
@@ -439,6 +462,28 @@ export default {
     this.category = ["", "birthday", "study", "anniversary"][index]
     this.repeat = index === 2 ? "none" : "yearly"
     this.displayUnit = "days"
+  },
+
+  updateDateLabel() {
+    const value = this.lunarDate
+    this.dateLabel = this.calendar === "lunar" && value
+      ? value.year + "-" + (value.leap ? this.$t("leapMonth") : "") + value.month + "-" + value.day : this.date
+  },
+  changeCalendar() {
+    if (this._saving) return
+    if (this.calendar === "solar") {
+      const value = global.dateUtils.solarToLunar(this.date)
+      if (!value) { showToast({message:this.$t("lunarRange")}); return }
+      this.lunarDate = value
+      this.calendar = "lunar"
+    } else { this.calendar = "solar"; this.lunarDate = null }
+    this.updateDateLabel()
+  },
+  onCalendarChange(event) {
+    const index = this.calendarOptions.indexOf(event.newValue)
+    if (index < 0) return
+    const wanted = index === 1 ? "lunar" : "solar"
+    if (wanted !== this.calendar) this.changeCalendar()
   },
 
   handleMinuteTick() {
@@ -498,6 +543,7 @@ export default {
       uri: "/pages/datepicker",
       params: {
         date: this.date,
+        calendar: this.calendar,
         requestId: this._pendingRequestId
       }
     })
@@ -617,6 +663,11 @@ export default {
 
     this._saving = true
     const payload = {
+      calendar: this.calendar,
+      lunarDate: this.calendar === "lunar" ? this.lunarDate : null,
+      lunarTableVersion: this.calendar === "lunar" ? global.dateUtils.LUNAR_VERSION : undefined,
+      lunarLeapPolicy: this.calendar === "lunar" ? "regularFallback" : undefined,
+      lunarShortMonthPolicy: this.calendar === "lunar" ? "lastDay" : undefined,
       name: this.event_name,
       repeat: this.repeat,
       displayUnit: this.displayUnit,
@@ -1166,6 +1217,36 @@ marquee {
   selected-font-size: 32px;
   font-size: 32px;
   flex-shrink: 0;
+}
+
+.lunar-note {
+  flex-direction: column;
+  flex-shrink: 0;
+  padding: 4px 12px 12px;
+  margin-bottom: 8px;
+}
+.lunar-note-text,
+.lunar-note-date {
+  width: 100%;
+  font-size: 24px;
+  line-height: 32px;
+  color: #aaaaaa;
+  text-align: left;
+}
+.lunar-note-date {
+  margin-top: 6px;
+  color: #cccccc;
+}
+@media (shape: pill-shaped) {
+  .lunar-note {
+    width: 85%;
+    padding: 4px 6px 10px;
+  }
+  .lunar-note-text,
+  .lunar-note-date {
+    font-size: 22px;
+    line-height: 28px;
+  }
 }
 
 .category-picker {

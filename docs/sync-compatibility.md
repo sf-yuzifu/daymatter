@@ -40,6 +40,7 @@
 | `manualOrder` / `sortMode` | 同组移动与排序模式持久化 |
 | `primaryMutation` | 独立设置/取消表盘主事件；还要求 `primaryId`、稳定 ID 与保存回执能力 |
 | `backupRestore` | 单次提交备份恢复；要求稳定 ID、请求身份、保存回执和 revision 核对 |
+| `lunarDate` / `lunarYearly` / `lunarTable:dm-hko-v1` | 农历日期、农历年度重复与固定换算表版本；未确认拒绝发送农历数据 |
 
 新增字段未确认能力时，插件只省略缺省值，拒绝非缺省值及相关新操作，并提示更新腕端。旧客户端修改未携带的新字段由腕端保留。颜色和未知事件扩展也由腕端保留，插件读取模型保留扩展，但传输受预算限制。
 

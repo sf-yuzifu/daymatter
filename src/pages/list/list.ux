@@ -180,6 +180,7 @@ export default {
 
     // 表盘主事件与首页展示独立，列表只做标记，不新增节点
     const watchface = event.id === this._primaryId
+    if (event.calendar === "lunar" && !global.dateUtils.getOccurrence(event)) days = "--"
     if (event.repeat === "yearly" && status.anniversary !== null)
       display_name += " " + this.$t("anniversary", {count: status.anniversary})
     if (watchface) display_name += " " + this.$t("watchfaceBadge")
@@ -372,6 +373,8 @@ export default {
         event_id: event.id !== undefined ? String(event.id) : String(storageIndex),
         event_name: event.name,
         date: event.date,
+        calendar: event.calendar || "solar",
+        lunarDate: JSON.stringify(event.lunarDate || null),
         repeat: event.repeat || "none",
         displayUnit: event.displayUnit || "days",
         pinned: event.pinned,

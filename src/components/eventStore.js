@@ -433,6 +433,7 @@ function createEventStore(options) {
     if (!input || typeof input !== "object" || Array.isArray(input)) {
       return {ok: false, error: {code: "INVALID_EVENT"}}
     }
+    if (input.calendar !== undefined && !dateUtils.validCalendar(input)) return {ok:false, error:{code:"INVALID_LUNAR"}}
     if (!partial || input.name !== undefined) {
       const code = validateName(input.name, previousName)
       if (code) return {ok: false, error: {code: code}}
@@ -481,6 +482,11 @@ function createEventStore(options) {
       category: input.category || "uncategorized",
       sortOrder: Math.min(Number.MAX_SAFE_INTEGER, state.events.reduce((max, e) => Math.max(max, e.sortOrder), -1) + 1),
       date: dateUtils.normalizeDate(input.date),
+      calendar: input.calendar || "solar",
+      lunarDate: input.lunarDate || null,
+      lunarTableVersion: input.lunarTableVersion,
+      lunarLeapPolicy: input.lunarLeapPolicy,
+      lunarShortMonthPolicy: input.lunarShortMonthPolicy,
       on_index: onIndex.valid ? onIndex.value : true,
       IFStaringDay: includeStart.valid ? includeStart.value : false,
       themeColor: typeof input.themeColor === "string" ? input.themeColor : ""
@@ -489,6 +495,8 @@ function createEventStore(options) {
 
   // 只更新消息中明确给出的字段，其余字段（主题色 / 显示设置 / 未来扩展）原样保留
   function applyPatch(event, patch) {
+    if (event.calendar === "lunar" && patch.calendar === undefined && patch.date !== undefined && dateUtils.normalizeDate(patch.date) !== event.date) return false
+    if (patch.calendar !== undefined) for (const field of ["calendar","lunarDate","lunarTableVersion","lunarLeapPolicy","lunarShortMonthPolicy"]) event[field] = patch[field]
     for (const field of ["pinned", "archived"]) if (patch[field] !== undefined) event[field] = toBoolean(patch[field]).value
     for (const field of ["category", "sortOrder"]) if (patch[field] !== undefined) event[field] = patch[field]
     if (patch.repeat !== undefined) event.repeat = patch.repeat
@@ -498,6 +506,7 @@ function createEventStore(options) {
     if (patch.on_index !== undefined) event.on_index = toBoolean(patch.on_index).value
     if (patch.IFStaringDay !== undefined) event.IFStaringDay = toBoolean(patch.IFStaringDay).value
     if (patch.themeColor !== undefined) event.themeColor = patch.themeColor
+    return true
   }
 
   function indexOfId(events, id) {
@@ -571,7 +580,7 @@ function createEventStore(options) {
         if (index < 0) return done({code: "NOT_FOUND"})
         const validation = validateEventInput(patch, true, result.state.events[index].name)
         if (!validation.ok) return done(validation.error)
-        applyPatch(result.state.events[index], patch)
+        if (!applyPatch(result.state.events[index], patch)) return done({code:"LUNAR_DATE_PROTECTED"})
         if (result.state.events[index].archived) dropPrimaryIfNeeded(result.state, id)
         if (patch.moveDirection) {
           reorder(result.state, id, patch.moveDirection)
@@ -600,7 +609,7 @@ function createEventStore(options) {
         if (index < 0 || index >= result.state.events.length) return done({code: "NOT_FOUND"})
         const validation = validateEventInput(patch, true, result.state.events[index].name)
         if (!validation.ok) return done(validation.error)
-        applyPatch(result.state.events[index], patch)
+        if (!applyPatch(result.state.events[index], patch)) return done({code:"LUNAR_DATE_PROTECTED"})
         if (result.state.events[index].archived) dropPrimaryIfNeeded(result.state, result.state.events[index].id)
         result.state.revision += 1
         commitAndSync(
@@ -716,6 +725,7 @@ function createEventStore(options) {
     const ids = []
     for (const event of data.events) {
       const validation = validateEventInput(event, false, event && event.name)
+      if (!dateUtils.validCalendar(event)) { callback({code:"INVALID_LUNAR"}); return }
       if (!validation.ok || typeof event.id !== "string" || !event.id || event.id.length > 128 ||
           ids.indexOf(event.id) >= 0 || typeof event.on_index !== "boolean" || typeof event.IFStaringDay !== "boolean" ||
           event.date !== dateUtils.normalizeDate(event.date) || event.name.length > 4096 || typeof event.themeColor !== "string" ||

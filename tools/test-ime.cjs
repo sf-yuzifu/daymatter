@@ -364,6 +364,26 @@ test("P-08: 全项目优化后图片与资源完整性校验（无损解码、�
   assert.equal(pngCount, 70, "优化后的 PNG 文件数量应为 70")
 })
 
+test("F-10 农历切换保持同日、日期选择含闰月、保存后重进保留", () => {
+  const h=createHarness()
+  h.router.push({uri:"/pages/index"})
+  const editor=h.router.push({uri:"/pages/edit",params:{extend:"true",event_name:"闰月生日",date:"2020-05-23"}})
+  editor.onCalendarChange({newValue:editor.calendarOptions[1]})
+  assert.equal(editor.calendar,"lunar")
+  assert.equal(editor.lunarDate.leap,true)
+  editor.editDate()
+  const picker=h.current()
+  assert.equal(picker.calendar,"lunar")
+  assert.ok(picker.monthRange.some(m=>m.includes("leapMonth")))
+  picker.saveEvent()
+  assert.equal(editor.date,"2020-05-23")
+  editor.repeat="yearly"
+  editor.saveEvent()
+  const stored=JSON.parse(h.files.get("internal://files/events.json")).events[0]
+  assert.equal(stored.calendar,"lunar")
+  assert.equal(stored.lunarDate.leap,true)
+})
+
 test("F-06 模板只更新新增草稿，保留日期名称且取消不提交", () => {
   const h = createHarness()
   h.router.push({uri:"/pages/index"})
