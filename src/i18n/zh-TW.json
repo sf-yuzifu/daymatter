@@ -1,4 +1,11 @@
 {
+  "backgroundTitle": "背景",
+  "backgroundDefault": "目前：預設黑色",
+  "backgroundCustom": "目前：自訂圖片",
+  "backgroundReadFail": "背景讀取失敗",
+  "restoreBackground": "恢復預設",
+  "restoreBackgroundConfirm": "恢復黑色背景？",
+  "backgroundResetSuccess": "已恢復預設背景",
   "calendarLabel": "曆法",
   "lunarCalendar": "農曆",
   "solarCalendar": "公曆",

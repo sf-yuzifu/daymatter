@@ -25,6 +25,16 @@
             <image id="logo" src="/common/logo.png" />
           </div>
         </div>
+        <div class="background-settings">
+          <text class="background-label">{{ $t("backgroundTitle") }}</text>
+          <text class="background-state">{{ $t(backgroundState) }}</text>
+          <text class="background-action" if="{{ hasBackground && !confirmReset }}" @click="askReset">{{ $t("restoreBackground") }}</text>
+          <div class="background-confirm" if="{{ confirmReset }}">
+            <text class="background-state">{{ $t("restoreBackgroundConfirm") }}</text>
+            <text class="background-action" @click="cancelReset">{{ $t("cancel") }}</text>
+            <text class="background-action" @click="resetBackground">{{ $t("restoreBackground") }}</text>
+          </div>
+        </div>
         <div id="copyright">
           <text class="re bold" if="{{ global.isPillShaped }}">
             {{ $t("author") }}
@@ -54,11 +64,15 @@
 <script>
 import router from "@system.router"
 import app from "@system.app"
+import {showToast} from "@system.prompt"
 
 export default {
   private: {
     ver: app.getInfo().versionName,
-    time: ""
+    time: "",
+    hasBackground: false,
+    backgroundState: "backgroundDefault",
+    confirmReset: false
   },
 
   onInit() {
@@ -70,20 +84,56 @@ export default {
   },
 
   onShow() {
+    this._visible = true
+    const token = (this._loadToken || 0) + 1
+    this._loadToken = token
+    global.backgroundStore.load((error, uri) => {
+      if (this._destroyed || !this._visible || token !== this._loadToken) return
+      this.hasBackground = !error && !!uri
+      this.backgroundState = error ? "backgroundReadFail" : uri ? "backgroundCustom" : "backgroundDefault"
+    })
     this.time = global.getTime()
     this._ticker.start()
   },
 
   onHide() {
+    this._visible = false
+    this.confirmReset = false
     this._ticker.stop()
   },
 
   onDestroy() {
+    this._destroyed = true
     this._ticker.stop()
   },
 
   routeBack() {
+    if (this.confirmReset && !this._resetting) { this.confirmReset = false; return }
     router.back()
+  },
+
+  askReset() {
+    if (!this._resetting) this.confirmReset = true
+  },
+
+  cancelReset() {
+    if (!this._resetting) this.confirmReset = false
+  },
+
+  resetBackground() {
+    if (this._resetting || !this.confirmReset) return
+    this._resetting = true
+    global.backgroundStore.reset((error) => {
+      this._resetting = false
+      if (this._destroyed) return
+      if (!error) {
+        this.hasBackground = false
+        this.backgroundState = "backgroundDefault"
+        this.confirmReset = false
+        this._loadToken = (this._loadToken || 0) + 1
+      }
+      if (this._visible) showToast({message: this.$t(error ? "bgSaveFail" : "backgroundResetSuccess"), duration: 2000})
+    })
   }
 }
 </script>
@@ -169,6 +219,48 @@ export default {
   flex: 1;
   flex-direction: column;
   align-items: center;
+}
+
+.background-settings {
+  width: 90%;
+  flex-direction: column;
+  background-color: #262626;
+  border-radius: 20px;
+  padding: 12px;
+  margin-top: 12px;
+}
+
+.background-label {
+  color: white;
+  font-size: 24px;
+}
+
+.background-state {
+  color: #999;
+  font-size: 22px;
+}
+
+.background-action {
+  color: #3184d0;
+  font-size: 24px;
+  min-height: 48px;
+}
+
+.background-confirm {
+  flex-direction: column;
+  width: 100%;
+}
+
+@media (shape: rect) {
+  .background-settings { width: 83%; }
+}
+
+@media (device-type: watch) and (shape: rect) {
+  .background-settings { width: 75%; }
+}
+
+@media (shape: circle) {
+  .background-settings { width: 70%; }
 }
 
 @media (shape: rect) {

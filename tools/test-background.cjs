@@ -16,17 +16,23 @@ function harness() {
   const calls = []
   let failure = ""
   const file = {}
-  for (const method of ["list", "writeArrayBuffer", "move", "delete"]) {
+  for (const method of ["list", "readText", "writeText", "writeArrayBuffer", "move", "delete"]) {
     file[method] = (options) => {
       calls.push([method, options.uri || options.srcUri])
       const snapshot = Array.from(files.keys()).map((uri) => ({uri}))
       tasks.push(() => {
-        if (failure === method) {
+        if (failure === method || failure === method + ":" + (options.dstUri || options.uri)) {
           if (method === "writeArrayBuffer") files.set(options.uri, "partial")
           options.fail("io error", 300)
           return
         }
         if (method === "list") { options.success({fileList: snapshot}); return }
+        if (method === "readText") {
+          if (files.has(options.uri)) options.success({text: files.get(options.uri)})
+          else options.fail("not found", 301)
+          return
+        }
+        if (method === "writeText") files.set(options.uri, options.text)
         if (method === "writeArrayBuffer") files.set(options.uri, Buffer.from(options.buffer).toString())
         if (method === "move") { files.set(options.dstUri, files.get(options.srcUri)); files.delete(options.srcUri) }
         if (method === "delete") files.delete(options.uri)
@@ -38,7 +44,7 @@ function harness() {
   }
   const store = context.module.exports.createBackgroundStore({file,
     decode: (value) => Uint8Array.from(Buffer.from(value, "base64")).buffer, now: () => 100})
-  return {files, tasks, calls, store, fail: (method) => { failure = method },
+  return {files, tasks, calls, store, file, fail: (method) => { failure = method },
     next: () => tasks.shift()(), flush: () => { while (tasks.length) tasks.shift()() }}
 }
 
@@ -62,11 +68,12 @@ test("G-02：解码、扫描、部分写入和引用提交失败均保留旧图�
 
 test("G-02：正式提交后才删除旧图，时钟相同/回退仍生成唯一且更新的文件名", () => {
   const h = harness()
+  h.files.set("internal://files/background.json", JSON.stringify({version: 1, uri: old}))
+  h.store.load(() => {})
+  h.flush()
   let committed
   let callbacks = 0
   h.store.save(jpeg, (error, uri) => { assert.equal(error, null); committed = uri; callbacks++ })
-  h.next() // list
-  assert.equal(h.files.get(old), "old")
   h.next() // write
   assert.equal(h.files.get(old), "old")
   assert.equal(Array.from(h.files.keys()).some((uri) => /pending/.test(uri)), true)
@@ -84,7 +91,7 @@ test("G-02：正式提交后才删除旧图，时钟相同/回退仍生成唯一
 
 test("G-02：清理旧图失败仍保留新提交，加载忽略临时文件", () => {
   const h = harness()
-  h.fail("delete")
+  h.fail("delete:" + old)
   let committed
   h.store.save(jpeg, (error, uri) => { assert.equal(error, null); committed = uri })
   h.flush()
@@ -94,18 +101,17 @@ test("G-02：清理旧图失败仍保留新提交，加载忽略临时文件", (
   assert.equal(h.files.get(old), "old")
 })
 
-test("G-02：在途上传被拒绝且不排队，迟到扫描不覆盖新提交", () => {
+test("G-02/G-03：在途上传被拒绝且不排队，提交后缓存加载新引用", () => {
   const h = harness()
   let committed
   h.store.save(jpeg, (error, uri) => { assert.equal(error, null); committed = uri })
   h.store.save("b3RoZXI=", (error) => { assert.equal(error.code, "BACKGROUND_BUSY") })
-  h.next() // save list
+  h.next() // index read
   let loaded
   h.store.load((error, uri) => { assert.equal(error, null); loaded = uri })
-  const stale = h.tasks.pop()
   h.flush()
-  stale()
-  h.flush()
+  assert.equal(loaded, old)
+  h.store.load((error, uri) => { assert.equal(error, null); loaded = uri })
   assert.equal(loaded, committed)
   assert.equal(h.files.has(committed), true)
 })
@@ -140,4 +146,72 @@ test("G-06：超限Base64在分配前拒绝，不调用解码器", () => {
   const store = context.module.exports.createBackgroundStore({file: {}, decode: () => { decoded = true }})
   store.save("A".repeat(140000), (error) => assert.ok(error))
   assert.equal(decoded, false)
+})
+
+test("G-03/G-04：旧图迁移索引、缓存免扫描、恢复默认重启不复活旧图", () => {
+  const h = harness()
+  h.store.load((error, uri) => { assert.equal(error, null); assert.equal(uri, old) })
+  h.flush()
+  const scans = h.calls.filter(([method]) => method === "list").length
+  h.store.load((error, uri) => { assert.equal(error, null); assert.equal(uri, old) })
+  assert.equal(h.calls.filter(([method]) => method === "list").length, scans)
+  h.files.set("internal://files/events.json", "keep")
+  h.files.set("internal://files/bg_pending_88.tmp", "partial")
+  h.files.set("internal://files/bg_unknown.png", "keep")
+  h.fail("delete:" + old)
+  h.store.reset((error) => assert.equal(error, null))
+  h.flush()
+  assert.equal(JSON.parse(h.files.get("internal://files/background.json")).uri, "")
+  assert.equal(h.files.has("internal://files/bg_pending_88.tmp"), false)
+  assert.equal(h.files.get("internal://files/bg_unknown.png"), "keep")
+  assert.equal(h.files.get("internal://files/events.json"), "keep")
+  assert.equal(h.files.get(old), "old")
+  const restarted = context.module.exports.createBackgroundStore({file: h.file, decode: () => {}})
+  restarted.load((error, uri) => { assert.equal(error, null); assert.equal(uri, "") })
+  h.flush()
+})
+
+test("G-03：索引提交失败回滚旧引用，备份可恢复，损坏/I-O失败不清理图片", () => {
+  for (const failure of ["writeText", "move:internal://files/background.json"]) {
+    const h = harness()
+    h.store.load(() => {})
+    h.flush()
+    h.fail(failure)
+    h.store.save(jpeg, (error) => assert.ok(error))
+    h.flush()
+    assert.equal(h.files.get(old), "old")
+    h.fail("")
+    const restarted = context.module.exports.createBackgroundStore({file: h.file, decode: () => {}})
+    restarted.load((error, uri) => { assert.equal(error, null); assert.equal(uri, old) })
+    h.flush()
+  }
+  const h = harness()
+  h.files.set("internal://files/background.json", "broken")
+  h.store.reset((error) => assert.ok(error))
+  h.flush()
+  assert.equal(h.files.get(old), "old")
+  assert.equal(h.calls.some(([method]) => method === "delete"), false)
+  h.files.set("internal://files/background.json.bak", JSON.stringify({version: 1, uri: old}))
+  h.store.load((error, uri) => { assert.equal(error, null); assert.equal(uri, old) })
+  h.flush()
+  assert.equal(JSON.parse(h.files.get("internal://files/background.json")).uri, old)
+  const io = harness()
+  io.fail("readText")
+  io.store.reset((error) => assert.ok(error))
+  io.flush()
+  assert.equal(io.calls.some(([method]) => method === "delete" || method === "writeText"), false)
+})
+
+test("G-04：恢复默认索引写失败保留背景，在途上传阻止恢复操作", () => {
+  const h = harness()
+  h.store.load(() => {})
+  h.flush()
+  h.fail("writeText")
+  h.store.reset((error) => assert.ok(error))
+  h.flush()
+  h.store.load((error, uri) => { assert.equal(error, null); assert.equal(uri, old) })
+  h.fail("")
+  h.store.save(jpeg, (error) => assert.equal(error, null))
+  h.store.reset((error) => assert.equal(error.code, "BACKGROUND_BUSY"))
+  h.flush()
 })

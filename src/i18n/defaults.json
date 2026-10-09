@@ -1,4 +1,11 @@
 {
+  "backgroundTitle": "Background",
+  "backgroundDefault": "Current: default black",
+  "backgroundCustom": "Current: custom image",
+  "backgroundReadFail": "Cannot read background",
+  "restoreBackground": "Restore default",
+  "restoreBackgroundConfirm": "Use black background?",
+  "backgroundResetSuccess": "Default background restored",
   "calendarLabel": "Calendar",
   "lunarCalendar": "Lunar",
   "solarCalendar": "Gregorian",

@@ -251,6 +251,7 @@ function createHarness() {
     file, decode: (value) => Uint8Array.from(Buffer.from(value, "base64")).buffer,
     now: () => clock.now
   })
+  state.backgroundFile = file
   state.global.eventStore = eventStoreModule.createEventStore({
     file: file,
     dateUtils: dateUtils,
@@ -1830,6 +1831,10 @@ test("C-26: 无自定义背景时不创建背景节点，有背景时按需创�
   assert.equal(home.bgImage, "", "无自定义背景必须留空，使用黑色底色")
 
   h.bgFiles = ["internal://files/bg_1700000000000.png"]
+  // 模拟应用升级后的首次启动：新实例无索引时才扫描旧背景。
+  h.files.delete("internal://files/background.json")
+  const module = loadModule(fs.readFileSync(path.join(root, "src/components/backgroundStore.js"), "utf8"), {}, "unused")
+  h.global.backgroundStore = module.createBackgroundStore({file: h.backgroundFile, decode: () => new ArrayBuffer(0)})
   home.onShow()
   assert.equal(home.bgImage, "internal://files/bg_1700000000000.png", "有背景时按需引用")
 })
@@ -1859,6 +1864,30 @@ test("G-02：首页迟到加载、隐藏/销毁后的保存回调不恢复旧节
   home.onDestroy()
   saves.shift()(null, "internal://files/bg_202.png")
   assert.equal(home.bgImage, "", "销毁释放背景，迟到回调不能重新创建引用")
+})
+
+test("G-04：关于页恢复默认确认/取消、重复点击和返回首页不建背景节点", () => {
+  const h = createHarness()
+  const uri = "internal://files/bg_100.png"
+  h.files.set("internal://files/background.json", JSON.stringify({version: 1, uri}))
+  h.files.set(uri, "image")
+  const home = h.router.push({uri: "/pages/index"})
+  const about = h.router.push({uri: "/pages/about"})
+  assert.equal(about.hasBackground, true)
+  about.askReset()
+  about.cancelReset()
+  assert.equal(about.confirmReset, false)
+  assert.equal(h.files.has(uri), true)
+  about.askReset()
+  h.deferWrites = true
+  about.resetBackground()
+  about.resetBackground()
+  h.flushWrites()
+  assert.equal(about.hasBackground, false)
+  assert.equal(JSON.parse(h.files.get("internal://files/background.json")).uri, "")
+  about.routeBack()
+  assert.equal(h.current(), home)
+  assert.equal(home.bgImage, "")
 })
 
 test("C-25: runGC 仅在宿主持有时低频调用，不在高频路径触发", () => {

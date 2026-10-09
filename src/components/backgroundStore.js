@@ -1,4 +1,4 @@
-// 正式 bg_<时间>.png/jpg 文件是已提交背景；临时文件不参与首页扫描。
+// background.json引用决定当前背景；旧版本无索引时迁移bg_<时间>.png/jpg。
 // 应用级单飞避免多个页面实例、连续上传和迟到回调交叉删除文件。
 const MAX_BYTES = 100 * 1024
 const MAX_EDGE = 450
@@ -43,8 +43,16 @@ function imageInfo(bytes) {
 
 function createBackgroundStore({file, decode, now = () => Date.now()}) {
   let busy = false
-  let revision = 0
   let sequence = 0
+  const indexUri = "internal://files/background.json"
+  const backupUri = indexUri + ".bak"
+  const tempIndexUri = indexUri + ".tmp"
+  const imagePattern = /^internal:\/\/files\/bg_\d+\.(png|jpg)$/
+  const pendingPattern = /^internal:\/\/files\/bg_pending_\d+\.tmp$/
+  let current = null
+  let indexExists = false
+  let loading = false
+  let waiters = []
 
   function once(callback) {
     let done = false
@@ -65,16 +73,120 @@ function createBackgroundStore({file, decode, now = () => Date.now()}) {
     }
   }
 
-  function load(callback) {
-    const started = revision
-    invoke("list", {uri: "internal://files/"}, (error, data) => {
-      // 旧扫描回包不能覆盖刚提交的新背景。
-      if (started !== revision) { load(callback); return }
+  function readIndex(uri, callback) {
+    invoke("readText", {uri: uri}, (error, data) => {
       if (error) { callback(error); return }
-      const files = (data.fileList || [])
-        .filter((item) => /^internal:\/\/files\/bg_\d+\.(png|jpg)$/.test(item.uri || ""))
-        .sort((a, b) => Number(b.uri.match(/bg_(\d+)/)[1]) - Number(a.uri.match(/bg_(\d+)/)[1]))
-      callback(null, files.length ? files[0].uri : "")
+      try {
+        if (!data || typeof data.text !== "string" || data.text.length > 512) throw new Error("Invalid index")
+        const parsed = JSON.parse(data.text)
+        if (parsed.version !== 1 || typeof parsed.uri !== "string" ||
+            (parsed.uri !== "" && !imagePattern.test(parsed.uri))) throw new Error("Invalid background reference")
+        callback(null, parsed.uri)
+      } catch (cause) { callback({code: "BACKGROUND_INDEX_INVALID", cause: cause}) }
+    })
+  }
+
+  function load(callback) {
+    if (current !== null) { callback(null, current); return }
+    waiters.push(callback)
+    if (loading) return
+    loading = true
+    const finish = (error, uri) => {
+      if (!error) current = uri
+      loading = false
+      const callbacks = waiters
+      waiters = []
+      callbacks.forEach((done) => done(error, uri))
+    }
+    readIndex(indexUri, (error, uri) => {
+      if (!error) { indexExists = true; finish(null, uri); return }
+      // 只在主索引不存在/损坏时检查备份；I/O失败不当成空索引。
+      if (error.code !== 301 && error.code !== "BACKGROUND_INDEX_INVALID") { finish(error); return }
+      indexExists = error.code !== 301
+      readIndex(backupUri, (backupError, backup) => {
+        if (!backupError) {
+          const restore = () => invoke("move", {srcUri: backupUri, dstUri: indexUri}, (restoreError) => {
+            if (!restoreError) indexExists = true
+            finish(restoreError, backup)
+          })
+          if (!indexExists) { restore(); return }
+          // 有有效备份时才移除损坏索引；恢复失败仍保留备份供下次重试。
+          invoke("delete", {uri: indexUri}, (deleteError) => {
+            if (deleteError) { finish(deleteError); return }
+            indexExists = false
+            restore()
+          })
+          return
+        }
+        if (error.code !== 301 || backupError.code !== 301) { finish(error.code !== 301 ? error : backupError); return }
+        // 仅无主索引/备份的旧版本首次加载扫描；恢复默认的空引用不会回退旧图。
+        invoke("list", {uri: "internal://files/"}, (listError, data) => {
+          if (listError) { finish(listError); return }
+          const images = (data.fileList || []).filter((item) => imagePattern.test(item.uri || ""))
+            .sort((a, b) => Number(b.uri.match(/bg_(\d+)/)[1]) - Number(a.uri.match(/bg_(\d+)/)[1]))
+          const legacy = images.length ? images[0].uri : ""
+          commit(legacy, (commitError) => finish(commitError, legacy))
+        })
+      })
+    })
+  }
+
+  function commit(uri, callback) {
+    invoke("writeText", {uri: tempIndexUri, text: JSON.stringify({version: 1, uri: uri})}, (writeError) => {
+      if (writeError) { callback(writeError); return }
+      const publish = (backedUp) => {
+        invoke("move", {srcUri: tempIndexUri, dstUri: indexUri}, (error) => {
+          if (error) {
+            if (!backedUp) { callback(error); return }
+            invoke("move", {srcUri: backupUri, dstUri: indexUri}, (rollbackError) => {
+              indexExists = !rollbackError
+              callback(error)
+            })
+            return
+          }
+          indexExists = true
+          current = uri
+          invoke("delete", {uri: backupUri}, () => callback(null))
+        })
+      }
+      if (!indexExists) { publish(false); return }
+      // 不依赖固件move覆盖行为；旧索引完整保留在bak中直到新索引提交。
+      invoke("delete", {uri: backupUri}, (deleteError) => {
+        if (deleteError && deleteError.code !== 301) { callback(deleteError); return }
+        invoke("move", {srcUri: indexUri, dstUri: backupUri}, (backupError) => {
+          if (backupError) { callback(backupError); return }
+          indexExists = false
+          publish(true)
+        })
+      })
+    })
+  }
+
+  function clean(callback) {
+    // 仅提交成功且保持单飞期间清理；索引读取失败时绝不猜测孤立文件。
+    invoke("list", {uri: "internal://files/"}, (error, data) => {
+      if (error) { callback(); return }
+      const garbage = (data.fileList || []).map((item) => item.uri).filter((uri) =>
+        uri !== current && (imagePattern.test(uri || "") || pendingPattern.test(uri || "")))
+      let offset = 0
+      const next = () => {
+        if (offset >= garbage.length) { callback(); return }
+        invoke("delete", {uri: garbage[offset++]}, next)
+      }
+      next()
+    })
+  }
+
+  function reset(callback) {
+    if (busy) { callback({code: "BACKGROUND_BUSY"}); return }
+    busy = true
+    const finish = once((error) => { busy = false; callback(error, error ? undefined : "") })
+    load((error) => {
+      if (error) { finish(error); return }
+      commit("", (commitError) => {
+        if (commitError) { finish(commitError); return }
+        clean(() => finish(null))
+      })
     })
   }
 
@@ -112,19 +224,22 @@ function createBackgroundStore({file, decode, now = () => Date.now()}) {
       invoke("writeArrayBuffer", {uri: temporary, buffer: buffer}, (writeError) => {
         buffer = null
         if (writeError) { discard(writeError); return }
-        // 移动到唯一正式路径即提交当前引用；失败时不触碰旧背景。
+        // 新图落盘后提交持久引用；引用失败的新图只作为孤立文件，不会被加载。
         invoke("move", {srcUri: temporary, dstUri: uri}, (moveError) => {
           if (moveError) { discard(moveError); return }
-          revision++
-          if (!oldUri) { finish(null, uri); return }
-          // 清理失败不撤销已成功提交的新背景。
-          invoke("delete", {uri: oldUri}, () => finish(null, uri))
+          commit(uri, (commitError) => {
+            if (commitError) {
+              invoke("delete", {uri: uri}, () => finish(commitError))
+              return
+            }
+            clean(() => finish(null, uri))
+          })
         })
       })
     })
   }
 
-  return {load: load, save: save}
+  return {load: load, save: save, reset: reset}
 }
 
 export default {createBackgroundStore, imageInfo}
