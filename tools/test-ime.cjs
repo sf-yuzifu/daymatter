@@ -244,6 +244,13 @@ function createHarness() {
   const eventStoreModule = loadModule(
     fs.readFileSync(path.join(root, "src/components/eventStore.js"), "utf8"), {}, "unused"
   )
+  const backgroundModule = loadModule(
+    fs.readFileSync(path.join(root, "src/components/backgroundStore.js"), "utf8"), {}, "unused"
+  )
+  state.global.backgroundStore = backgroundModule.createBackgroundStore({
+    file, decode: (value) => Uint8Array.from(Buffer.from(value, "base64")).buffer,
+    now: () => clock.now
+  })
   state.global.eventStore = eventStoreModule.createEventStore({
     file: file,
     dateUtils: dateUtils,
@@ -1825,6 +1832,33 @@ test("C-26: 无自定义背景时不创建背景节点，有背景时按需创�
   h.bgFiles = ["internal://files/bg_1700000000000.png"]
   home.onShow()
   assert.equal(home.bgImage, "internal://files/bg_1700000000000.png", "有背景时按需引用")
+})
+
+test("G-02：首页迟到加载、隐藏/销毁后的保存回调不恢复旧节点", () => {
+  const h = createHarness()
+  const loads = []
+  const saves = []
+  h.global.backgroundStore = {
+    load: (callback) => loads.push(callback),
+    save: (value, callback) => saves.push(callback)
+  }
+  const home = h.router.push({uri: "/pages/index"})
+  home.handleAddBG({bgBase64: "bmV3"})
+  saves.shift()(null, "internal://files/bg_200.png")
+  loads.shift()(null, "internal://files/bg_100.png")
+  assert.equal(home.bgImage, "internal://files/bg_200.png")
+  home.handleAddBG({bgBase64: "bmV3"})
+  home.onHide()
+  saves.shift()(null, "internal://files/bg_201.png")
+  assert.equal(home.bgImage, "internal://files/bg_200.png")
+  assert.equal(home._needsRefresh, true)
+  home.onShow()
+  loads.shift()(null, "internal://files/bg_201.png")
+  assert.equal(home.bgImage, "internal://files/bg_201.png")
+  home.handleAddBG({bgBase64: "bmV3"})
+  home.onDestroy()
+  saves.shift()(null, "internal://files/bg_202.png")
+  assert.equal(home.bgImage, "", "销毁释放背景，迟到回调不能重新创建引用")
 })
 
 test("C-25: runGC 仅在宿主持有时低频调用，不在高频路径触发", () => {

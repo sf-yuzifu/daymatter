@@ -72,7 +72,6 @@
 
 <script>
 import router from "@system.router"
-import file from "@system.file"
 import {showToast} from "@system.prompt"
 import interconnect from "@system.interconnect"
 import interconnectHub from "../../components/interconnectHub"
@@ -1052,69 +1051,26 @@ export default {
       return
     }
 
-    const timestamp = Date.now()
-    const newFileUri = `internal://files/bg_${timestamp}.png`
-    const oldFileUri = this.bgImage
-
-    const saveBackground = () => {
+    global.backgroundStore.save(bgBase64, (error, uri) => {
       if (this._destroyed) return
-      try {
-        const arrayBuffer = global.base64ToArrayBuffer(bgBase64)
-        const uint8Array = new Uint8Array(arrayBuffer)
-
-        file.writeArrayBuffer({
-          uri: newFileUri,
-          buffer: uint8Array,
-          success: () => {
-            if (this._destroyed) return
-            if (this.pageVisible) {
-              this.bgImage = newFileUri
-            } else {
-              this._needsRefresh = true
-            }
-            showToast({message: this.$t("bgUpdateSuccess"), duration: 2000})
-          },
-          fail: (d, code) => {
-            if (this._destroyed) return
-            showToast({message: this.$t("bgSaveFail", {code}), duration: 2000})
-          }
-        })
-      } catch (e) {
-        console.error("Save background error:", e)
-        showToast({message: this.$t("bgSaveFail"), duration: 2000})
+      if (error) {
+        showToast({message: this.$t("bgSaveFail", {code: error.code}), duration: 2000})
+        return
       }
-    }
-
-    if (oldFileUri && oldFileUri.startsWith("internal://files/bg_")) {
-      file.delete({
-        uri: oldFileUri,
-        success: saveBackground,
-        fail: saveBackground
-      })
-    } else {
-      saveBackground()
-    }
+      this._backgroundLoadToken = (this._backgroundLoadToken || 0) + 1
+      if (this.pageVisible) this.bgImage = uri
+      else this._needsRefresh = true
+      showToast({message: this.$t("bgUpdateSuccess"), duration: 2000})
+    })
   },
 
   loadBackground() {
-    file.list({
-      uri: "internal://files/",
-      success: (data) => {
-        if (this._destroyed) return
-        const bgFiles = (data.fileList || [])
-          .filter((f) => f.uri && f.uri.match(/bg_\d+\.png$/))
-          .sort((a, b) => {
-            const timeA = parseInt(a.uri.match(/bg_(\d+)\.png/)[1])
-            const timeB = parseInt(b.uri.match(/bg_(\d+)\.png/)[1])
-            return timeB - timeA
-          })
-        // 无自定义背景时留空，直接用黑色底色，不创建 blank.png 背景节点
-        this.bgImage = bgFiles.length > 0 ? bgFiles[0].uri : ""
-      },
-      fail: () => {
-        if (this._destroyed) return
-        this.bgImage = ""
-      }
+    const token = (this._backgroundLoadToken || 0) + 1
+    this._backgroundLoadToken = token
+    global.backgroundStore.load((error, uri) => {
+      if (this._destroyed || !this.pageVisible || token !== this._backgroundLoadToken) return
+      // 扫描失败保留已有背景，无自定义背景时保持空节点。
+      if (!error) this.bgImage = uri
     })
   },
 

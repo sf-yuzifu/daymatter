@@ -7,6 +7,7 @@ import dateUtils from "./components/dateUtils"
 import eventStoreFactory from "./components/eventStore"
 import eventOrder from "./components/eventOrder"
 import watchFaceFactory from "./components/watchface"
+import backgroundStoreFactory from "./components/backgroundStore"
 
 let screenSize = {width: 0, height: 0}
 
@@ -108,6 +109,11 @@ global.base64ToArrayBuffer = (base64) => {
   }
   return bytes.buffer
 }
+
+global.backgroundStore = backgroundStoreFactory.createBackgroundStore({
+  file: file,
+  decode: (value) => global.base64ToArrayBuffer(value)
+})
 
 export default {}
 </script>

@@ -74,12 +74,13 @@ npm run release
 | `npm run test:date` | 日期归一、非法日期、计入起始日、月末、闰年与年度重复 |
 | `npm run test:store` | 稳定 ID、旧数据迁移、串行提交、校验与写入失败恢复 |
 | `npm run test:watchface` | 主事件选择、替代 / 清空、表盘文件及失败补写 |
+| `node --test tools/test-background.cjs` | 背景安全替换、失败保留、在途隔离与迟到扫描 |
 | `npm run test:memory` | Node 页面栈与资源释放模拟，输出 GC 前后 JS 堆数值 |
 
 运行全部主要回归：
 
 ```bash
-node --test tools/test-ime.cjs tools/test-date.cjs tools/test-store.cjs tools/test-watchface.cjs
+node --test tools/test-ime.cjs tools/test-date.cjs tools/test-store.cjs tools/test-watchface.cjs tools/test-background.cjs
 ```
 
 这些工具运行实际页面脚本或纯逻辑，但不能替代设备上的渲染、触控、文件系统与内存测试。内存模拟数值来自 Node，不代表 Vela 的 JS 堆或原生内存。
