@@ -249,7 +249,7 @@ function createHarness() {
   )
   state.global.backgroundStore = backgroundModule.createBackgroundStore({
     file, decode: (value) => Uint8Array.from(Buffer.from(value, "base64")).buffer,
-    now: () => clock.now
+    now: () => clock.now, setTimer: fakeSetTimeout, clearTimer: fakeClearTimeout
   })
   state.backgroundFile = file
   state.global.eventStore = eventStoreModule.createEventStore({
@@ -1834,7 +1834,7 @@ test("C-26: 无自定义背景时不创建背景节点，有背景时按需创�
   // 模拟应用升级后的首次启动：新实例无索引时才扫描旧背景。
   h.files.delete("internal://files/background.json")
   const module = loadModule(fs.readFileSync(path.join(root, "src/components/backgroundStore.js"), "utf8"), {}, "unused")
-  h.global.backgroundStore = module.createBackgroundStore({file: h.backgroundFile, decode: () => new ArrayBuffer(0)})
+  h.global.backgroundStore = module.createBackgroundStore({file: h.backgroundFile, decode: () => new ArrayBuffer(0), setTimer: () => 0, clearTimer: () => {}})
   home.onShow()
   assert.equal(home.bgImage, "internal://files/bg_1700000000000.png", "有背景时按需引用")
 })
@@ -1864,6 +1864,43 @@ test("G-02：首页迟到加载、隐藏/销毁后的保存回调不恢复旧节
   home.onDestroy()
   saves.shift()(null, "internal://files/bg_202.png")
   assert.equal(home.bgImage, "", "销毁释放背景，迟到回调不能重新创建引用")
+})
+
+test("背景保存协议：实际页面最终回执、重复请求不重复写及失败回执", () => {
+  const h = createHarness()
+  const home = h.router.push({uri: "/pages/index"})
+  const send = (data) => home.handleInterconnectMessage({data: JSON.stringify(data)})
+  send({type:"hello",protocolVersion:2,sessionId:"bg-session",deviceId:"watch",handshakeId:"h",capabilities:["requestId"]})
+  const bgBase64 = Buffer.from([255,216,255,192,0,11,8,0,1,0,1,1,1,17,0]).toString("base64")
+  const request = {type:"addBG",bgBase64,requestId:"bg1",sessionId:"bg-session",deviceId:"watch"}
+  send(request)
+  assert.equal(h.connection.sent.at(-1).data.ok,true)
+  const writes = h.writes.length
+  send(request)
+  assert.equal(h.writes.length,writes)
+  send({...request,requestId:"bg2",bgBase64:"invalid"})
+  assert.equal(h.connection.sent.at(-1).data.ok,false)
+  assert.equal(h.connection.sent.at(-1).data.code,"BACKGROUND_DECODE")
+})
+
+test("背景分片实际页面：ACK推进、完整提交回执和重复finish不重写", () => {
+  const h=createHarness()
+  const home=h.router.push({uri:"/pages/index"})
+  const send=(data)=>home.handleInterconnectMessage({data:JSON.stringify(data)})
+  const identity={sessionId:"chunks",deviceId:"watch",requestId:"image1"}
+  send({type:"hello",protocolVersion:2,...identity,handshakeId:"h",capabilities:["requestId"]})
+  const bytes=Buffer.from([255,216,255,192,0,11,8,0,1,0,1,1,1,17,0])
+  let checksum=2166136261
+  for(const byte of bytes) checksum=Math.imul(checksum^byte,16777619)>>>0
+  send({...identity,type:"beginBG",bytes:bytes.length,checksum})
+  assert.equal(h.connection.sent.at(-1).data.type,"backgroundAck")
+  send({...identity,type:"backgroundChunk",offset:0,data:bytes.toString("base64")})
+  assert.equal(h.connection.sent.at(-1).data.next,bytes.length)
+  send({...identity,type:"finishBG"})
+  assert.equal(h.connection.sent.at(-1).data.ok,true)
+  const writes=h.writes.length
+  send({...identity,type:"finishBG"})
+  assert.equal(h.writes.length,writes)
 })
 
 test("G-04：关于页恢复默认确认/取消、重复点击和返回首页不建背景节点", () => {

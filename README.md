@@ -86,6 +86,8 @@ node --test tools/test-ime.cjs tools/test-date.cjs tools/test-store.cjs tools/te
 
 这些工具运行实际页面脚本或纯逻辑，但不能替代设备上的渲染、触控、文件系统与内存测试。内存模拟数值来自 Node，不代表 Vela 的 JS 堆或原生内存。
 
+发布包保持完整CSS属性名，不启用`--optimize-css-attr`：手环9 Pro固件3.1.171日志明确拒绝缩写属性，导致布局失效。构建后运行`node tools/check-release-css.cjs`检查实际RPK字节码中的完整属性与不支持的justifyItems。
+
 ### 资源与包体工具
 
 ```bash

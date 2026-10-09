@@ -1,7 +1,7 @@
 // background.json引用决定当前背景；旧版本无索引时迁移bg_<时间>.png/jpg。
 // 应用级单飞避免多个页面实例、连续上传和迟到回调交叉删除文件。
 const MAX_BYTES = 100 * 1024
-const MAX_EDGE = 450
+const MAX_EDGE = 512
 
 function imageInfo(bytes) {
   let width = 0
@@ -41,7 +41,7 @@ function imageInfo(bytes) {
   return {extension: extension, width: width, height: height}
 }
 
-function createBackgroundStore({file, decode, now = () => Date.now()}) {
+function createBackgroundStore({file, decode, now = () => Date.now(), setTimer = setTimeout, clearTimer = clearTimeout}) {
   let busy = false
   let sequence = 0
   const indexUri = "internal://files/background.json"
@@ -53,6 +53,87 @@ function createBackgroundStore({file, decode, now = () => Date.now()}) {
   let indexExists = false
   let loading = false
   let waiters = []
+  let transfer = null
+
+  function receive(frame, callback) {
+    if (frame.type === "beginBG") {
+      if (transfer && frame.requestId === transfer.requestId && frame.sessionId === transfer.sessionId && frame.deviceId === transfer.deviceId) {
+        callback(null, {next: transfer.offset}); return
+      }
+      if (busy) { callback({code: "BACKGROUND_BUSY"}); return }
+      if (!Number.isInteger(frame.bytes) || frame.bytes < 1 || frame.bytes > MAX_BYTES ||
+          !Number.isInteger(frame.checksum) || frame.checksum < 0 || frame.checksum > 4294967295) {
+        callback({code: "BACKGROUND_BUDGET"}); return
+      }
+      busy = true
+      // ACK前初始化单飞身份，重复begin在load期间仍只会得到busy，不能开启第二次写入。
+      load((error, oldUri) => {
+        if (error) { busy = false; callback(error); return }
+        sequence = Math.max(sequence + 1, now(), oldUri ? Number(oldUri.match(/bg_(\d+)/)[1]) + 1 : 0)
+        transfer = {sessionId: frame.sessionId, requestId: frame.requestId, deviceId: frame.deviceId,
+          bytes: frame.bytes, checksum: frame.checksum, offset: 0, hash: 2166136261,
+          temporary: `internal://files/bg_pending_${sequence}.tmp`, writing: false, info: null, last: null}
+        const active = transfer
+        active.timer = setTimer(() => {
+          if (transfer !== active) return
+          // 任务超时只在没有原生写入在途时清理，避免迟到写回串图。
+          if (active.writing) { active.expired = true; return }
+          invoke("delete", {uri: active.temporary}, () => {
+            if (transfer === active) { transfer = null; busy = false; callback({code:"BACKGROUND_TIMEOUT"}) }
+          })
+        }, 120000)
+        callback(null, {next: 0})
+      })
+      return
+    }
+    const state = transfer
+    if (!state || frame.sessionId !== state.sessionId || frame.requestId !== state.requestId || frame.deviceId !== state.deviceId) return
+    if (state.writing) return
+    const abort = (error) => {
+      clearTimer(state.timer)
+      invoke("delete", {uri: state.temporary}, () => { transfer = null; busy = false; callback(error) })
+    }
+    if (frame.type === "backgroundChunk") {
+      if (frame.offset < state.offset) {
+        if (state.last && frame.offset === state.last.offset && frame.data === state.last.data) callback(null, {next: state.offset})
+        else abort({code:"BACKGROUND_CHUNK_CONFLICT"})
+        return
+      }
+      if (frame.offset !== state.offset || typeof frame.data !== "string" || frame.data.length > 4096 ||
+          !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(frame.data)) {
+        abort({code:"BACKGROUND_CHUNK"}); return
+      }
+      let buffer
+      try {
+        buffer = new Uint8Array(decode(frame.data))
+        if (!buffer.length || buffer.length > 3072 || state.offset + buffer.length > state.bytes) throw new Error("Chunk budget")
+        if (!state.offset) state.info = imageInfo(buffer)
+      } catch (cause) { abort({code:"BACKGROUND_CHUNK",cause}); return }
+      let hash = state.hash
+      for (let i = 0; i < buffer.length; i++) hash = Math.imul(hash ^ buffer[i], 16777619) >>> 0
+      state.writing = true
+      invoke("writeArrayBuffer", {uri: state.temporary, buffer, append: state.offset > 0}, (error) => {
+        state.writing = false
+        if (state.expired) { abort({code:"BACKGROUND_TIMEOUT"}); return }
+        if (error) { abort(error); return }
+        state.offset += buffer.length
+        state.hash = hash
+        state.last = {offset: frame.offset, data: frame.data}
+        callback(null, {next: state.offset})
+      })
+    } else if (frame.type === "finishBG") {
+      if (state.offset !== state.bytes || state.hash !== state.checksum || !state.info) { abort({code:"BACKGROUND_INCOMPLETE"}); return }
+      state.writing = true
+      const uri = `internal://files/bg_${sequence}.${state.info.extension}`
+      invoke("move", {srcUri: state.temporary, dstUri: uri}, (error) => {
+        if (error) { abort(error); return }
+        commit(uri, (commitError) => {
+          if (commitError) { invoke("delete", {uri}, () => abort(commitError)); return }
+          clean(() => { clearTimer(state.timer); transfer = null; busy = false; callback(null, {uri, complete:true}) })
+        })
+      })
+    }
+  }
 
   function once(callback) {
     let done = false
@@ -239,7 +320,7 @@ function createBackgroundStore({file, decode, now = () => Date.now()}) {
     })
   }
 
-  return {load: load, save: save, reset: reset}
+  return {load: load, save: save, reset: reset, receive: receive}
 }
 
 export default {createBackgroundStore, imageInfo}

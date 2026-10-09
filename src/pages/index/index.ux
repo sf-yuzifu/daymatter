@@ -203,6 +203,8 @@ export default {
         sessionId: this._pluginSession,
         handshakeId: parsedData.handshakeId,
         deviceId: parsedData.deviceId,
+        screenWidth: global.screenSize && global.screenSize.width,
+        screenHeight: global.screenSize && global.screenSize.height,
         capabilities: [
           "stableId",
           "mutationResult",
@@ -218,6 +220,8 @@ export default {
           "lunarTable:dm-hko-v1",
           "revision",
           "backgroundJpeg",
+          "backgroundResult",
+          "backgroundChunks",
           "yearlyRepeat",
           "displayUnit",
           "pinned",
@@ -230,6 +234,13 @@ export default {
       return
     }
     if (parsedData.type === "capabilities") return
+    if (parsedData.type === "backgroundChunk" || parsedData.type === "finishBG") {
+      const request = this.findProtocolRequest(parsedData)
+      if (!request || request.background !== true) return
+      if (request.response) { this.sendProtocolResponse(request.response); return }
+      this.receiveBackground(parsedData, request)
+      return
+    }
     if (parsedData && parsedData.type === "getRequestResult") {
       const prior = this.findProtocolRequest(parsedData)
       if (prior && prior.response) this.sendProtocolResponse(prior.response)
@@ -290,7 +301,12 @@ export default {
       },
       restoreBackup: () => global.eventStore.restoreBackup(parsedData, (error, result) =>
         this.finishPluginMutation("changeSuccess", error, result, null, request)),
-      addBG: () => this.handleAddBG(parsedData)
+      addBG: () => this.handleAddBG(parsedData, request),
+      beginBG: () => {
+        if (!request) return
+        request.background = true
+        this.receiveBackground(parsedData, request)
+      }
     }
 
     const handler = Object.prototype.hasOwnProperty.call(handlers, parsedData.type)
@@ -299,7 +315,7 @@ export default {
     if (handler) {
       if (
         requestId &&
-        ["addEvent", "changeEvent", "deleteEvent", "moveEvent", "setSortMode", "setPrimary", "restoreBackup"].includes(
+        ["beginBG", "addBG", "addEvent", "changeEvent", "deleteEvent", "moveEvent", "setSortMode", "setPrimary", "restoreBackup"].includes(
           parsedData.type
         )
       ) {
@@ -316,7 +332,7 @@ export default {
         )
           return
         const fingerprint = canonicalProtocolValue(parsedData)
-        if (fingerprint.length > (parsedData.type === "restoreBackup" ? 250 * 1024 : PROTOCOL_PAYLOAD_LIMIT)) {
+        if (fingerprint.length > (parsedData.type === "restoreBackup" ? 250 * 1024 : parsedData.type === "addBG" ? 140 * 1024 : PROTOCOL_PAYLOAD_LIMIT)) {
           this.rejectProtocolRequest(parsedData, "REQUEST_TOO_LARGE")
           return
         }
@@ -324,7 +340,8 @@ export default {
         if (prior) {
           if (prior.fingerprint !== fingerprint)
             this.rejectProtocolRequest(parsedData, "REQUEST_CONFLICT")
-          else if (prior.response) this.sendProtocolResponse(prior.response)
+           else if (prior.response) this.sendProtocolResponse(prior.response)
+           else if (prior.background) this.receiveBackground(parsedData, prior)
           else
             this.sendProtocolResponse({
               type: "requestStatus",
@@ -1043,15 +1060,17 @@ export default {
     }
   },
 
-  handleAddBG(data) {
+  handleAddBG(data, request) {
     if (this._destroyed) return
     const {bgBase64} = data
     if (!bgBase64) {
+      this.finishProtocolRequest(request, {code: "BACKGROUND_EMPTY"})
       showToast({message: "No image data", duration: 2000})
       return
     }
 
     global.backgroundStore.save(bgBase64, (error, uri) => {
+      this.finishProtocolRequest(request, error, error ? null : {backgroundUri: uri})
       if (this._destroyed) return
       if (error) {
         showToast({message: this.$t("bgSaveFail", {code: error.code}), duration: 2000})
@@ -1061,6 +1080,22 @@ export default {
       if (this.pageVisible) this.bgImage = uri
       else this._needsRefresh = true
       showToast({message: this.$t("bgUpdateSuccess"), duration: 2000})
+    })
+  },
+
+  receiveBackground(data, request) {
+    global.backgroundStore.receive(data, (error, result) => {
+      if (error || (result && result.complete)) {
+        this.finishProtocolRequest(request, error)
+        if (!error && !this._destroyed) {
+          this._backgroundLoadToken = (this._backgroundLoadToken || 0) + 1
+          if (this.pageVisible) this.bgImage = result.uri
+          else this._needsRefresh = true
+        }
+      } else if (result) {
+        this.sendProtocolResponse({type:"backgroundAck", sessionId:data.sessionId,
+          requestId:data.requestId, deviceId:data.deviceId, next:result.next})
+      }
     })
   },
 

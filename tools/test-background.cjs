@@ -4,7 +4,7 @@ const path = require("node:path")
 const vm = require("node:vm")
 const {test} = require("node:test")
 const source = fs.readFileSync(path.join(__dirname, "../src/components/backgroundStore.js"), "utf8")
-const context = vm.createContext({module: {exports: {}}})
+const context = vm.createContext({module: {exports: {}}, setTimeout, clearTimeout})
 vm.runInContext(source.replace("export default", "module.exports ="), context)
 const old = "internal://files/bg_100.png"
 // JPEG SOF尺寸头：存储层只验证格式/尺寸，完整解码由插件负责。
@@ -33,7 +33,7 @@ function harness() {
           return
         }
         if (method === "writeText") files.set(options.uri, options.text)
-        if (method === "writeArrayBuffer") files.set(options.uri, Buffer.from(options.buffer).toString())
+        if (method === "writeArrayBuffer") files.set(options.uri, (options.append ? files.get(options.uri) || "" : "") + Buffer.from(options.buffer).toString("latin1"))
         if (method === "move") { files.set(options.dstUri, files.get(options.srcUri)); files.delete(options.srcUri) }
         if (method === "delete") files.delete(options.uri)
         options.success({})
@@ -63,6 +63,30 @@ test("G-02：解码、扫描、部分写入和引用提交失败均保留旧图�
     h.store.load((error, uri) => { assert.equal(error, null); loaded = uri })
     h.flush()
     assert.equal(loaded, old)
+  }
+})
+
+test("背景小分片：逐片ACK/重复不追加、校验失败留旧图、完整后提交", () => {
+  for (const corrupt of [false,true]) {
+    const h = harness()
+    const bytes = Buffer.alloc(6000, 1)
+    Buffer.from(jpeg,"base64").copy(bytes)
+    let hash = 2166136261
+    for (const byte of bytes) hash = Math.imul(hash ^ byte,16777619) >>> 0
+    const identity = {sessionId:"s",requestId:"r",deviceId:"d"}
+    h.store.receive({...identity,type:"beginBG",bytes:bytes.length,checksum:corrupt ? hash ^ 1 : hash}, (error) => assert.equal(error,null))
+    h.flush()
+    for (let offset=0;offset<bytes.length;offset+=3072) {
+      const frame={...identity,type:"backgroundChunk",offset,data:bytes.subarray(offset,offset+3072).toString("base64")}
+      const receive=()=>h.store.receive(frame,(error,result)=>{assert.equal(error,null);assert.equal(result.next,Math.min(offset+3072,bytes.length))})
+      receive(); h.flush(); receive(); h.flush()
+    }
+    h.store.receive({...identity,type:"finishBG"},(error,result)=>{
+      if(corrupt) assert.ok(error)
+      else {assert.equal(error,null);assert.equal(result.complete,true);assert.deepEqual(Buffer.from(h.files.get(result.uri),"latin1"),bytes)}
+    })
+    h.flush()
+    if(corrupt) assert.equal(h.files.get(old),"old")
   }
 })
 
@@ -130,11 +154,11 @@ test("G-01/G-06：真实PNG/JPEG后缀、旧文件兼容、头部尺寸及字节
     h.flush()
   }
   const huge = Buffer.from(png)
-  huge.writeUInt32BE(451, 16)
+  huge.writeUInt32BE(513, 16)
   h.store.save(huge.toString("base64"), (error) => assert.ok(error))
   h.flush()
   const hugeJpeg = Buffer.from(jpeg, "base64")
-  hugeJpeg.writeUInt16BE(451, 7)
+  hugeJpeg.writeUInt16BE(513, 7)
   h.store.save(hugeJpeg.toString("base64"), (error) => assert.ok(error))
   h.flush()
   assert.equal(h.files.has("internal://files/bg_101.png"), true)
