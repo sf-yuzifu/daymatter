@@ -6,7 +6,7 @@
   "email": "yzf@yzf.moe",
   "license": "GPL-3.0-or-later",
   "engines": {
-    "node": ">=18.10"
+    "node": ">=18.18"
   },
   "scripts": {
     "start": "aiot start --watch",
@@ -19,11 +19,19 @@
     "test:date": "node --test tools/test-date.cjs",
     "test:store": "node --test tools/test-store.cjs",
     "test:watchface": "node --test tools/test-watchface.cjs",
-    "test:memory": "node --expose-gc --test tools/test-ime.cjs"
+    "test:memory": "node --expose-gc --test tools/test-ime.cjs",
+    "test": "node --test tools/test-ime.cjs tools/test-date.cjs tools/test-store.cjs tools/test-watchface.cjs tools/test-background.cjs",
+    "lint": "eslint src tools",
+    "format:check": "prettier --check eslint.config.cjs tools/check-project.cjs tools/check-release-css.cjs",
+    "check": "npm run lint && node tools/check-project.cjs && npm run format:check",
+    "check:release": "node tools/check-release-css.cjs"
   },
   "devDependencies": {
     "@aiot-toolkit/jsc": "^1.0.3",
     "adm-zip": "^0.5.16",
-    "aiot-toolkit": "^2.0.5"
+    "aiot-toolkit": "^2.0.5",
+    "eslint": "^9",
+    "eslint-plugin-html": "^8",
+    "prettier": "^3"
   }
 }

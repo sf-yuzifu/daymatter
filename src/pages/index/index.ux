@@ -340,8 +340,8 @@ export default {
         if (prior) {
           if (prior.fingerprint !== fingerprint)
             this.rejectProtocolRequest(parsedData, "REQUEST_CONFLICT")
-           else if (prior.response) this.sendProtocolResponse(prior.response)
-           else if (prior.background) this.receiveBackground(parsedData, prior)
+          else if (prior.response) this.sendProtocolResponse(prior.response)
+          else if (prior.background) this.receiveBackground(parsedData, prior)
           else
             this.sendProtocolResponse({
               type: "requestStatus",

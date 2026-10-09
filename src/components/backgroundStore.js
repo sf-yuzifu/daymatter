@@ -58,6 +58,7 @@ function createBackgroundStore({file, decode, now = () => Date.now(), setTimer =
   function receive(frame, callback) {
     if (frame.type === "beginBG") {
       if (transfer && frame.requestId === transfer.requestId && frame.sessionId === transfer.sessionId && frame.deviceId === transfer.deviceId) {
+        if (transfer.writing || transfer.ending) return
         callback(null, {next: transfer.offset}); return
       }
       if (busy) { callback({code: "BACKGROUND_BUSY"}); return }
@@ -66,7 +67,6 @@ function createBackgroundStore({file, decode, now = () => Date.now(), setTimer =
         callback({code: "BACKGROUND_BUDGET"}); return
       }
       busy = true
-      // ACK前初始化单飞身份，重复begin在load期间仍只会得到busy，不能开启第二次写入。
       load((error, oldUri) => {
         if (error) { busy = false; callback(error); return }
         sequence = Math.max(sequence + 1, now(), oldUri ? Number(oldUri.match(/bg_(\d+)/)[1]) + 1 : 0)
@@ -77,7 +77,9 @@ function createBackgroundStore({file, decode, now = () => Date.now(), setTimer =
         active.timer = setTimer(() => {
           if (transfer !== active) return
           // 任务超时只在没有原生写入在途时清理，避免迟到写回串图。
+          if (active.finalizing) return
           if (active.writing) { active.expired = true; return }
+          active.ending = true
           invoke("delete", {uri: active.temporary}, () => {
             if (transfer === active) { transfer = null; busy = false; callback({code:"BACKGROUND_TIMEOUT"}) }
           })
@@ -88,9 +90,10 @@ function createBackgroundStore({file, decode, now = () => Date.now(), setTimer =
     }
     const state = transfer
     if (!state || frame.sessionId !== state.sessionId || frame.requestId !== state.requestId || frame.deviceId !== state.deviceId) return
-    if (state.writing) return
+    if (state.writing || state.ending) return
     const abort = (error) => {
       clearTimer(state.timer)
+      state.ending = true
       invoke("delete", {uri: state.temporary}, () => { transfer = null; busy = false; callback(error) })
     }
     if (frame.type === "backgroundChunk") {
@@ -112,7 +115,7 @@ function createBackgroundStore({file, decode, now = () => Date.now(), setTimer =
       let hash = state.hash
       for (let i = 0; i < buffer.length; i++) hash = Math.imul(hash ^ buffer[i], 16777619) >>> 0
       state.writing = true
-      invoke("writeArrayBuffer", {uri: state.temporary, buffer, append: state.offset > 0}, (error) => {
+      writeBinary({uri: state.temporary, buffer, append: state.offset > 0}, (error) => {
         state.writing = false
         if (state.expired) { abort({code:"BACKGROUND_TIMEOUT"}); return }
         if (error) { abort(error); return }
@@ -125,6 +128,8 @@ function createBackgroundStore({file, decode, now = () => Date.now(), setTimer =
       if (state.offset !== state.bytes || state.hash !== state.checksum || !state.info) { abort({code:"BACKGROUND_INCOMPLETE"}); return }
       state.writing = true
       const uri = `internal://files/bg_${sequence}.${state.info.extension}`
+      state.finalizing = true
+      clearTimer(state.timer)
       invoke("move", {srcUri: state.temporary, dstUri: uri}, (error) => {
         if (error) { abort(error); return }
         commit(uri, (commitError) => {
@@ -142,6 +147,15 @@ function createBackgroundStore({file, decode, now = () => Date.now(), setTimer =
       done = true
       callback(...args)
     }
+  }
+
+  function writeBinary(options, callback) {
+    invoke("writeArrayBuffer", options, (error, result) => {
+      // append失败可能部分写入，不能盲目回退追加；首次覆盖建文件可安全重写。
+      if (error && !options.append && options.buffer instanceof Uint8Array) {
+        invoke("writeArrayBuffer", {...options, buffer: options.buffer.buffer}, callback)
+      } else callback(error, result)
+    })
   }
 
   function invoke(method, options, callback) {
@@ -302,7 +316,7 @@ function createBackgroundStore({file, decode, now = () => Date.now(), setTimer =
       const discard = (failure) => {
         invoke("delete", {uri: temporary}, () => finish(failure))
       }
-      invoke("writeArrayBuffer", {uri: temporary, buffer: buffer}, (writeError) => {
+      writeBinary({uri: temporary, buffer: buffer}, (writeError) => {
         buffer = null
         if (writeError) { discard(writeError); return }
         // 新图落盘后提交持久引用；引用失败的新图只作为孤立文件，不会被加载。

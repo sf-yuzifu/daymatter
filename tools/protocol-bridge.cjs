@@ -4,7 +4,7 @@ const vm = require("node:vm")
 const path = require("node:path")
 const source = fs.readFileSync(path.join(__dirname, "test-ime.cjs"), "utf8")
 const harnessSource = source.slice(0, source.indexOf('\ntest("'))
-const context = vm.createContext({require, __dirname, console})
+const context = vm.createContext({require, __dirname, console, Buffer})
 vm.runInContext(harnessSource + "\nthis.createHarness = createHarness", context)
 const input = JSON.parse(fs.readFileSync(0, "utf8"))
 const h = context.createHarness()
@@ -22,7 +22,12 @@ if (input.failBatch !== undefined) {
     } else if (options.success) options.success()
   }
 }
-for (const message of input.messages) connection.onmessage({data: message})
+for (const message of input.messages) {
+  connection.onmessage({data: message})
+  if (input.flushEach) h.flushWrites()
+}
 h.flushWrites()
 process.stdout.write(JSON.stringify({messages: connection.sent.map((item) => item.data),
-  store: JSON.parse(h.files.get("internal://files/events.json"))}))
+   background: h.current().bgImage,
+   backgroundData: h.files.get(h.current().bgImage) || null,
+   store: JSON.parse(h.files.get("internal://files/events.json"))}))

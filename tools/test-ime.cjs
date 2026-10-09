@@ -229,9 +229,16 @@ function createHarness() {
         fail("not found", 300)
       }
     },
-    writeArrayBuffer({uri, success}) {
-      state.files.set(uri, "[buffer]")
-      if (success) success()
+    writeArrayBuffer({uri, buffer, append, success, fail}) {
+      const run = () => {
+        if (state.failWrites) { if (fail) fail("io error", 300); return }
+        const bytes = Buffer.from(buffer.buffer || buffer, buffer.byteOffset || 0, buffer.byteLength)
+        const previous = append && state.files.has(uri) ? Buffer.from(state.files.get(uri), "base64") : Buffer.alloc(0)
+        state.files.set(uri, Buffer.concat([previous, bytes]).toString("base64"))
+        if (success) success()
+      }
+      if (state.deferWrites) writeQueue.push(run)
+      else run()
     },
     delete({uri, success}) {
       state.files.delete(uri)

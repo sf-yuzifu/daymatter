@@ -14,6 +14,7 @@ function harness() {
   const files = new Map([[old, "old"]])
   const tasks = []
   const calls = []
+  let timeout = null
   let failure = ""
   const file = {}
   for (const method of ["list", "readText", "writeText", "writeArrayBuffer", "move", "delete"]) {
@@ -43,10 +44,34 @@ function harness() {
     }
   }
   const store = context.module.exports.createBackgroundStore({file,
-    decode: (value) => Uint8Array.from(Buffer.from(value, "base64")).buffer, now: () => 100})
+    decode: (value) => Uint8Array.from(Buffer.from(value, "base64")).buffer, now: () => 100,
+    setTimer: (fn) => { timeout = fn; return 1 }, clearTimer: () => { timeout = null }})
   return {files, tasks, calls, store, file, fail: (method) => { failure = method },
-    next: () => tasks.shift()(), flush: () => { while (tasks.length) tasks.shift()() }}
+    expire: () => { if (timeout) timeout() }, next: () => tasks.shift()(), flush: () => { while (tasks.length) tasks.shift()() }}
 }
+
+test("分片超时/迟到写入、同片冲突和缺片finish均保留旧背景并释放单飞", () => {
+  for (const mode of ["idle", "writing", "conflict", "missing"]) {
+    const h = harness()
+    const identity = {sessionId:"s",requestId:"r",deviceId:"d"}
+    const bytes = Buffer.from(jpeg,"base64")
+    let hash = 2166136261; for(const b of bytes) hash = Math.imul(hash ^ b,16777619) >>> 0
+    let failure
+    const done = (error) => { if(error) failure=error }
+    h.store.receive({...identity,type:"beginBG",bytes:bytes.length,checksum:hash},done);h.flush()
+    const chunk = {...identity,type:"backgroundChunk",offset:0,data:jpeg}
+    if(mode==="writing") {h.store.receive(chunk,done);h.expire();h.flush()}
+    if(mode==="idle") {h.expire();h.flush()}
+    if(mode==="missing") {h.store.receive({...identity,type:"finishBG"},done);h.flush()}
+    if(mode==="conflict") {
+      h.store.receive(chunk,done);h.flush()
+      h.store.receive({...chunk,data:"AAAA"},done);h.flush()
+    }
+    assert.ok(failure,mode)
+    assert.equal(h.files.get(old),"old")
+    h.store.reset((error)=>assert.equal(error,null));h.flush()
+  }
+})
 
 test("G-02：解码、扫描、部分写入和引用提交失败均保留旧图，重启不选中临时图", () => {
   for (const failure of ["decode", "list", "writeArrayBuffer", "move"]) {
