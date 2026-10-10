@@ -437,6 +437,30 @@ test("原名称和本地化标题进入新版键盘，确认只改名称草稿",
   assert.equal(h.global.__daymatterImeOwner, null)
 })
 
+test("O-03 列表名称独立，周年在状态前，数字仍为天数且表盘标记独立", () => {
+  const h = createHarness()
+  h.router.push({uri: "/pages/list"})
+  const list = h.current()
+  const language = JSON.parse(fs.readFileSync(path.join(root, "src/i18n/zh-CN.json"), "utf8"))
+  list.$t = (key, params) => (language[key] || key).replace(/\{count\}/g, String(params && params.count))
+  const annual = {id: "annual", name: "结婚纪念日", date: "2021-10-18", repeat: "yearly", displayUnit: "years"}
+  const item = list.formatEvent(annual, 0)
+  assert.equal(item.name, "结婚纪念日")
+  assert.equal(item.statusText, "第5周年 · 还有")
+  assert.equal(item.days, "12")
+  const exam = list.formatEvent({id: "exam", name: "高考", date: "2026-10-18"}, 1)
+  assert.equal(exam.statusText, "还有")
+  assert.equal(exam.days, "12")
+  list._primaryId = "annual"
+  assert.equal(list.formatEvent(annual, 0).watchface, true)
+  assert.equal(list.formatEvent(annual, 0).name, annual.name)
+  assert.equal(list.formatEvent({date: "2026-10-05", name: "过去"}, 2).statusText, "已经")
+  assert.equal(list.formatEvent({date: "2026-10-06", name: "今天"}, 3).statusText, "")
+  const todayAnnual = list.formatEvent({date: "2021-10-06", name: "周年当天", repeat: "yearly"}, 4)
+  assert.equal(todayAnnual.statusText, "第5周年")
+  assert.equal(todayAnnual.days, "今天")
+})
+
 test("O-01 实际首页及列表刷新每事件最多计算一次，近期筛选与展示复用", () => {
   const h = createHarness()
   h.files.set("internal://files/events.json", JSON.stringify({version: 2, revision: 1, sortMode: "near", events:
@@ -1773,7 +1797,7 @@ test("D-17 / D-18: 编辑页按稳定 ID 切换表盘主事件，列表传递当
   // 列表再次进入时传递正确标记，并只做文本标记不新增节点
   const list2 = h.router.push({uri: "/pages/list"})
   assert.equal(list2._primaryId, target.id)
-  const marked = list2.events.filter((item) => item.display_name.indexOf("表盘") >= 0)
+  const marked = list2.events.filter((item) => item.watchface)
   assert.equal(marked.length, 1, "仅主事件带表盘标记")
   assert.ok(!fs.readFileSync(path.join(root, "src/pages/list/list.ux"), "utf8").includes("watchface-badge"),
     "表盘标记不得引入额外节点")

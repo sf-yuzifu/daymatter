@@ -19,14 +19,18 @@
     <div class="box">
       <div class="filter-panel" if="{{ contentVisible }}">
         <div class="filter-header" @click="toggleSettings">
-          <marquee class="filter-summary" scrollamount="20" text-offset="20">{{ filterSummary }}</marquee>
+          <marquee class="filter-summary" scrollamount="20" text-offset="20">
+            {{ filterSummary }}
+          </marquee>
           <text class="filter-arrow iconfont" if="{{ settingsExpanded }}">&#xe686;</text>
           <text class="filter-arrow iconfont" else>&#xe685;</text>
         </div>
         <div class="filter-body" if="{{ settingsExpanded }}">
           <div class="filter-row" @click="cycleDraftSort">
             <text class="filter-label">{{ $t("sortModeLabel") }}</text>
-            <marquee class="filter-value" scrollamount="20" text-offset="20">{{ $t(draftSort) }}</marquee>
+            <marquee class="filter-value" scrollamount="20" text-offset="20">
+              {{ $t(draftSort) }}
+            </marquee>
           </div>
           <div class="filter-row" @click="cycleDraftCategory">
             <text class="filter-label">{{ $t("category") }}</text>
@@ -36,7 +40,19 @@
           </div>
           <div class="filter-row" @click="cycleDraftScope">
             <text class="filter-label">{{ $t("displayScope") }}</text>
-            <marquee class="filter-value" scrollamount="20" text-offset="20">{{ $t(periodFilter === 'today' ? 'todayEvents' : periodFilter === 'upcoming' ? 'upcomingEvents' : draftArchived ? 'archived' : 'activeEvents') }}</marquee>
+            <marquee class="filter-value" scrollamount="20" text-offset="20">
+              {{
+                $t(
+                  periodFilter === "today"
+                    ? "todayEvents"
+                    : periodFilter === "upcoming"
+                    ? "upcomingEvents"
+                    : draftArchived
+                    ? "archived"
+                    : "activeEvents"
+                )
+              }}
+            </marquee>
           </div>
         </div>
       </div>
@@ -49,10 +65,29 @@
         >
           <div class="countdown-card">
             <div
-              class="card-header"
+              class="{{ $item.statusText ? 'card-header' : 'card-header card-header-centered' }}"
               style="background-color: {{ global.adjustThemeColor($item.themeColor, $item.already) }}"
             >
-              <text class="countdown-name">{{ $item.display_name }}</text>
+              <div class="name-row">
+                <text
+                  class="{{ $item.watchface && !$item.statusText ? 'countdown-name countdown-name-with-icon' : 'countdown-name' }}"
+                >
+                  {{ $item.name }}
+                </text>
+                <div class="watchface-icon" if="{{ $item.watchface && !$item.statusText }}">
+                  <div class="watchface-strap"></div>
+                  <div class="watchface-dial"></div>
+                  <div class="watchface-strap"></div>
+                </div>
+              </div>
+              <div class="status-row" if="{{ $item.statusText }}">
+                <text class="countdown-status">{{ $item.statusText }}</text>
+                <div class="watchface-icon" if="{{ $item.watchface }}">
+                  <div class="watchface-strap"></div>
+                  <div class="watchface-dial"></div>
+                  <div class="watchface-strap"></div>
+                </div>
+              </div>
             </div>
             <div class="card-body">
               <text class="countdown-days" style="font-size: {{ $item.font_size }}">
@@ -162,37 +197,38 @@ export default {
   },
 
   formatEvent(event, storageIndex, cachedStatus) {
-    const recurringStatus = cachedStatus === undefined
-      ? global.dateUtils.getRecurringStatus(event) : cachedStatus
+    const recurringStatus =
+      cachedStatus === undefined ? global.dateUtils.getRecurringStatus(event) : cachedStatus
     const status = recurringStatus || global.dateUtils.TODAY_STATUS
     let days,
-      display_name = event.name,
+      statusText = "",
       already = true
 
     if (status.state === "past") {
-      display_name += this.$t("already")
+      statusText = this.$t("already").trim()
       days = String(status.days)
     } else if (status.state === "today") {
       days = this.$t("today")
     } else {
-      display_name += this.$t("remaining")
+      statusText = this.$t("remaining").trim()
       days = String(status.days)
       already = false
     }
 
-    // 表盘主事件与首页展示独立，列表只做标记，不新增节点
+    // 名称保持独立；周年在状态之前，表盘标记不再拼进名称。
     const watchface = event.id === this._primaryId
     if (event.calendar === "lunar" && !recurringStatus) days = "--"
     if (event.repeat === "yearly" && status.anniversary !== null)
-      display_name += " " + this.$t("anniversary", {count: status.anniversary})
-    if (watchface) display_name += " " + this.$t("watchfaceBadge")
+      statusText =
+        this.$t("anniversary", {count: status.anniversary}) + (statusText ? " · " + statusText : "")
 
     const font_size = calculateListFontSize(days, this.$t("today")) + getExtraFontSize()
 
     return {
       name: event.name,
       id: event.id,
-      display_name,
+      statusText,
+      watchface,
       date: event.date,
       days,
       already,
@@ -269,7 +305,9 @@ export default {
           " · " +
           this.$t(this.archiveFilter ? "archived" : "activeEvents")
     // 每次列表变更后按原始存储下标重建当前页映射
-    if (this.periodFilter !== "all") this.filterSummary += " · " + this.$t(this.periodFilter === "today" ? "todayEvents" : "upcomingEvents")
+    if (this.periodFilter !== "all")
+      this.filterSummary +=
+        " · " + this.$t(this.periodFilter === "today" ? "todayEvents" : "upcomingEvents")
     const refresh = global.eventOrder.createRefresh(global.dateUtils)
     const ordered = global.eventOrder.select(this._allEvents, this.sortMode, global.dateUtils, {
       archived: this.archiveFilter,
@@ -421,6 +459,7 @@ export default {
   margin-bottom: 8px;
   flex-shrink: 0;
   flex-direction: column;
+  border: 3px solid rgba(255, 255, 255, 0.06);
   background-color: #262626;
   border-radius: 14px;
 }
@@ -601,18 +640,79 @@ export default {
 
 .card-header {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  justify-content: space-between;
   width: 65%;
   height: 100%;
-  padding-left: 4px;
+  padding: 6px 6px;
+}
+
+.name-row {
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.card-header-centered {
+  justify-content: center;
+}
+
+.status-row {
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.watchface-icon {
+  width: 14px;
+  height: 20px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.watchface-strap {
+  width: 6px;
+  height: 3px;
+  background-color: white;
+  flex-shrink: 0;
+}
+
+.watchface-dial {
+  width: 12px;
+  height: 12px;
+  border: 2px solid white;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.countdown-status {
+  flex-shrink: 1;
+  font-size: 16px;
+  font-weight: bold;
+  color: white;
+  lines: 1;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 
 .countdown-name {
+  flex: 1;
   font-size: 22px;
   text-overflow: ellipsis;
   font-weight: bold;
   color: white;
-  lines: 2;
+  lines: 1;
+}
+
+.countdown-name-with-icon {
+  flex-grow: 0;
+  flex-basis: auto;
+  flex-shrink: 1;
 }
 
 .card-body {
@@ -710,6 +810,10 @@ export default {
     font-size: 26px;
   }
 
+  .countdown-status {
+    font-size: 20px;
+  }
+
   .card-body {
     width: 30%;
   }
@@ -743,6 +847,10 @@ export default {
     font-size: 26px;
   }
 
+  .countdown-status {
+    font-size: 20px;
+  }
+
   .card-body {
     width: 30%;
   }
@@ -774,6 +882,10 @@ export default {
 
   .countdown-name {
     font-size: 26px;
+  }
+
+  .countdown-status {
+    font-size: 20px;
   }
 
   .card-body {
