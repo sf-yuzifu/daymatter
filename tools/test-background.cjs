@@ -142,6 +142,58 @@ test("背景小分片：逐片ACK/重复不追加、校验失败留旧图、完�
   }
 })
 
+test("256KiB背景按24KiB分片提交，超限总量/分片拒绝", () => {
+  const h = harness()
+  const bytes = Buffer.alloc(256 * 1024, 17)
+  Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aU1cAAAAASUVORK5CYII=", "base64").copy(bytes)
+  let hash = 2166136261
+  for (const byte of bytes) hash = Math.imul(hash ^ byte, 16777619) >>> 0
+  const identity = {sessionId: "s", requestId: "r", deviceId: "d"}
+  const done = error => assert.equal(error, null)
+  h.store.receive({...identity, type: "beginBG", bytes: bytes.length, checksum: hash}, done)
+  h.flush()
+  let count = 0
+  for (let offset = 0; offset < bytes.length; offset += 24 * 1024) {
+    const frame = {...identity, type: "backgroundChunk", offset, data: bytes.subarray(offset, offset + 24 * 1024).toString("base64")}
+    h.store.receive(frame, done); h.flush()
+    h.store.receive(frame, done); h.flush()
+    count++
+  }
+  assert.equal(count, 11)
+  h.store.receive({...identity, type: "finishBG"}, (error, result) => {
+    done(error)
+    assert.equal(result.complete, true)
+    assert.deepEqual(Buffer.from(h.files.get(result.uri), "latin1"), bytes)
+  })
+  h.flush()
+  h.store.receive({...identity, type: "beginBG", bytes: bytes.length + 1, checksum: hash}, error => assert.equal(error.code, "BACKGROUND_BUDGET"))
+  h.store.receive({...identity, type: "beginBG", bytes: bytes.length, checksum: hash}, done); h.flush()
+  h.store.receive({...identity, type: "backgroundChunk", offset: 0, data: bytes.subarray(0, 24 * 1024 + 1).toString("base64")}, error => assert.equal(error.code, "BACKGROUND_CHUNK"))
+  h.flush()
+})
+
+test("表盘背景接口迁移/上传/清空、导出失败补写及迟到写入更新到最终引用", () => {
+  const h = harness()
+  const output = "internal://files/background.txt"
+  h.store.load(error => assert.equal(error, null)); h.flush()
+  assert.equal(h.files.get(output), "bg_100.png")
+  h.fail("writeText:" + output + ".tmp")
+  let uri
+  h.store.save(jpeg, (error, value) => { assert.equal(error, null); uri = value }); h.flush()
+  assert.equal(h.files.get(output), "bg_100.png")
+  h.fail("")
+  h.store.load(error => assert.equal(error, null)); h.flush()
+  assert.equal(h.files.get(output), uri.replace("internal://files/", ""))
+  h.store.reset(error => assert.equal(error, null)); h.flush()
+  assert.equal(h.files.get(output), "")
+  const delayed = harness()
+  delayed.store.load(() => {})
+  // 旧引用导出尚在途时提交新引用，最终必须导出最新背景。
+  delayed.store.save(jpeg, error => assert.equal(error, null))
+  delayed.flush()
+  assert.equal(delayed.files.get(output), "bg_101.jpg")
+})
+
 test("G-02：正式提交后才删除旧图，时钟相同/回退仍生成唯一且更新的文件名", () => {
   const h = harness()
   h.files.set("internal://files/background.json", JSON.stringify({version: 1, uri: old}))
@@ -201,7 +253,7 @@ test("G-01/G-06：真实PNG/JPEG后缀、旧文件兼容、头部尺寸及字节
   })
   h.flush()
   for (const data of [Buffer.from("not an image"), Buffer.from([255, 216, 255, 192, 0, 255]),
-    Buffer.alloc(100 * 1024 + 1)]) {
+    Buffer.alloc(256 * 1024 + 1)]) {
     h.store.save(data.toString("base64"), (error) => assert.ok(error))
     h.flush()
   }
@@ -220,7 +272,7 @@ test("G-01/G-06：真实PNG/JPEG后缀、旧文件兼容、头部尺寸及字节
 test("G-06：超限Base64在分配前拒绝，不调用解码器", () => {
   let decoded = false
   const store = context.module.exports.createBackgroundStore({file: {}, decode: () => { decoded = true }})
-  store.save("A".repeat(140000), (error) => assert.ok(error))
+  store.save("A".repeat(350000), (error) => assert.ok(error))
   assert.equal(decoded, false)
 })
 

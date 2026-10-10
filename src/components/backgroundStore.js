@@ -1,6 +1,7 @@
 // background.json引用决定当前背景；旧版本无索引时迁移bg_<时间>.png/jpg。
 // 应用级单飞避免多个页面实例、连续上传和迟到回调交叉删除文件。
-const MAX_BYTES = 100 * 1024
+const MAX_BYTES = 256 * 1024
+const CHUNK_BYTES = 24 * 1024
 const MAX_EDGE = 512
 
 function imageInfo(bytes) {
@@ -54,6 +55,31 @@ function createBackgroundStore({file, decode, now = () => Date.now(), setTimer =
   let loading = false
   let waiters = []
   let transfer = null
+  const watchfaceUri = "internal://files/background.txt"
+  let exported = null
+  let exporting = false
+
+  // 可重建的表盘接口；失败不改变背景保存结果，下次load重新补写。
+  function exportBackground() {
+    if (current === null || exporting || exported === current) return
+    const uri = current
+    const text = uri ? uri.replace("internal://files/", "") : ""
+    exporting = true
+    const finish = (error) => {
+      exporting = false
+      if (!error) exported = uri
+      if (current !== uri) exportBackground()
+    }
+    invoke("writeText", {uri: watchfaceUri + ".tmp", text}, (error) => {
+      if (error) { finish(error); return }
+      invoke("move", {srcUri: watchfaceUri + ".tmp", dstUri: watchfaceUri}, (moveError) => {
+        if (!moveError) { finish(null); return }
+        invoke("writeText", {uri: watchfaceUri, text}, (writeError) => {
+          invoke("delete", {uri: watchfaceUri + ".tmp"}, () => finish(writeError))
+        })
+      })
+    })
+  }
 
   function receive(frame, callback) {
     if (frame.type === "beginBG") {
@@ -102,14 +128,14 @@ function createBackgroundStore({file, decode, now = () => Date.now(), setTimer =
         else abort({code:"BACKGROUND_CHUNK_CONFLICT"})
         return
       }
-      if (frame.offset !== state.offset || typeof frame.data !== "string" || frame.data.length > 4096 ||
+      if (frame.offset !== state.offset || typeof frame.data !== "string" || frame.data.length > CHUNK_BYTES / 3 * 4 ||
           !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(frame.data)) {
         abort({code:"BACKGROUND_CHUNK"}); return
       }
       let buffer
       try {
         buffer = new Uint8Array(decode(frame.data))
-        if (!buffer.length || buffer.length > 3072 || state.offset + buffer.length > state.bytes) throw new Error("Chunk budget")
+        if (!buffer.length || buffer.length > CHUNK_BYTES || state.offset + buffer.length > state.bytes) throw new Error("Chunk budget")
         if (!state.offset) state.info = imageInfo(buffer)
       } catch (cause) { abort({code:"BACKGROUND_CHUNK",cause}); return }
       let hash = state.hash
@@ -163,7 +189,7 @@ function createBackgroundStore({file, decode, now = () => Date.now(), setTimer =
     try {
       file[method]({...options, success: (data) => finish(null, data),
         fail: (data, code) => {
-          if (method === "move" && code === 202) {
+          if (method === "move" && code === 202 && options.srcUri !== watchfaceUri + ".tmp") {
             moveCompatible(options, finish)
             return
           }
@@ -195,7 +221,7 @@ function createBackgroundStore({file, decode, now = () => Date.now(), setTimer =
       })
       return
     }
-    // 图片最多100KiB；每次仅持有3KiB，避免完整读取图片造成内存峰值。
+    // 图片最多256KiB；兼容复制仍每次仅持有3KiB，避免完整读取图片。
     let position = 0
     let total = 0
     const next = () => {
@@ -242,12 +268,12 @@ function createBackgroundStore({file, decode, now = () => Date.now(), setTimer =
   }
 
   function load(callback) {
-    if (current !== null) { callback(null, current); return }
+    if (current !== null) { exportBackground(); callback(null, current); return }
     waiters.push(callback)
     if (loading) return
     loading = true
     const finish = (error, uri) => {
-      if (!error) current = uri
+      if (!error) { current = uri; exportBackground() }
       loading = false
       const callbacks = waiters
       waiters = []
@@ -301,6 +327,7 @@ function createBackgroundStore({file, decode, now = () => Date.now(), setTimer =
           }
           indexExists = true
           current = uri
+          exportBackground()
           invoke("delete", {uri: backupUri}, () => callback(null))
         })
       }

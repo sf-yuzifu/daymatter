@@ -267,6 +267,8 @@ export default {
           "backgroundJpeg",
           "backgroundResult",
           "backgroundChunks",
+          "backgroundChunks24KiB",
+          "background256KiB",
           "yearlyRepeat",
           "displayUnit",
           "pinned",

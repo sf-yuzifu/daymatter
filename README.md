@@ -52,6 +52,7 @@ npm run release    # 发布构建，包含 JSC
 - [同步协议与兼容性](docs/sync-compatibility.md)
 - [备份与恢复](docs/backup.md)
 - [背景图片与分片传输](docs/background-transfer.md)
+- [表盘文件接口](docs/watchface-interface.md)
 
 欢迎提交 Issue / PR。问题反馈请附设备型号、固件、两端及 AstroBox 版本、复现步骤和日志或截图。
 
