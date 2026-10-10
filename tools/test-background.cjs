@@ -4,7 +4,7 @@ const path = require("node:path")
 const vm = require("node:vm")
 const {test} = require("node:test")
 const source = fs.readFileSync(path.join(__dirname, "../src/components/backgroundStore.js"), "utf8")
-const context = vm.createContext({module: {exports: {}}, setTimeout, clearTimeout})
+const context = vm.createContext({module: {exports: {}}, setTimeout, clearTimeout, console})
 vm.runInContext(source.replace("export default", "module.exports ="), context)
 const old = "internal://files/bg_100.png"
 // JPEG SOF尺寸头：存储层只验证格式/尺寸，完整解码由插件负责。
@@ -49,6 +49,33 @@ function harness() {
   return {files, tasks, calls, store, file, fail: (method) => { failure = method },
     expire: () => { if (timeout) timeout() }, next: () => tasks.shift()(), flush: () => { while (tasks.length) tasks.shift()() }}
 }
+
+test("move 202 固件分片图片和索引兼容提交，重新加载仍可读取", () => {
+  const h = harness()
+  h.file.move = options => h.tasks.push(() => options.fail("invalid argument", 202))
+  h.file.get = options => h.tasks.push(() => options.success({length: h.files.get(options.uri).length}))
+  h.file.readArrayBuffer = options => h.tasks.push(() => options.success({buffer:
+    Uint8Array.from(Buffer.from(h.files.get(options.uri), "latin1").subarray(options.position, options.position + options.length)).buffer}))
+  const bytes = Buffer.concat([Buffer.from(jpeg, "base64"), Buffer.alloc(4000, 17)])
+  let hash = 2166136261
+  for (const byte of bytes) hash = Math.imul(hash ^ byte, 16777619) >>> 0
+  const identity = {sessionId: "s", requestId: "r", deviceId: "d"}
+  const done = error => assert.equal(error, null)
+  h.store.receive({...identity, type: "beginBG", bytes: bytes.length, checksum: hash}, done)
+  h.flush()
+  for (let offset = 0; offset < bytes.length; offset += 3072) {
+    h.store.receive({...identity, type: "backgroundChunk", offset, data: bytes.subarray(offset, offset + 3072).toString("base64")}, done)
+    h.flush()
+  }
+  let result
+  h.store.receive({...identity, type: "finishBG"}, (error, data) => { done(error); result = data })
+  h.flush()
+  assert.equal(result.complete, true)
+  assert.equal(h.files.get(result.uri), bytes.toString("latin1"))
+  const store = context.module.exports.createBackgroundStore({file: h.file})
+  store.load((error, uri) => { done(error); assert.equal(uri, result.uri) })
+  h.flush()
+})
 
 test("分片超时/迟到写入、同片冲突和缺片finish均保留旧背景并释放单飞", () => {
   for (const mode of ["idle", "writing", "conflict", "missing"]) {

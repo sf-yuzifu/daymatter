@@ -162,10 +162,70 @@ function createBackgroundStore({file, decode, now = () => Date.now(), setTimer =
     const finish = once(callback)
     try {
       file[method]({...options, success: (data) => finish(null, data),
-        fail: (data, code) => finish({code: code, cause: data})})
+        fail: (data, code) => {
+          if (method === "move" && code === 202) {
+            moveCompatible(options, finish)
+            return
+          }
+          const error = {code, cause: data, operation: method, uri: options.uri, srcUri: options.srcUri, dstUri: options.dstUri}
+          if (code !== 301) console.error("[daymatter:background] " + JSON.stringify(error))
+          finish(error)
+        }})
     } catch (error) {
-      finish({cause: error})
+      console.error("[daymatter:background] " + method + " exception " + String(error))
+      finish({code: "EXCEPTION", cause: String(error), operation: method})
     }
+  }
+
+  // 旧固件 move 202：复制并核对后才删除源，避免丢失旧索引或未提交图片。
+  function moveCompatible({srcUri, dstUri}, callback) {
+    if ([indexUri, backupUri, tempIndexUri].indexOf(srcUri) >= 0) {
+      invoke("readText", {uri: srcUri}, (readError, data) => {
+        if (readError) return callback(readError)
+        const text = data && data.text
+        if (typeof text !== "string" || text.length > 512) return callback({code: "BACKGROUND_INDEX_INVALID"})
+        invoke("writeText", {uri: dstUri, text}, (writeError) => {
+          if (writeError) return callback(writeError)
+          invoke("readText", {uri: dstUri}, (verifyError, actual) => {
+            if (verifyError) return callback(verifyError)
+            if (!actual || actual.text !== text) return callback({code: "BACKGROUND_VERIFY_FAIL"})
+            invoke("delete", {uri: srcUri}, () => callback(null))
+          })
+        })
+      })
+      return
+    }
+    // 图片最多100KiB；每次仅持有3KiB，避免完整读取图片造成内存峰值。
+    let position = 0
+    let total = 0
+    const next = () => {
+      if (position === total) return invoke("delete", {uri: srcUri}, () => callback(null))
+      invoke("readArrayBuffer", {uri: srcUri, position, length: Math.min(3072, total - position)}, (readError, data) => {
+      if (readError) return callback(readError)
+      const buffer = data && data.buffer
+      const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer || 0)
+      if (bytes.length !== Math.min(3072, total - position)) return callback({code: "BACKGROUND_INCOMPLETE"})
+      if (position + bytes.length > MAX_BYTES) return callback({code: "BACKGROUND_BUDGET"})
+      writeBinary({uri: dstUri, buffer: bytes, append: position > 0}, (writeError) => {
+        if (writeError) return callback(writeError)
+        invoke("readArrayBuffer", {uri: dstUri, position, length: bytes.length}, (verifyError, actual) => {
+          if (verifyError) return callback(verifyError)
+          const verified = actual && actual.buffer
+          const check = verified instanceof Uint8Array ? verified : new Uint8Array(verified || 0)
+          if (check.length !== bytes.length || !bytes.every((value, index) => value === check[index]))
+            return callback({code: "BACKGROUND_VERIFY_FAIL"})
+          position += bytes.length
+          next()
+        })
+      })
+      })
+    }
+    invoke("get", {uri: srcUri}, (error, info) => {
+      if (error) return callback(error)
+      total = info && info.length
+      if (!Number.isInteger(total) || total < 1 || total > MAX_BYTES) return callback({code: "BACKGROUND_BUDGET"})
+      next()
+    })
   }
 
   function readIndex(uri, callback) {
