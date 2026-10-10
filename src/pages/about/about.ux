@@ -224,6 +224,7 @@ export default {
 .background-settings {
   width: 90%;
   flex-direction: column;
+  border: 3px solid rgba(255, 255, 255, 0.06);
   background-color: #262626;
   border-radius: 20px;
   padding: 12px;
