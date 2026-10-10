@@ -1013,6 +1013,11 @@ export default {
     this._lastResetWord = "";
     // 调用方通过 global 传入初始文本与输入行标题（保持与调用页一致的 UI）
     this.context = global.__imeText || "";
+    if (global.deviceProfile) this._unsubscribeDevice = global.deviceProfile.subscribe(() => {
+      if (this._destroyed) return;
+      this.screentype = global.screenShape;
+      this.screenWidth = global.screenSize.width;
+    });
     this.label = global.__imeLabel || "";
     if (this.screentype === "rect" || this.screentype === "pill-shaped") {
       this.adjustScreenWidth();
@@ -1031,6 +1036,7 @@ export default {
     this._searchCache = {};
   },
   onDestroy() {
+    if (this._unsubscribeDevice) this._unsubscribeDevice();
     this._destroyed = true;
     // 页面销毁时释放查词缓存、候选与展开分组，不遗留输入历史
     this.clearSearchCache();

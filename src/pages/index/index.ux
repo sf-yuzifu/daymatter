@@ -3,24 +3,24 @@
     <img
       class="bg"
       if="{{ contentVisible && bgImage }}"
-      style="width: {{ global.screenSize.width }};height: {{ global.screenSize.height }};"
+      style="width: {{ deviceWidth }};height: {{ deviceHeight }};"
       src="{{ bgImage }}"
     />
     <text class="time">{{ time }}</text>
-    <text class="title" if="{{ global.screenShape == 'rect' }}">{{ $t("appName") }}</text>
+    <text class="title" if="{{ deviceShape == 'rect' }}">{{ $t("appName") }}</text>
     <img
       class="top rightButton"
-      if="{{ global.screenShape == 'rect' }}"
+      if="{{ deviceShape == 'rect' }}"
       src="/common/info_rect.png"
       @click="info"
     />
-    <text class="title" elif="{{ global.screenShape == 'circle' }}" @click="info">
+    <text class="title" elif="{{ deviceShape == 'circle' }}" @click="info">
       {{ $t("appName") }}
     </text>
     <img else class="top" src="/common/info.png" @click="info" />
     <img
       class="top leftButton"
-      if="{{ global.screenShape == 'rect' }}"
+      if="{{ deviceShape == 'rect' }}"
       src="/common/back_rect.png"
       @click="routeBack"
     />
@@ -66,7 +66,7 @@
       <text id="emp">{{ $t("empty") }}</text>
     </div>
     <img
-      if="{{ global.screenShape == 'rect' }}"
+      if="{{ deviceShape == 'rect' }}"
       class="bottom rightButton"
       src="/common/more_rect.png"
       @click="routeMore"
@@ -143,6 +143,9 @@ let connect
 
 export default {
   private: {
+    deviceShape: "pill-shaped",
+    deviceWidth: 192,
+    deviceHeight: 490,
     time: "",
     slots: [],
     is_no_event: true,
@@ -155,6 +158,12 @@ export default {
   },
 
   onInit() {
+    this.syncDeviceProfile()
+    if (global.deviceProfile) this._unsubscribeDevice = global.deviceProfile.subscribe(() => {
+      if (this._destroyed) return
+      this.syncDeviceProfile()
+      if (this.pageVisible) this.completed()
+    })
     this.allEvents = 0
     this.currentDisplayModeIndex = 0
     this._currentSlot = 0
@@ -211,8 +220,8 @@ export default {
         sessionId: this._pluginSession,
         handshakeId: parsedData.handshakeId,
         deviceId: parsedData.deviceId,
-        screenWidth: global.screenSize && global.screenSize.width,
-        screenHeight: global.screenSize && global.screenSize.height,
+        screenWidth: global.deviceDimensionsKnown === false ? undefined : global.screenSize && global.screenSize.width,
+        screenHeight: global.deviceDimensionsKnown === false ? undefined : global.screenSize && global.screenSize.height,
         capabilities: [
           "stableId",
           "mutationResult",
@@ -439,6 +448,7 @@ export default {
   },
 
   onShow() {
+    this.syncDeviceProfile()
     this.pageVisible = true
     this.contentVisible = true
     this.time = global.getTime()
@@ -459,6 +469,7 @@ export default {
   },
 
   onDestroy() {
+    if (this._unsubscribeDevice) this._unsubscribeDevice()
     this._eventLoadGeneration++
     this._destroyed = true
     this._ticker.stop()
@@ -472,6 +483,12 @@ export default {
     this.activeSourceIndex = -1
     this._needsRefresh = false
     if (typeof global.tryRunGC === "function") global.tryRunGC()
+  },
+
+  syncDeviceProfile() {
+    this.deviceShape = global.screenShape || "pill-shaped"
+    this.deviceWidth = global.screenSize && global.screenSize.width || 192
+    this.deviceHeight = global.screenSize && global.screenSize.height || 490
   },
 
   handleMinuteTick(dateChanged) {

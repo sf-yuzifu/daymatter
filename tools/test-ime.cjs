@@ -923,11 +923,22 @@ test("默认形态兜底：非 rect / circle（含缺失值）一律按胶囊基
 
   // 入口行为：设备信息就绪前预置胶囊，回调按非 rect / circle 判定胶囊基准
   const appSource = fs.readFileSync(path.join(root, "src/app.ux"), "utf8")
-  assert.ok(appSource.includes('global.screenShape = "pill-shaped"'), "设备信息就绪前必须预置胶囊默认形态")
-  assert.ok(
-    appSource.includes('global.isPillShaped = deviceRet.screenShape !== "rect" && deviceRet.screenShape !== "circle"'),
-    "胶囊基准必须按非 rect / circle 判定"
-  )
+  assert.ok(appSource.includes("deviceProfile.createDeviceProfile"))
+  const profile = loadModule(fs.readFileSync(path.join(root, "src/components/deviceProfile.js"), "utf8"), {}, "unused")
+  const target = {}
+  let request
+  const service = profile.createDeviceProfile({getInfo(options) { request = options }}, target)
+  assert.equal(target.screenShape, "pill-shaped")
+  assert.equal(target.screenSize.width, 192)
+  assert.equal(target.deviceType, "band")
+  assert.equal(target.deviceDimensionsKnown, false)
+  let notices = 0
+  const unsubscribe = service.subscribe(() => notices++)
+  unsubscribe()
+  request.success({screenShape: "unknown", screenWidth: 212, screenHeight: 520})
+  assert.equal(target.screenShape, "pill-shaped")
+  assert.equal(target.deviceDimensionsKnown, true)
+  assert.equal(notices, 0)
   for (const shape of ["unknown", "", null]) {
     const other = createHarness()
     other.global.screenShape = shape
@@ -936,6 +947,34 @@ test("默认形态兜底：非 rect / circle（含缺失值）一律按胶囊基
   }
   const indexSource = fs.readFileSync(path.join(root, "src/pages/index/index.ux"), "utf8")
   assert.ok(!indexSource.includes('global.screenShape || "rect"'), "首页不得再回退到 rect")
+})
+
+test("O-08 异步设备信息校验、失败兜底、首页更新与订阅释放", () => {
+  const module = loadModule(fs.readFileSync(path.join(root, "src/components/deviceProfile.js"), "utf8"), {}, "unused")
+  const h = createHarness()
+  let request
+  h.global.deviceProfile = module.createDeviceProfile({getInfo(options) { request = options }}, h.global)
+  const home = h.router.push({uri: "/pages/index"})
+  assert.equal(home.deviceWidth, 192)
+  request.success({screenShape: "rect", deviceType: "band", screenWidth: 336, screenHeight: 480})
+  assert.equal(home.deviceShape, "rect")
+  assert.equal(home.deviceWidth, 336)
+  assert.equal(home.deviceHeight, 480)
+  assert.equal(h.global.deviceDimensionsKnown, true)
+  home.onDestroy()
+  for (const value of [null, {}, {screenShape: "circle", screenWidth: -1, screenHeight: Infinity}]) {
+    const target = {}
+    let options
+    module.createDeviceProfile({getInfo(o) { options = o }}, target)
+    if (value === null) options.fail("failed", 300)
+    else options.success(value)
+    assert.equal(target.deviceInfoReady, true)
+    assert.equal(target.deviceDimensionsKnown, false)
+    assert.ok(target.screenSize.width > 0 && target.screenSize.height > 0)
+  }
+  const thrown = {}
+  module.createDeviceProfile({getInfo() { throw new Error("unsupported") }}, thrown)
+  assert.equal(thrown.deviceInfoStatus, "failed")
 })
 
 test("跑道屏 192/212：中文候选、语言切换及固定图标分支", () => {

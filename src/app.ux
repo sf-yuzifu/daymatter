@@ -10,7 +10,7 @@ import watchFaceFactory from "./components/watchface"
 import backgroundStoreFactory from "./components/backgroundStore"
 import performanceTrace from "./components/performanceTrace"
 
-let screenSize = {width: 0, height: 0}
+import deviceProfile from "./components/deviceProfile"
 
 // 低频 GC 守卫：页面释放大块数据后按需调用，宿主持有 runGC 时才真正执行
 global.tryRunGC = gcGuard.createGcGuard()
@@ -35,20 +35,7 @@ global.eventStore = eventStoreFactory.createEventStore({
 })
 
 // 设备信息就绪前的默认形态：胶囊 / 跑道屏是设计基准
-global.screenShape = "pill-shaped"
-global.isPillShaped = true
-
-device.getInfo({
-  success: function (deviceRet) {
-    screenSize.width = deviceRet.screenWidth
-    screenSize.height = deviceRet.screenHeight
-    global.screenShape = deviceRet.screenShape
-    global.screenSize = screenSize
-    global.deviceType = deviceRet.deviceType
-    // 非 rect / circle（含缺失与未知值）一律按胶囊基准，与页面 else 分支一致
-    global.isPillShaped = deviceRet.screenShape !== "rect" && deviceRet.screenShape !== "circle"
-  }
-})
+global.deviceProfile = deviceProfile.createDeviceProfile(device, global)
 
 global.getTime = function () {
   const date = new Date()
