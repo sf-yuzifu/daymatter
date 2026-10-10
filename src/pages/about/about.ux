@@ -28,11 +28,19 @@
         <div class="background-settings">
           <text class="background-label">{{ $t("backgroundTitle") }}</text>
           <text class="background-state">{{ $t(backgroundState) }}</text>
-          <text class="background-action" if="{{ hasBackground && !confirmReset }}" @click="askReset">{{ $t("restoreBackground") }}</text>
+          <text
+            class="background-action"
+            if="{{ hasBackground && !confirmReset }}"
+            @click="askReset"
+          >
+            {{ $t("restoreBackground") }}
+          </text>
           <div class="background-confirm" if="{{ confirmReset }}">
             <text class="background-state">{{ $t("restoreBackgroundConfirm") }}</text>
             <text class="background-action" @click="cancelReset">{{ $t("cancel") }}</text>
-            <text class="background-action" @click="resetBackground">{{ $t("restoreBackground") }}</text>
+            <text class="background-action" @click="resetBackground">
+              {{ $t("restoreBackground") }}
+            </text>
           </div>
         </div>
         <div id="copyright">
@@ -90,7 +98,11 @@ export default {
     global.backgroundStore.load((error, uri) => {
       if (this._destroyed || !this._visible || token !== this._loadToken) return
       this.hasBackground = !error && !!uri
-      this.backgroundState = error ? "backgroundReadFail" : uri ? "backgroundCustom" : "backgroundDefault"
+      this.backgroundState = error
+        ? "backgroundReadFail"
+        : uri
+        ? "backgroundCustom"
+        : "backgroundDefault"
     })
     this.time = global.getTime()
     this._ticker.start()
@@ -108,7 +120,10 @@ export default {
   },
 
   routeBack() {
-    if (this.confirmReset && !this._resetting) { this.confirmReset = false; return }
+    if (this.confirmReset && !this._resetting) {
+      this.confirmReset = false
+      return
+    }
     router.back()
   },
 
@@ -132,7 +147,11 @@ export default {
         this.confirmReset = false
         this._loadToken = (this._loadToken || 0) + 1
       }
-      if (this._visible) showToast({message: this.$t(error ? "bgSaveFail" : "backgroundResetSuccess"), duration: 2000})
+      if (this._visible)
+        showToast({
+          message: this.$t(error ? "bgSaveFail" : "backgroundResetSuccess"),
+          duration: 2000
+        })
     })
   }
 }
@@ -253,15 +272,21 @@ export default {
 }
 
 @media (shape: rect) {
-  .background-settings { width: 83%; }
+  .background-settings {
+    width: 83%;
+  }
 }
 
 @media (device-type: watch) and (shape: rect) {
-  .background-settings { width: 75%; }
+  .background-settings {
+    width: 75%;
+  }
 }
 
 @media (shape: circle) {
-  .background-settings { width: 70%; }
+  .background-settings {
+    width: 70%;
+  }
 }
 
 @media (shape: rect) {

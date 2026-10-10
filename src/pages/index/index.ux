@@ -59,8 +59,12 @@
     <text
       class="home-position"
       if="{{ contentVisible && homeEventCount > 1 }}"
-      style="top: {{ (global.screenSize && global.screenSize.height ? global.screenSize.height : 490) / 2 + (global.deviceType === 'watch' && (global.screenShape === 'rect' || global.screenShape === 'circle') ? 166 : global.deviceType === 'band' && global.screenShape === 'rect' ? 144 : 105) }}px;"
-    >{{ activeSourceIndex + 1 }} / {{ homeEventCount }}</text>
+      style="top: {{ (global.screenSize && global.screenSize.height ? global.screenSize.height : 490) / 2 +
+(global.deviceType === 'watch' && (global.screenShape === 'rect' || global.screenShape === 'circle')
+? 166 : global.deviceType === 'band' && global.screenShape === 'rect' ? 144 : 105) }}px;"
+    >
+      {{ activeSourceIndex + 1 }} / {{ homeEventCount }}
+    </text>
     <div id="empty" if="{{ contentVisible && is_no_event }}">
       <img src="/common/empty.png" />
       <text id="emp">{{ $t("empty") }}</text>
@@ -176,11 +180,12 @@ export default {
 
   onInit() {
     this.syncDeviceProfile()
-    if (global.deviceProfile) this._unsubscribeDevice = global.deviceProfile.subscribe(() => {
-      if (this._destroyed) return
-      this.syncDeviceProfile()
-      if (this.pageVisible) this.completed()
-    })
+    if (global.deviceProfile)
+      this._unsubscribeDevice = global.deviceProfile.subscribe(() => {
+        if (this._destroyed) return
+        this.syncDeviceProfile()
+        if (this.pageVisible) this.completed()
+      })
     this.allEvents = 0
     this.currentDisplayModeIndex = 0
     this._currentSlot = 0
@@ -237,8 +242,14 @@ export default {
         sessionId: this._pluginSession,
         handshakeId: parsedData.handshakeId,
         deviceId: parsedData.deviceId,
-        screenWidth: global.deviceDimensionsKnown === false ? undefined : global.screenSize && global.screenSize.width,
-        screenHeight: global.deviceDimensionsKnown === false ? undefined : global.screenSize && global.screenSize.height,
+        screenWidth:
+          global.deviceDimensionsKnown === false
+            ? undefined
+            : global.screenSize && global.screenSize.width,
+        screenHeight:
+          global.deviceDimensionsKnown === false
+            ? undefined
+            : global.screenSize && global.screenSize.height,
         capabilities: [
           "stableId",
           "mutationResult",
@@ -271,7 +282,10 @@ export default {
     if (parsedData.type === "backgroundChunk" || parsedData.type === "finishBG") {
       const request = this.findProtocolRequest(parsedData)
       if (!request || request.background !== true) return
-      if (request.response) { this.sendProtocolResponse(request.response); return }
+      if (request.response) {
+        this.sendProtocolResponse(request.response)
+        return
+      }
       this.receiveBackground(parsedData, request)
       return
     }
@@ -318,23 +332,38 @@ export default {
           this.finishPluginMutation("changeSuccess", error, result, null, request)
         ),
       setPrimary: () => {
-        if (typeof parsedData.id !== "string" ||
-            (parsedData.id === "" && (typeof parsedData.expectedPrimaryId !== "string" || !parsedData.expectedPrimaryId))) {
+        if (
+          typeof parsedData.id !== "string" ||
+          (parsedData.id === "" &&
+            (typeof parsedData.expectedPrimaryId !== "string" || !parsedData.expectedPrimaryId))
+        ) {
           this.finishProtocolRequest(request, {code: "INVALID_PRIMARY"}, null)
           return
         }
-        global.eventStore.setPrimary(parsedData.id, (error, result) => {
-          if (request) request.parts = {
-            event: {ok: !error || error.code === "WATCHFACE_FAIL"},
-            primary: {ok: !error || error.code === "WATCHFACE_FAIL", requested: true, code: (error && error.code) || ""},
-            watchface: {ok: !error}
-          }
-          this.finishProtocolRequest(request, error, result)
-          if (!this._destroyed && (!error || error.code === "WATCHFACE_FAIL")) this.afterMutation("changeSuccess")
-        }, parsedData.expectedPrimaryId)
+        global.eventStore.setPrimary(
+          parsedData.id,
+          (error, result) => {
+            if (request)
+              request.parts = {
+                event: {ok: !error || error.code === "WATCHFACE_FAIL"},
+                primary: {
+                  ok: !error || error.code === "WATCHFACE_FAIL",
+                  requested: true,
+                  code: (error && error.code) || ""
+                },
+                watchface: {ok: !error}
+              }
+            this.finishProtocolRequest(request, error, result)
+            if (!this._destroyed && (!error || error.code === "WATCHFACE_FAIL"))
+              this.afterMutation("changeSuccess")
+          },
+          parsedData.expectedPrimaryId
+        )
       },
-      restoreBackup: () => global.eventStore.restoreBackup(parsedData, (error, result) =>
-        this.finishPluginMutation("changeSuccess", error, result, null, request)),
+      restoreBackup: () =>
+        global.eventStore.restoreBackup(parsedData, (error, result) =>
+          this.finishPluginMutation("changeSuccess", error, result, null, request)
+        ),
       addBG: () => this.handleAddBG(parsedData, request),
       beginBG: () => {
         if (!request) return
@@ -349,9 +378,17 @@ export default {
     if (handler) {
       if (
         requestId &&
-        ["beginBG", "addBG", "addEvent", "changeEvent", "deleteEvent", "moveEvent", "setSortMode", "setPrimary", "restoreBackup"].includes(
-          parsedData.type
-        )
+        [
+          "beginBG",
+          "addBG",
+          "addEvent",
+          "changeEvent",
+          "deleteEvent",
+          "moveEvent",
+          "setSortMode",
+          "setPrimary",
+          "restoreBackup"
+        ].includes(parsedData.type)
       ) {
         if (
           !this._pluginProtocolV2 ||
@@ -365,7 +402,14 @@ export default {
           parsedData.deviceId.length > 128
         )
           return
-        const fingerprint = canonicalProtocolValue(parsedData, parsedData.type === "restoreBackup" ? 250 * 1024 : parsedData.type === "addBG" ? 140 * 1024 : PROTOCOL_PAYLOAD_LIMIT)
+        const fingerprint = canonicalProtocolValue(
+          parsedData,
+          parsedData.type === "restoreBackup"
+            ? 250 * 1024
+            : parsedData.type === "addBG"
+            ? 140 * 1024
+            : PROTOCOL_PAYLOAD_LIMIT
+        )
         if (fingerprint === null) {
           this.rejectProtocolRequest(parsedData, "REQUEST_TOO_LARGE")
           return
@@ -398,7 +442,11 @@ export default {
           this.rejectProtocolRequest(parsedData, "REQUEST_CACHE_FULL")
           return
         }
-        if (this._protocolLedger.requests.reduce((size, item) => size + item.fingerprint.length, 0) + fingerprint.length > 512 * 1024) {
+        if (
+          this._protocolLedger.requests.reduce((size, item) => size + item.fingerprint.length, 0) +
+            fingerprint.length >
+          512 * 1024
+        ) {
           this.rejectProtocolRequest(parsedData, "REQUEST_CACHE_FULL")
           return
         }
@@ -504,8 +552,8 @@ export default {
 
   syncDeviceProfile() {
     this.deviceShape = global.screenShape || "pill-shaped"
-    this.deviceWidth = global.screenSize && global.screenSize.width || 192
-    this.deviceHeight = global.screenSize && global.screenSize.height || 490
+    this.deviceWidth = (global.screenSize && global.screenSize.width) || 192
+    this.deviceHeight = (global.screenSize && global.screenSize.height) || 490
   },
 
   handleMinuteTick(dateChanged) {
@@ -522,8 +570,8 @@ export default {
   },
 
   formatEvent(event, mode, sourceIndex, nameMetrics, cachedStatus) {
-    const recurringStatus = cachedStatus === undefined
-      ? global.dateUtils.getRecurringStatus(event) : cachedStatus
+    const recurringStatus =
+      cachedStatus === undefined ? global.dateUtils.getRecurringStatus(event) : cachedStatus
     const status = recurringStatus || global.dateUtils.TODAY_STATUS
     let name = event.name
     let days
@@ -545,10 +593,17 @@ export default {
 
     // 根据事件状态调整主题色色调
     if (event.repeat === "yearly" && status.anniversary > 0)
-      name = this.$t(status.state === "future" ? "homeAnnualFuture" : status.state === "past" ? "homeAnnualPast" : "homeAnnualToday", {
-        name: event.name,
-        count: status.anniversary
-      })
+      name = this.$t(
+        status.state === "future"
+          ? "homeAnnualFuture"
+          : status.state === "past"
+          ? "homeAnnualPast"
+          : "homeAnnualToday",
+        {
+          name: event.name,
+          count: status.anniversary
+        }
+      )
     themeColor = global.adjustThemeColor(themeColor, already)
 
     // 根据显示模式生成显示文本和字体大小
@@ -723,7 +778,8 @@ export default {
       if (this.pageVisible) apply()
       else this._needsRefresh = true
       if (error) showToast({message: this.$t("watchfaceSyncFail"), duration: 2000})
-      else if (this.pageVisible) showToast({message: this.$t("unitChanged", {unit: this.$t(newMode)}), duration: 1500})
+      else if (this.pageVisible)
+        showToast({message: this.$t("unitChanged", {unit: this.$t(newMode)}), duration: 1500})
     })
   },
 
@@ -764,27 +820,39 @@ export default {
       this.allEvents = events.length
       const refresh = global.eventOrder.createRefresh(global.dateUtils)
       const finishOrder = global.startPerfTrace && global.startPerfTrace("home.selectSort")
-      this._homeEvents = global.eventOrder
-        .select(events, result.sortMode || "created", global.dateUtils, {
+      this._homeEvents = global.eventOrder.select(
+        events,
+        result.sortMode || "created",
+        global.dateUtils,
+        {
           archived: false,
           home: true,
           refresh
-        })
+        }
+      )
       if (finishOrder) finishOrder({count: this._homeEvents.length})
       this._needsRefresh = false
       const finishFormat = global.startPerfTrace && global.startPerfTrace("home.formatSlots")
       this.setupSlots(refresh)
       if (finishFormat) finishFormat({count: this.slots.length})
       const finishUi = global.startPerfTrace && global.startPerfTrace("home.nextTick")
-      if (finishUi && typeof this.$nextTick === "function") this.$nextTick(() => {
-        if (!this._destroyed && this.pageVisible && generation === this._eventLoadGeneration) finishUi()
-      })
+      if (finishUi && typeof this.$nextTick === "function")
+        this.$nextTick(() => {
+          if (!this._destroyed && this.pageVisible && generation === this._eventLoadGeneration)
+            finishUi()
+        })
     })
   },
 
   createSlot(source, refresh) {
     const event = this._homeEvents[source]
-    return this.formatEvent(event, event.displayUnit || "days", source, getNameMetrics(), refresh.getStatus(event))
+    return this.formatEvent(
+      event,
+      event.displayUnit || "days",
+      source,
+      getNameMetrics(),
+      refresh.getStatus(event)
+    )
   },
 
   setupSlots(refresh) {
@@ -839,11 +907,17 @@ export default {
       if (step === 1) {
         // 前进：只为出屏槽位生成新的下一个事件展示对象。
         newSource = (this._currentSource + 1) % total
-        this.slots[(newSlot + 1) % 3] = this.createSlot((newSource + 1) % total, global.eventOrder.createRefresh(global.dateUtils))
+        this.slots[(newSlot + 1) % 3] = this.createSlot(
+          (newSource + 1) % total,
+          global.eventOrder.createRefresh(global.dateUtils)
+        )
       } else if (step === 2) {
         // 后退：只为出屏槽位生成新的上一个事件展示对象。
         newSource = (this._currentSource - 1 + total) % total
-        this.slots[(newSlot + 2) % 3] = this.createSlot((newSource - 1 + total) % total, global.eventOrder.createRefresh(global.dateUtils))
+        this.slots[(newSlot + 2) % 3] = this.createSlot(
+          (newSource - 1 + total) % total,
+          global.eventOrder.createRefresh(global.dateUtils)
+        )
       } else {
         newSource = this._currentSource
       }
@@ -1177,8 +1251,13 @@ export default {
           else this._needsRefresh = true
         }
       } else if (result) {
-        this.sendProtocolResponse({type:"backgroundAck", sessionId:data.sessionId,
-          requestId:data.requestId, deviceId:data.deviceId, next:result.next})
+        this.sendProtocolResponse({
+          type: "backgroundAck",
+          sessionId: data.sessionId,
+          requestId: data.requestId,
+          deviceId: data.deviceId,
+          next: result.next
+        })
       }
     })
   },
@@ -1359,7 +1438,9 @@ export default {
 }
 
 @media (device-type: watch) and (shape: rect) {
-  .home-position { font-size: 22px; }
+  .home-position {
+    font-size: 22px;
+  }
   .countdown-swiper {
     width: 300px;
     height: 300px;
@@ -1393,7 +1474,9 @@ export default {
 }
 
 @media (device-type: watch) and (shape: circle) {
-  .home-position { font-size: 22px; }
+  .home-position {
+    font-size: 22px;
+  }
   .countdown-swiper {
     width: 300px;
     height: 300px;

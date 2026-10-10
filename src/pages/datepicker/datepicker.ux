@@ -2,10 +2,28 @@
   <div class="container">
     <!-- 日期选择器 -->
     <div class="date-picker-container">
-      <picker class="date-picker year" type="text" range="{{yearRange}}" selected="{{yearIndex}}" @change="onYearChange" />
+      <picker
+        class="date-picker year"
+        type="text"
+        range="{{ yearRange }}"
+        selected="{{ yearIndex }}"
+        @change="onYearChange"
+      />
       <div class="wrapper">
-        <picker class="date-picker" type="text" range="{{monthRange}}" selected="{{monthIndex}}" @change="onMonthChange" />
-        <picker class="date-picker" type="text" range="{{dayRange}}" selected="{{selectedDay - 1 + dayRange.length / 3}}" @change="onDayChange" />
+        <picker
+          class="date-picker"
+          type="text"
+          range="{{ monthRange }}"
+          selected="{{ monthIndex }}"
+          @change="onMonthChange"
+        />
+        <picker
+          class="date-picker"
+          type="text"
+          range="{{ dayRange }}"
+          selected="{{ selectedDay - 1 + dayRange.length / 3 }}"
+          @change="onDayChange"
+        />
       </div>
     </div>
     <text class="time">{{ time }}</text>
@@ -57,12 +75,15 @@ export default {
     const today = global.dateUtils.todayParts()
     const parsed = global.dateUtils.parseDate(this.date) || today
     if (this.calendar === "lunar") {
-      const value = global.dateUtils.solarToLunar(this.date) || global.dateUtils.solarToLunar(global.dateUtils.formatDate(today.year,today.month,today.day)) || {year:1900,month:1,day:1,leap:false}
+      const value = global.dateUtils.solarToLunar(this.date) ||
+        global.dateUtils.solarToLunar(
+          global.dateUtils.formatDate(today.year, today.month, today.day)
+        ) || {year: 1900, month: 1, day: 1, leap: false}
       this.currentYear = value.year
       this.currentMonth = value.month
       this.selectedDay = value.day
       this.isLeap = value.leap
-      this.yearRange = Array.from({length:201}, (_, i) => String(1900 + i))
+      this.yearRange = Array.from({length: 201}, (_, i) => String(1900 + i))
       this.yearIndex = value.year - 1900
       this.updateLunarMonths()
       this.updateDayRange()
@@ -98,31 +119,46 @@ export default {
 
   updateDayRange() {
     // 根据年月计算当月天数（真实日历天数，含闰年规则）
-    const daysInMonth = this.calendar === "lunar"
-      ? global.dateUtils.lunarMonths(this.currentYear).find(m => m.month === this.currentMonth && m.leap === this.isLeap).days
-      : global.dateUtils.daysInMonth(this.currentYear, this.currentMonth)
+    const daysInMonth =
+      this.calendar === "lunar"
+        ? global.dateUtils
+            .lunarMonths(this.currentYear)
+            .find((m) => m.month === this.currentMonth && m.leap === this.isLeap).days
+        : global.dateUtils.daysInMonth(this.currentYear, this.currentMonth)
     const originalDays = []
     for (let i = 1; i <= daysInMonth; i++) {
       originalDays.push(String(i))
     }
     // 循环滚动：前后各加一份实现循环效果
     this.dayRange = [...originalDays, ...originalDays, ...originalDays]
-    
+
     // 如果当前选中的日期超出范围，调整为最后一天
     if (this.selectedDay > daysInMonth) {
       this.selectedDay = daysInMonth
     }
-    
+
     // 更新日期字符串（统一补零格式）
-    this.date = this.calendar === "lunar" ? global.dateUtils.lunarToSolar({year:this.currentYear,month:this.currentMonth,day:this.selectedDay,leap:this.isLeap})
-      : global.dateUtils.formatDate(this.currentYear, this.currentMonth, this.selectedDay)
+    this.date =
+      this.calendar === "lunar"
+        ? global.dateUtils.lunarToSolar({
+            year: this.currentYear,
+            month: this.currentMonth,
+            day: this.selectedDay,
+            leap: this.isLeap
+          })
+        : global.dateUtils.formatDate(this.currentYear, this.currentMonth, this.selectedDay)
   },
 
   updateLunarMonths() {
     this._months = global.dateUtils.lunarMonths(this.currentYear)
-    let index = this._months.findIndex(m => m.month === this.currentMonth && m.leap === this.isLeap)
-    if (index < 0) { this.isLeap = false; index = this._months.findIndex(m => m.month === this.currentMonth && !m.leap) }
-    this.monthRange = this._months.map(m => (m.leap ? this.$t("leapMonth") : "") + m.month)
+    let index = this._months.findIndex(
+      (m) => m.month === this.currentMonth && m.leap === this.isLeap
+    )
+    if (index < 0) {
+      this.isLeap = false
+      index = this._months.findIndex((m) => m.month === this.currentMonth && !m.leap)
+    }
+    this.monthRange = this._months.map((m) => (m.leap ? this.$t("leapMonth") : "") + m.month)
     this.monthIndex = index
   },
 
@@ -154,8 +190,11 @@ export default {
     if (this.calendar === "lunar") {
       const month = this._months[e.newSelected]
       if (!month) return
-      this.currentMonth = month.month; this.isLeap = month.leap; this.monthIndex = e.newSelected
-      this.updateDayRange(); return
+      this.currentMonth = month.month
+      this.isLeap = month.leap
+      this.monthIndex = e.newSelected
+      this.updateDayRange()
+      return
     }
     // 处理循环：将索引映射到 1-12 范围
     const totalMonths = 12
@@ -174,7 +213,13 @@ export default {
   saveEvent() {
     const normalized = global.dateUtils.normalizeDate(this.date)
     global.__daymatterDateResult = {requestId: this.requestId, date: normalized || this.date}
-    if (this.calendar === "lunar") global.__daymatterDateResult.lunarDate = {year:this.currentYear,month:this.currentMonth,day:this.selectedDay,leap:this.isLeap}
+    if (this.calendar === "lunar")
+      global.__daymatterDateResult.lunarDate = {
+        year: this.currentYear,
+        month: this.currentMonth,
+        day: this.selectedDay,
+        leap: this.isLeap
+      }
     router.back()
   },
 
