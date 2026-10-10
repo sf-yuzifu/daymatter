@@ -16,7 +16,7 @@
         <div class="line field-card">
           <text class="field-label input-label">{{ $t("eventName") }}</text>
           <div class="input-line" @click="editEventName">
-            <scroll class="input-scroll" scroll-x="true">
+            <scroll class="input-scroll" scroll-x="true" scroll-y="false">
               <text class="{{ event_name ? 'input-text' : 'input-text input-placeholder' }}">
                 {{ event_name || $t("namePlaceholder") }}
               </text>
@@ -50,7 +50,7 @@
         <div class="line field-card">
           <text class="field-label input-label">{{ $t("targetDateLabel") }}</text>
           <div class="input-line" @click="editDate">
-            <scroll class="input-scroll" scroll-x="true">
+            <scroll class="input-scroll" scroll-x="true" scroll-y="false">
               <text class="input-text">{{ dateLabel }}</text>
             </scroll>
           </div>
@@ -982,11 +982,13 @@ marquee {
 }
 
 .input-scroll {
+  position: absolute;
   width: 100%;
   height: 44px;
 }
 
 .input-text {
+  position: absolute;
   lines: 1;
   height: 44px;
   line-height: 44px;
