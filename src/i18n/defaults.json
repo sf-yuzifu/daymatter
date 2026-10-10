@@ -1,4 +1,7 @@
 {
+  "unitChanged": "Display unit changed to {unit}",
+  "unitTodayInfo": "No unit change is needed for today",
+  "unitDaysOnly": "This date span only supports days",
   "eventListTitle": "Events",
   "resetFilters": "Reset filters",
   "eventsLoading": "Loading events…",

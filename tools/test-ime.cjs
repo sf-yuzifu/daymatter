@@ -437,6 +437,36 @@ test("原名称和本地化标题进入新版键盘，确认只改名称草稿",
   assert.equal(h.global.__daymatterImeOwner, null)
 })
 
+test("O-06 真实事件位置随循环变化，今天与不足一周不写入，保存后反馈", () => {
+  const h = createHarness()
+  seedEvents(h, 5)
+  const home = h.router.push({uri: "/pages/index"})
+  assert.equal(home.homeEventCount, 5)
+  for (let i = 0; i < 4; i++) home.onSwiperChange({index: (home._currentSlot + 1) % 3})
+  assert.equal(home.activeSourceIndex, 4)
+  home.onSwiperChange({index: (home._currentSlot + 1) % 3})
+  assert.equal(home.activeSourceIndex, 0)
+  let saves = 0
+  h.global.eventStore.update = (id, patch, callback) => { saves++; callback(null) }
+  home.slots[home._currentSlot].isToday = true
+  home.toggleDisplayMode(home.activeSourceIndex)
+  assert.equal(saves, 0)
+  const slot = home.slots[home._currentSlot]
+  slot.isToday = false
+  slot.days = "3"
+  slot.accurateDiff = {years: 0, months: 0, days: 3}
+  slot.displayUnit = "days"
+  home.toggleDisplayMode(home.activeSourceIndex)
+  assert.equal(saves, 0)
+  slot.days = "12"
+  home.toggleDisplayMode(home.activeSourceIndex)
+  assert.equal(saves, 1)
+  assert.equal(slot.displayUnit, "weeks")
+  const single = createHarness()
+  seedEvents(single, 1)
+  assert.equal(single.router.push({uri: "/pages/index"}).homeEventCount, 1)
+})
+
 test("O-05 选择器即时筛选、重置保留排序、失败留快照且迟到读取隔离", () => {
   const h = createHarness()
   seedEvents(h, 12)

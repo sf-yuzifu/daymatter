@@ -56,6 +56,11 @@
         </div>
       </div>
     </swiper>
+    <text
+      class="home-position"
+      if="{{ contentVisible && homeEventCount > 1 }}"
+      style="top: {{ (global.screenSize && global.screenSize.height ? global.screenSize.height : 490) / 2 + (global.deviceType === 'watch' && (global.screenShape === 'rect' || global.screenShape === 'circle') ? 166 : global.deviceType === 'band' && global.screenShape === 'rect' ? 144 : 105) }}px;"
+    >{{ activeSourceIndex + 1 }} / {{ homeEventCount }}</text>
     <div id="empty" if="{{ contentVisible && is_no_event }}">
       <img src="/common/empty.png" />
       <text id="emp">{{ $t("empty") }}</text>
@@ -145,6 +150,7 @@ export default {
     pageVisible: false,
     contentVisible: false,
     activeSourceIndex: -1,
+    homeEventCount: 0,
     swiperIndex: 0
   },
 
@@ -618,12 +624,17 @@ export default {
     // 获取当前事件的信息（用于判断能否切换到某个模式）
     const currentEvent = this.slots.find((slot) => slot.sourceIndex === index)
     if (!currentEvent) return
+    if (currentEvent.displayText === "--") return
     const days = parseInt(currentEvent.days)
     const accurateDiff = currentEvent.accurateDiff
     const isToday =
       currentEvent.isToday !== undefined
         ? currentEvent.isToday
         : currentEvent.displayText === this.$t("today")
+    if (isToday) {
+      showToast({message: this.$t("unitTodayInfo"), duration: 1500})
+      return
+    }
 
     // 尝试切换到下一个模式，如果无法显示则继续尝试
     let attempts = 0
@@ -637,6 +648,10 @@ export default {
       !this.canShowMode(days, accurateDiff, newMode, isToday) &&
       attempts < DISPLAY_MODES.length
     )
+    if (newMode === (currentEvent.displayUnit || "days")) {
+      showToast({message: this.$t("unitDaysOnly"), duration: 1500})
+      return
+    }
 
     const apply = () => {
       const source = this._homeEvents.find((item) => item.id === currentEvent.id)
@@ -671,6 +686,7 @@ export default {
       if (this.pageVisible) apply()
       else this._needsRefresh = true
       if (error) showToast({message: this.$t("watchfaceSyncFail"), duration: 2000})
+      else if (this.pageVisible) showToast({message: this.$t("unitChanged", {unit: this.$t(newMode)}), duration: 1500})
     })
   },
 
@@ -726,6 +742,7 @@ export default {
   setupSlots(refresh) {
     // 首页只生成最多三个展示对象，优先按稳定ID恢复；事件消失时回退相邻位置。
     const total = this._homeEvents.length
+    this.homeEventCount = total
     this.is_no_event = total === 0
     this.swiperIndex = 0
     if (total === 0) {
@@ -1177,6 +1194,15 @@ export default {
   height: 178px;
 }
 
+.home-position {
+  position: absolute;
+  height: 28px;
+  font-size: 20px;
+  font-weight: bold;
+  color: #888888;
+  text-align: center;
+}
+
 .countdown-page {
   display: flex;
   flex-direction: column;
@@ -1285,6 +1311,7 @@ export default {
 }
 
 @media (device-type: watch) and (shape: rect) {
+  .home-position { font-size: 22px; }
   .countdown-swiper {
     width: 300px;
     height: 300px;
@@ -1318,6 +1345,7 @@ export default {
 }
 
 @media (device-type: watch) and (shape: circle) {
+  .home-position { font-size: 22px; }
   .countdown-swiper {
     width: 300px;
     height: 300px;

@@ -1,4 +1,7 @@
 {
+  "unitChanged": "已切换为{unit}",
+  "unitTodayInfo": "今天无需切换单位",
+  "unitDaysOnly": "当前日期跨度仅支持天",
   "eventListTitle": "事件列表",
   "resetFilters": "重置筛选",
   "eventsLoading": "正在加载事件…",
