@@ -437,6 +437,47 @@ test("原名称和本地化标题进入新版键盘，确认只改名称草稿",
   assert.equal(h.global.__daymatterImeOwner, null)
 })
 
+test("O-04 更多设置摘要、子页草稿与滚动位置保留，隐藏恢复回调隔离", () => {
+  const h = createHarness()
+  h.router.push({uri: "/pages/edit", params: {extend: "true"}})
+  const editor = h.current()
+  assert.equal(editor.moreExpanded, false)
+  editor.$nextTick = (fn) => fn()
+  const scrollCalls = []
+  editor.$element = () => ({scrollTo: (options) => scrollCalls.push(options.top)})
+  editor._restoringScroll = false
+  editor.onEditScroll({scrollY: 180})
+  editor.toggleMoreSettings()
+  editor.onPinnedChange({checked: true})
+  assert.ok(editor.moreSummary.includes(editor.$t("pinned")))
+  editor.event_name = "草稿"
+  editor.editEventName()
+  h.router.back()
+  assert.equal(h.current(), editor)
+  assert.equal(editor.event_name, "草稿")
+  assert.equal(editor.moreExpanded, true)
+  assert.equal(scrollCalls.at(-1), 180)
+  editor.onEditScroll({scrollY: 240})
+  editor.editDate()
+  h.current().routeBack()
+  assert.equal(scrollCalls.at(-1), 240)
+  assert.equal(editor.pinned, true)
+  let delayed
+  editor.$nextTick = (fn) => { delayed = fn }
+  editor.restoreScrollPosition()
+  editor.onHide()
+  const before = scrollCalls.length
+  delayed()
+  assert.equal(scrollCalls.length, before, "隐藏后的迟到回调不操作旧节点")
+  const source = fs.readFileSync(path.join(root, "src/pages/edit/edit.ux"), "utf8")
+  const template = source.split("</template>")[0]
+  assert.ok(template.indexOf('$t("eventName")') < template.indexOf('$t("quickTemplate")'))
+  assert.ok(template.indexOf("calendarLabel") < template.indexOf("targetDateLabel"))
+  assert.ok(template.indexOf("annualRepeat") < template.indexOf("showOnHome"))
+  assert.ok(template.indexOf("showOnHome") < template.indexOf('<block if="{{ moreExpanded }}">'))
+  assert.ok(template.includes('class="line button" if="{{ extend !== \'true\' }}"'))
+})
+
 test("O-03 列表名称独立，周年在状态前，数字仍为天数且表盘标记独立", () => {
   const h = createHarness()
   h.router.push({uri: "/pages/list"})

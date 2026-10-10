@@ -1,4 +1,6 @@
 {
+  "moreSettings": "更多設定",
+  "namePlaceholder": "點擊輸入名稱",
   "backgroundTitle": "背景",
   "backgroundDefault": "目前：預設黑色",
   "backgroundCustom": "目前：自訂圖片",

@@ -1,4 +1,6 @@
 {
+  "moreSettings": "更多设置",
+  "namePlaceholder": "点击输入名称",
   "backgroundTitle": "背景",
   "backgroundDefault": "当前：默认黑色",
   "backgroundCustom": "当前：自定义图片",

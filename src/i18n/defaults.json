@@ -1,4 +1,6 @@
 {
+  "moreSettings": "More settings",
+  "namePlaceholder": "Tap to enter a name",
   "backgroundTitle": "Background",
   "backgroundDefault": "Current: default black",
   "backgroundCustom": "Current: custom image",
