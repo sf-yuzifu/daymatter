@@ -61,14 +61,7 @@
               {{ $t("showOnHomeInfo") }}
             </marquee>
           </div>
-          <img
-            if="{{ global.isPillShaped }}"
-            style="height: 48px"
-            src="/common/{{ on_index }}.png"
-            @click="changeDisplayOnIndex"
-          />
           <switch
-            else
             class="setting-switch"
             checked="{{ on_index === true || on_index === 'true' }}"
             @change="onHomeChange"
@@ -93,14 +86,7 @@
               {{ $t("useAsWatchfaceInfo") }}
             </marquee>
           </div>
-          <img
-            if="{{ global.isPillShaped }}"
-            style="height: 48px"
-            src="/common/{{ useWatchface }}.png"
-            @click="changeUseWatchface"
-          />
           <switch
-            else
             class="setting-switch"
             checked="{{ useWatchface === true || useWatchface === 'true' }}"
             @change="onWatchfaceChange"
@@ -125,14 +111,7 @@
               {{ $t("includeStartDayInfo") }}
             </marquee>
           </div>
-          <img
-            if="{{ global.isPillShaped }}"
-            style="height: 48px"
-            src="/common/{{ IFStaringDay }}.png"
-            @click="changeDisplayIFStaringDay"
-          />
           <switch
-            else
             class="setting-switch"
             checked="{{ IFStaringDay === true || IFStaringDay === 'true' }}"
             @change="onStartDayChange"
@@ -157,17 +136,7 @@
               {{ $t("annualRepeatInfo") }}
             </marquee>
           </div>
-          <div if="{{ global.isPillShaped }}">
-            <img
-              if="{{ repeat === 'yearly' }}"
-              style="height: 48px"
-              src="/common/true.png"
-              @click="changeRepeat"
-            />
-            <img else style="height: 48px" src="/common/false.png" @click="changeRepeat" />
-          </div>
           <switch
-            else
             class="setting-switch"
             checked="{{ repeat === 'yearly' }}"
             @change="onRepeatChange"
@@ -197,14 +166,7 @@
           <div class="setting-content">
             <text class="setting-label">{{ $t("pinned") }}</text>
           </div>
-          <img
-            if="{{ global.isPillShaped }}"
-            style="height: 48px"
-            src="/common/{{ pinned }}.png"
-            @click="changePinned"
-          />
           <switch
-            else
             class="setting-switch"
             checked="{{ pinned === true || pinned === 'true' }}"
             @change="onPinnedChange"
@@ -214,14 +176,7 @@
           <div class="setting-content">
             <text class="setting-label">{{ $t("archived") }}</text>
           </div>
-          <img
-            if="{{ global.isPillShaped }}"
-            style="height: 48px"
-            src="/common/{{ archived }}.png"
-            @click="changeArchived"
-          />
           <switch
-            else
             class="setting-switch"
             checked="{{ archived === true || archived === 'true' }}"
             @change="onArchivedChange"
