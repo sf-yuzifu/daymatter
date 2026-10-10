@@ -11,7 +11,7 @@
   "scripts": {
     "start": "aiot start --watch",
     "build": "aiot build",
-    "release": "aiot release --enable-jsc --drop-console log,debug,info",
+    "release": "aiot release --enable-jsc",
     "analyze:size": "node tools/analyze-size.cjs",
     "check:budget": "node tools/check-image-budget.cjs",
     "optimize:png": "node tools/optimize-png.cjs",

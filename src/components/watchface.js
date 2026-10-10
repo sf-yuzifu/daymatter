@@ -45,39 +45,54 @@ function createWatchFace(options) {
   // 会话内最近一次成功写入的内容，避免重复写与无谓失败
   let lastText = null
 
+  function invokeFile(operation, params, callback) {
+    const detail = {operation, uri: params.uri, srcUri: params.srcUri, dstUri: params.dstUri}
+    if (typeof params.text === "string") detail.textLength = params.text.length
+    const log = (phase, extra) => {
+      try { console.error("[daymatter:watchface] " + JSON.stringify(Object.assign({phase}, detail, extra))) } catch (e) { /* 诊断不影响表盘维护 */ }
+    }
+    let settled = false
+    const finish = (error, data) => {
+      if (settled) return
+      settled = true
+      if (error && error.code !== 301 && !(operation === "move" && error.code === 202))
+        log("fail", {code: error.code, data: error.data})
+      callback(error, data)
+    }
+    try {
+      file[operation](Object.assign({}, params, {
+        success: (data) => finish(null, data),
+        fail: (data, code) => finish(Object.assign({type: "write", code: code || 300, data}, detail))
+      }))
+    } catch (e) {
+      if (settled) throw e
+      finish(Object.assign({type: "write", code: "EXCEPTION", data: String(e)}, detail))
+    }
+  }
+
   function fileDelete(targetUri, callback) {
-    file.delete({uri: targetUri, success: () => callback(), fail: () => callback()})
+    invokeFile("delete", {uri: targetUri}, () => callback())
   }
 
   // 部分固件 move 不覆盖已存在文件，退化为直接写派生文件并清理临时文件
-  function writeDirect(text, prevCode, callback) {
-    file.writeText({
-      uri: DATE_URI,
-      text: text,
-      success: () => fileDelete(TMP_URI, () => callback(null)),
-      fail: (data, code) => fileDelete(TMP_URI, () => callback({type: "write", code: code || prevCode || 300}))
-    })
+  function writeDirect(text, callback) {
+    invokeFile("writeText", {uri: DATE_URI, text}, (error) =>
+      fileDelete(TMP_URI, () => callback(error)))
   }
 
   function writeText(text, callback) {
-    file.writeText({
-      uri: TMP_URI,
-      text: text,
-      success: () => {
-        file.move({
-          srcUri: TMP_URI,
-          dstUri: DATE_URI,
-          success: () => callback(null),
-          fail: (data, moveCode) => writeDirect(text, moveCode, callback)
-        })
-      },
-      fail: (data, tmpCode) => writeDirect(text, tmpCode, callback)
+    invokeFile("writeText", {uri: TMP_URI, text}, (error) => {
+      if (error) return writeDirect(text, callback)
+      invokeFile("move", {srcUri: TMP_URI, dstUri: DATE_URI}, (moveError) => {
+        if (moveError) return writeDirect(text, callback)
+        callback(null)
+      })
     })
   }
 
   function exists(callback) {
     if (typeof file.access === "function") {
-      file.access({uri: DATE_URI, success: () => callback(true), fail: () => callback(false)})
+      invokeFile("access", {uri: DATE_URI}, (error) => callback(!error))
       return
     }
     callback(lastText !== null)

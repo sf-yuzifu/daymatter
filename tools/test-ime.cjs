@@ -376,7 +376,7 @@ test("P-08: 全项目优化后图片与资源完整性校验（无损解码、�
     }
   }
   checkPngs(path.join(root, "src"))
-  assert.equal(pngCount, 70, "优化后的 PNG 文件数量应为 70")
+  assert.equal(pngCount, 68, "移除图片开关后的 PNG 文件数量应为 68")
 })
 
 test("F-10 农历切换保持同日、日期选择含闰月、保存后重进保留", () => {

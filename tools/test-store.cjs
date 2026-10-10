@@ -120,6 +120,69 @@ function seedFile(fake, events, extra) {
   fake.files.set(URI, JSON.stringify(Object.assign({version: 2, revision: 100, events: events}, extra || {})))
 }
 
+test("move 202 固件首次新增、修改和重启读取均可提交", async () => {
+  const fake = createFakeFile()
+  fake.file.move = ({fail}) => fail("invalid parameter", 202)
+  const store = createStore(fake)
+  const result = await call(store, "add", {name: "诊断", date: "2026-10-10"})
+  await call(store, "update", result.event.id, {name: "修改后"})
+  const loaded = await call(createStore(fake), "read")
+  assert.equal(loaded.events[0].name, "修改后")
+  assert.equal(fake.files.has(TMP), false)
+  assert.equal(fake.files.has(BAK), false)
+})
+
+test("move 202 兼容提交回读不一致时回滚旧数据，保留备份", async () => {
+  const fake = createFakeFile()
+  const store = createStore(fake)
+  const result = await call(store, "add", {name: "原事件", date: "2026-10-10"})
+  const original = fake.files.get(URI)
+  fake.file.move = ({fail}) => fail("invalid argument", 202)
+  const write = fake.file.writeText
+  let broken = false
+  fake.file.writeText = options => {
+    if (options.uri === URI && !broken) {
+      broken = true
+      fake.files.set(URI, "partial")
+      options.success()
+    } else write(options)
+  }
+  await assert.rejects(call(store, "update", result.event.id, {name: "不能提交"}), error => {
+    assert.equal(error.code, "SAVE_FAIL")
+    assert.equal(error.cause.cause.code, "VERIFY_FAIL")
+    return true
+  })
+  assert.equal(fake.files.get(URI), original)
+  assert.equal(fake.files.get(BAK), original)
+})
+
+test("move 202 时备份失败不覆盖旧正文", async () => {
+  const fake = createFakeFile(), store = createStore(fake)
+  const result = await call(store, "add", {name: "旧", date: "2026-10-10"})
+  const original = fake.files.get(URI)
+  fake.file.move = ({fail}) => fail("invalid argument", 202)
+  fake.controls.failWriteFor = uri => uri === BAK
+  await assert.rejects(call(store, "update", result.event.id, {name: "新"}))
+  assert.equal(fake.files.get(URI), original)
+})
+
+test("move 202 恢复历史临时文件；恢复写入失败不当空列表新增", async () => {
+  const fake = createFakeFile(), store = createStore(fake)
+  await call(store, "add", {name: "历史", date: "2026-10-10"})
+  const original = fake.files.get(URI)
+  fake.files.set(TMP, original)
+  fake.files.delete(URI)
+  fake.file.move = ({fail}) => fail("invalid argument", 202)
+  fake.controls.failWriteFor = uri => uri === URI
+  await assert.rejects(call(createStore(fake), "add", {name: "新", date: "2026-10-11"}))
+  assert.equal(fake.files.get(TMP), original)
+  fake.controls.failWriteFor = null
+  const loaded = await call(createStore(fake), "read")
+  assert.equal(loaded.events.length, 1)
+  assert.equal(loaded.events[0].name, "历史")
+  assert.equal(fake.files.has(TMP), false)
+})
+
 test("F-04/F-05 恢复单次提交、替换失败回滚、修订冲突不写入", async () => {
   const fake = createFakeFile(), store = createStore(fake)
   await call(store, "add", {name:"原事件", date:"2026-10-08"})

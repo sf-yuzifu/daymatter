@@ -6,6 +6,7 @@
 //   I/O 错误 → 直接拒绝。
 // - 写：先写 .tmp 再 move 替换；直接 move 失败且目标存在时，经 .bak 备份再移入，
 //   失败回滚 .bak，保证旧有效数据不丢。
+//   move 返回 202 时采用备份 + writeText + 回读核对；该兼容路径不是原子 rename。
 // - 并发：同一文件的整个「读—改—写」周期在内存队列中串行执行。
 // - 身份：新事件分配持久稳定 ID；旧数据迁移 ID 由内容决定，重复读取保持一致。
 // - 表盘（D-17～D-20）：primaryId 与 on_index 相互独立；每次提交后按主事件维护
@@ -90,35 +91,48 @@ function createEventStore(options) {
     })
   }
 
+  // 仅记录非预期失败；文件不存在及 move 202 由恢复 / 兼容提交处理。
+  function invokeFile(operation, params, callback) {
+    const detail = {operation: operation, uri: params.uri, srcUri: params.srcUri, dstUri: params.dstUri}
+    if (typeof params.text === "string") detail.textLength = params.text.length
+    const log = (phase, extra) => {
+      try { console.error("[daymatter:file] " + JSON.stringify(Object.assign({phase: phase}, detail, extra))) } catch (e) { /* 日志不能阻断存储 */ }
+    }
+    let settled = false
+    const finish = (error, result) => {
+      if (settled) return
+      settled = true
+      if (error && error.code !== 301 && !(operation === "move" && error.code === 202))
+        log("fail", {code: error.code, data: error.data})
+      callback(error, result)
+    }
+    try {
+      file[operation](Object.assign({}, params, {
+        success: (data) => finish(null, data),
+        fail: (data, code) => finish(Object.assign({type: operation === "readText" ? "io" : "write", code: code || 300, data: data}, detail))
+      }))
+    } catch (e) {
+      if (settled) throw e
+      finish(Object.assign({type: "io", code: "EXCEPTION", data: String(e)}, detail))
+    }
+  }
+
   function fileRead(targetUri, callback) {
-    file.readText({
-      uri: targetUri,
-      success: (data) => callback(null, data && typeof data.text === "string" ? data.text : ""),
-      fail: (data, code) => callback({type: "io", code: code || 300, data: data})
-    })
+    invokeFile("readText", {uri: targetUri}, (error, data) =>
+      callback(error, error ? undefined : data && typeof data.text === "string" ? data.text : ""))
   }
 
   function fileWrite(targetUri, text, callback) {
-    file.writeText({
-      uri: targetUri,
-      text: text,
-      success: () => callback(null),
-      fail: (data, code) => callback({type: "write", code: code || 300, data: data})
-    })
+    invokeFile("writeText", {uri: targetUri, text: text}, callback)
   }
 
   function fileMove(srcUri, dstUri, callback) {
-    file.move({
-      srcUri: srcUri,
-      dstUri: dstUri,
-      success: () => callback(null),
-      fail: (data, code) => callback({type: "write", code: code || 300, data: data})
-    })
+    invokeFile("move", {srcUri: srcUri, dstUri: dstUri}, callback)
   }
 
   // 清理类操作全部 best-effort，不阻塞主流程
   function fileDelete(targetUri, callback) {
-    file.delete({uri: targetUri, success: () => callback && callback(), fail: () => callback && callback()})
+    invokeFile("delete", {uri: targetUri}, () => callback && callback())
   }
 
   function fileCopy(srcUri, dstUri, callback) {
@@ -126,17 +140,12 @@ function createEventStore(options) {
       callback({type: "write", code: 300})
       return
     }
-    file.copy({
-      srcUri: srcUri,
-      dstUri: dstUri,
-      success: () => callback(null),
-      fail: (data, code) => callback({type: "write", code: code || 300})
-    })
+    invokeFile("copy", {srcUri: srcUri, dstUri: dstUri}, callback)
   }
 
   function fileExists(targetUri, callback) {
     if (typeof file.access === "function") {
-      file.access({uri: targetUri, success: () => callback(true), fail: () => callback(false)})
+      invokeFile("access", {uri: targetUri}, (error) => callback(!error))
       return
     }
     fileRead(targetUri, (error) => callback(!error))
@@ -278,9 +287,40 @@ function createEventStore(options) {
     fileDelete(badUri, () => fileCopy(uri, badUri, () => callback()))
   }
 
+  function writeVerified(targetUri, text, callback) {
+    fileWrite(targetUri, text, (error) => {
+      if (error) return callback(error)
+      fileRead(targetUri, (readError, actual) => {
+        if (readError) return callback(readError)
+        callback(actual === text ? null : {type: "write", code: "VERIFY_FAIL", operation: "verify", uri: targetUri})
+      })
+    })
+  }
+
+  // move 202 固件兼容：不是原子 rename，先保护旧正文，再写入并回读。
+  // 失败时保留恢复材料；回滚同样核对，不能把失败报告为成功。
+  function commitWithoutMove(text, callback) {
+    fileRead(uri, (readError, previous) => {
+      if (readError && readError.code !== FILE_NOT_FOUND) return callback(readError)
+      const writeMain = () => writeVerified(uri, text, (error) => {
+        if (!error) return callback(null)
+        if (readError) return fileDelete(uri, () => callback(error))
+        writeVerified(uri, previous, (rollbackError) => {
+          if (rollbackError) error.rollbackError = rollbackError
+          callback(error)
+        })
+      })
+      if (readError) return writeMain()
+      writeVerified(bakUri, previous, (backupError) => {
+        if (backupError) return callback(backupError)
+        writeMain()
+      })
+    })
+  }
+
   function restoreCandidate(candidateUri, callback) {
     fileRead(candidateUri, (error, text) => {
-      if (error) return callback(null)
+      if (error) return callback(null, error.code === FILE_NOT_FOUND ? null : error)
       let parsed = null
       try {
         parsed = text && text.trim() ? JSON.parse(text) : null
@@ -291,9 +331,17 @@ function createEventStore(options) {
       if (!normalized) return callback(null)
       fileMove(candidateUri, uri, (moveError) => {
         if (moveError) {
+          if (moveError.code === 202) {
+            // 原候选必须留到正式文件回读成功，不能先删除再重试 move。
+            writeVerified(uri, text, (writeError) => {
+              if (writeError) return callback(null, writeError)
+              fileDelete(candidateUri, () => callback(normalized))
+            })
+            return
+          }
           // move 覆盖失败时退化为删除目标再移动
           fileDelete(uri, () => {
-            fileMove(candidateUri, uri, (retryError) => callback(retryError ? null : normalized))
+            fileMove(candidateUri, uri, (retryError) => callback(retryError ? null : normalized, retryError))
           })
           return
         }
@@ -303,12 +351,14 @@ function createEventStore(options) {
   }
 
   function recoverFromBackup(callback) {
-    restoreCandidate(bakUri, (fromBak) => {
+    restoreCandidate(bakUri, (fromBak, bakError) => {
+      if (bakError) return callback(null, bakError)
       if (fromBak) {
         fileDelete(tmpUri, () => callback(fromBak))
         return
       }
-      restoreCandidate(tmpUri, (fromTmp) => {
+      restoreCandidate(tmpUri, (fromTmp, tmpError) => {
+        if (tmpError) return callback(null, tmpError)
         if (fromTmp) {
           fileDelete(bakUri, () => callback(fromTmp))
           return
@@ -322,10 +372,10 @@ function createEventStore(options) {
     fileRead(uri, (error, text) => {
       if (error) {
         if (error.code === FILE_NOT_FOUND) {
-          recoverFromBackup((recovered) => callback(null, recovered || {state: emptyState(), migrated: false}))
+          recoverFromBackup((recovered, recoveryError) => callback(recoveryError || null, recoveryError ? undefined : recovered || {state: emptyState(), migrated: false}))
           return
         }
-        callback({type: "io", code: error.code})
+        callback(error)
         return
       }
       let parsed = null
@@ -338,7 +388,8 @@ function createEventStore(options) {
       const normalized = parseFailed ? null : normalizeState(parsed)
       if (!normalized) {
         backupCorrupt(() => {
-          recoverFromBackup((recovered) => {
+          recoverFromBackup((recovered, recoveryError) => {
+            if (recoveryError) return callback(recoveryError)
             if (recovered) callback(null, recovered)
             else callback({type: "corrupt"})
           })
@@ -359,6 +410,13 @@ function createEventStore(options) {
       fileMove(tmpUri, uri, (moveError) => {
         if (!moveError) {
           fileDelete(bakUri, () => callback(null))
+          return
+        }
+        if (moveError.code === 202) {
+          commitWithoutMove(JSON.stringify(state), (error) => {
+            if (error) return callback({type: "write", code: error.code, cause: error})
+            fileDelete(tmpUri, () => fileDelete(bakUri, () => callback(null)))
+          })
           return
         }
         fileExists(uri, (exists) => {
