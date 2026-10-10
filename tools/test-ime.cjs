@@ -437,6 +437,30 @@ test("原名称和本地化标题进入新版键盘，确认只改名称草稿",
   assert.equal(h.global.__daymatterImeOwner, null)
 })
 
+test("O-01 实际首页及列表刷新每事件最多计算一次，近期筛选与展示复用", () => {
+  const h = createHarness()
+  h.files.set("internal://files/events.json", JSON.stringify({version: 2, revision: 1, sortMode: "near", events:
+    Array.from({length: 30}, (_, i) => ({id: "o" + i, name: "事件" + i,
+      date: "2026-10-" + String(1 + i).padStart(2, "0"), on_index: true}))}))
+  h.router.push({uri: "/pages/index"})
+  const original = h.global.dateUtils.getRecurringStatus
+  let calls = 0
+  h.global.dateUtils.getRecurringStatus = (...args) => { calls++; return original(...args) }
+  h.current().completed()
+  assert.equal(calls, 30)
+  h.router.push({uri: "/pages/list"})
+  const list = h.current()
+  calls = 0
+  list.periodFilter = "upcoming"
+  list.showPage(1)
+  assert.equal(calls, 30)
+  assert.equal(list.count, 25)
+  assert.equal(list.events[0].id, "o5")
+  calls = 0
+  list.showPage(2)
+  assert.equal(calls, 30, "新刷新重新计算，不保留跨刷新缓存")
+})
+
 test("F-02/F-08 排序筛选分页后编辑仍按ID，归档首页隐藏、恢复保留字段", () => {
   const h = createHarness()
   h.files.set("internal://files/events.json", JSON.stringify({version: 2, revision: 1, primaryId: "e0", sortMode: "near", events:

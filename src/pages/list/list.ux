@@ -161,8 +161,10 @@ export default {
     }
   },
 
-  formatEvent(event, storageIndex) {
-    const status = global.dateUtils.getRecurringStatus(event) || global.dateUtils.TODAY_STATUS
+  formatEvent(event, storageIndex, cachedStatus) {
+    const recurringStatus = cachedStatus === undefined
+      ? global.dateUtils.getRecurringStatus(event) : cachedStatus
+    const status = recurringStatus || global.dateUtils.TODAY_STATUS
     let days,
       display_name = event.name,
       already = true
@@ -180,7 +182,7 @@ export default {
 
     // 表盘主事件与首页展示独立，列表只做标记，不新增节点
     const watchface = event.id === this._primaryId
-    if (event.calendar === "lunar" && !global.dateUtils.getOccurrence(event)) days = "--"
+    if (event.calendar === "lunar" && !recurringStatus) days = "--"
     if (event.repeat === "yearly" && status.anniversary !== null)
       display_name += " " + this.$t("anniversary", {count: status.anniversary})
     if (watchface) display_name += " " + this.$t("watchfaceBadge")
@@ -268,10 +270,12 @@ export default {
           this.$t(this.archiveFilter ? "archived" : "activeEvents")
     // 每次列表变更后按原始存储下标重建当前页映射
     if (this.periodFilter !== "all") this.filterSummary += " · " + this.$t(this.periodFilter === "today" ? "todayEvents" : "upcomingEvents")
+    const refresh = global.eventOrder.createRefresh(global.dateUtils)
     const ordered = global.eventOrder.select(this._allEvents, this.sortMode, global.dateUtils, {
       archived: this.archiveFilter,
       category: this.categoryFilter,
-      period: this.periodFilter
+      period: this.periodFilter,
+      refresh
     })
     const total = ordered.length
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
@@ -287,7 +291,8 @@ export default {
       pageEvents.push(
         this.formatEvent(
           ordered[i],
-          this._allEvents.findIndex((e) => e.id === ordered[i].id)
+          this._allEvents.findIndex((e) => e.id === ordered[i].id),
+          refresh.getStatus(ordered[i])
         )
       )
     }

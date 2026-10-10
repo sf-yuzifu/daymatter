@@ -477,8 +477,10 @@ export default {
     router.clear()
   },
 
-  formatEvent(event, mode, sourceIndex, nameMetrics) {
-    const status = global.dateUtils.getRecurringStatus(event) || global.dateUtils.TODAY_STATUS
+  formatEvent(event, mode, sourceIndex, nameMetrics, cachedStatus) {
+    const recurringStatus = cachedStatus === undefined
+      ? global.dateUtils.getRecurringStatus(event) : cachedStatus
+    const status = recurringStatus || global.dateUtils.TODAY_STATUS
     let name = event.name
     let days
     let already = true
@@ -504,7 +506,7 @@ export default {
 
     // 根据显示模式生成显示文本和字体大小
     const displayInfo = this.getDisplayInfo(days, status.ymd, mode, isToday)
-    if (event.calendar === "lunar" && !global.dateUtils.getOccurrence(event)) {
+    if (event.calendar === "lunar" && !recurringStatus) {
       displayInfo.text = "--"
       isToday = false
     }
@@ -698,12 +700,14 @@ export default {
       const events = result.events
       this.allEvents = events.length
       const nameMetrics = getNameMetrics()
+      const refresh = global.eventOrder.createRefresh(global.dateUtils)
       this.events = global.eventOrder
         .select(events, result.sortMode || "created", global.dateUtils, {
           archived: false,
-          home: true
+          home: true,
+          refresh
         })
-        .map((e, i) => this.formatEvent(e, e.displayUnit || "days", i, nameMetrics))
+        .map((e, i) => this.formatEvent(e, e.displayUnit || "days", i, nameMetrics, refresh.getStatus(e)))
       this._needsRefresh = false
       this.setupSlots()
     })

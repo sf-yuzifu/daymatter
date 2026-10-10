@@ -15,6 +15,53 @@ function loadModule(source) {
 }
 
 const dateUtils = loadModule(dateSource)
+const eventOrder = loadModule(fs.readFileSync(path.join(root, "src/components/eventOrder.js"), "utf8"))
+
+test("O-01 刷新固定日期、缓存无发生日结果，新刷新不沿用旧状态", () => {
+  const now = nowAt(2026, 2, 28, 23, 59)
+  const event = {date: "2020-02-29", repeat: "yearly"}
+  const invalid = {calendar: "lunar", date: "2020-01-01"}
+  let calls = 0
+  const counted = {todayParts: dateUtils.todayParts, getRecurringStatus(e, date) { calls++; return dateUtils.getRecurringStatus(e, date) }}
+  const refresh = eventOrder.createRefresh(counted, now)
+  now.setDate(now.getDate() + 1)
+  assert.equal(refresh.getStatus(event).state, "today")
+  assert.strictEqual(refresh.getStatus(event), refresh.getStatus(event))
+  assert.equal(refresh.getStatus(invalid), null)
+  assert.equal(refresh.getStatus(invalid), null)
+  assert.equal(calls, 2)
+  assert.equal(eventOrder.createRefresh(counted, now).getStatus(event).occurrenceDate, "2027-02-28")
+  event.date = "2020-03-01"
+  assert.equal(eventOrder.createRefresh(counted, now).getStatus(event).state, "today")
+})
+
+test("O-01 近期筛选、临近排序与展示共用状态，置顶/同值稳定/30天边界不变", () => {
+  const now = nowAt(2026, 2, 28)
+  const lunarDate = {year: 2020, month: 4, day: 29, leap: true}
+  const lunar = {id: "lunar", calendar: "lunar", lunarDate, date: dateUtils.lunarToSolar(lunarDate),
+    repeat: "yearly", lunarTableVersion: dateUtils.LUNAR_VERSION,
+    lunarLeapPolicy: "regularFallback", lunarShortMonthPolicy: "lastDay"}
+  const events = [
+    {id: "edge", date: "2026-03-30"}, {id: "same", date: "2026-03-30"},
+    {id: "outside", date: "2026-03-31"}, {id: "past", date: "2026-02-27"},
+    {id: "leap", date: "2020-02-29", repeat: "yearly", IFStaringDay: true},
+    {id: "pin", date: "2026-03-01", pinned: true},
+    {id: "archived", date: "2026-02-28", archived: true}, lunar
+  ]
+  const calls = new Map()
+  const counted = {todayParts: dateUtils.todayParts, getRecurringStatus(e, date) {
+    calls.set(e, (calls.get(e) || 0) + 1)
+    return dateUtils.getRecurringStatus(e, date)
+  }}
+  const refresh = eventOrder.createRefresh(counted, now)
+  const selected = eventOrder.select(events, "near", counted, {archived: false, period: "upcoming", refresh})
+  assert.deepEqual(selected.map(e => e.id), ["pin", "leap", "edge", "same"])
+  for (const event of selected) assert.deepEqual(refresh.getStatus(event), dateUtils.getRecurringStatus(event, now))
+  assert.equal(calls.size, 7)
+  assert.ok([...calls.values()].every(n => n === 1))
+  assert.deepEqual(refresh.getStatus(lunar), dateUtils.getRecurringStatus(lunar, now))
+  assert.equal(calls.get(lunar), 1)
+})
 
 test("F-10 农历往返、闰月回退、小月月末与表上界", () => {
   let days = 0
