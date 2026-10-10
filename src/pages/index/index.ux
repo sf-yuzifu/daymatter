@@ -502,7 +502,10 @@ export default {
 
     // 根据事件状态调整主题色色调
     if (event.repeat === "yearly" && status.anniversary !== null)
-      name += " " + this.$t("anniversary", {count: status.anniversary})
+      name = this.$t(status.state === "future" ? "homeAnnualFuture" : status.state === "past" ? "homeAnnualPast" : "homeAnnualToday", {
+        name: event.name,
+        count: status.anniversary
+      })
     themeColor = global.adjustThemeColor(themeColor, already)
 
     // 根据显示模式生成显示文本和字体大小

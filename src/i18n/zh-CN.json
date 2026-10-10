@@ -1,4 +1,7 @@
 {
+  "homeAnnualFuture": "{name}第{count}周年还有",
+  "homeAnnualPast": "{name}第{count}周年已经",
+  "homeAnnualToday": "{name}第{count}周年",
   "moreSettings": "更多设置",
   "namePlaceholder": "点击输入名称",
   "backgroundTitle": "背景",

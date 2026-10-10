@@ -1,4 +1,7 @@
 {
+  "homeAnnualFuture": "Until {name} — anniversary {count}",
+  "homeAnnualPast": "{name} — anniversary {count} elapsed",
+  "homeAnnualToday": "{name} — anniversary {count}",
   "moreSettings": "More settings",
   "namePlaceholder": "Tap to enter a name",
   "backgroundTitle": "Background",

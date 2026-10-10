@@ -437,6 +437,30 @@ test("原名称和本地化标题进入新版键盘，确认只改名称草稿",
   assert.equal(h.global.__daymatterImeOwner, null)
 })
 
+test("首页年度标题使用各语言完整语序，今天无还有，含首日保持过去状态", () => {
+  const h = createHarness()
+  const home = h.router.push({uri: "/pages/index"})
+  const expected = {
+    "zh-CN": ["生日第5周年还有", "生日第5周年", "生日第5周年已经"],
+    "zh-TW": ["生日第5週年還有", "生日第5週年", "生日第5週年已經"],
+    "zh-HK": ["生日第5周年仲有", "生日第5周年", "生日第5周年已經"],
+    defaults: ["Until 生日 — anniversary 5", "生日 — anniversary 5", "生日 — anniversary 5 elapsed"]
+  }
+  for (const [language, titles] of Object.entries(expected)) {
+    const messages = JSON.parse(fs.readFileSync(path.join(root, "src/i18n", language + ".json"), "utf8"))
+    home.$t = (key, params = {}) => (messages[key] || key).replace(/\{(\w+)\}/g, (_, name) => String(params[name]))
+    for (const [index, event] of [
+      {name: "生日", date: "2021-10-18", repeat: "yearly"},
+      {name: "生日", date: "2021-10-06", repeat: "yearly"},
+      {name: "生日", date: "2021-10-06", repeat: "yearly", IFStaringDay: true}
+    ].entries()) {
+      assert.equal(home.formatEvent(event, "days", 0, {fontSize: 20, width: 150}).name, titles[index])
+    }
+    assert.equal(home.formatEvent({name: "高考", date: "2026-10-18"}, "days", 0, {fontSize: 20, width: 150}).name,
+      "高考" + messages.remaining)
+  }
+})
+
 test("O-04 更多设置摘要、子页草稿与滚动位置保留，隐藏恢复回调隔离", () => {
   const h = createHarness()
   h.router.push({uri: "/pages/edit", params: {extend: "true"}})
