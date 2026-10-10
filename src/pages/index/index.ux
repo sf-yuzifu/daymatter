@@ -139,7 +139,6 @@ let connect
 export default {
   private: {
     time: "",
-    events: [],
     slots: [],
     is_no_event: true,
     bgImage: "",
@@ -154,6 +153,8 @@ export default {
     this.currentDisplayModeIndex = 0
     this._currentSlot = 0
     this._currentSource = 0
+    this._currentEventId = ""
+    this._homeEvents = []
     this._destroyed = false
     this._needsRefresh = false
     this._messageHandler = null
@@ -440,10 +441,10 @@ export default {
   },
 
   onHide() {
-    // 离开页面立即停止跑马灯与分钟时钟，并释放重内容节点；卡片位置由 _currentSource 保留
+    // 隐藏释放原始集合与槽位；保留稳定ID及位置供重新读取后恢复。
     this.pageVisible = false
     this.contentVisible = false
-    this.events = []
+    this._homeEvents = []
     this.slots = []
     this.activeSourceIndex = -1
     this._ticker.stop()
@@ -456,7 +457,7 @@ export default {
       interconnectHub.unsubscribeMessage(this._messageHandler)
       this._messageHandler = null
     }
-    this.events = []
+    this._homeEvents = []
     this.slots = []
     this.bgImage = ""
     this.activeSourceIndex = -1
@@ -612,7 +613,7 @@ export default {
   toggleDisplayMode(index) {
     if (this._unitSaving) return
     // 获取当前事件的信息（用于判断能否切换到某个模式）
-    const currentEvent = this.events[index]
+    const currentEvent = this.slots.find((slot) => slot.sourceIndex === index)
     if (!currentEvent) return
     const days = parseInt(currentEvent.days)
     const accurateDiff = currentEvent.accurateDiff
@@ -635,7 +636,10 @@ export default {
     )
 
     const apply = () => {
-      const event = currentEvent
+      const source = this._homeEvents.find((item) => item.id === currentEvent.id)
+      if (source) source.displayUnit = newMode
+      const event = this.slots.find((slot) => slot.id === currentEvent.id)
+      if (!event) return
       event.displayUnit = newMode
       const eventDays = parseInt(event.days)
       const eventAccurateDiff = event.accurateDiff
@@ -699,23 +703,26 @@ export default {
       }
       const events = result.events
       this.allEvents = events.length
-      const nameMetrics = getNameMetrics()
       const refresh = global.eventOrder.createRefresh(global.dateUtils)
-      this.events = global.eventOrder
+      this._homeEvents = global.eventOrder
         .select(events, result.sortMode || "created", global.dateUtils, {
           archived: false,
           home: true,
           refresh
         })
-        .map((e, i) => this.formatEvent(e, e.displayUnit || "days", i, nameMetrics, refresh.getStatus(e)))
       this._needsRefresh = false
-      this.setupSlots()
+      this.setupSlots(refresh)
     })
   },
 
-  setupSlots() {
-    // 首页最多保留三个槽位：当前、下一个、上一个（循环），并恢复上次浏览的卡片
-    const total = this.events.length
+  createSlot(source, refresh) {
+    const event = this._homeEvents[source]
+    return this.formatEvent(event, event.displayUnit || "days", source, getNameMetrics(), refresh.getStatus(event))
+  },
+
+  setupSlots(refresh) {
+    // 首页只生成最多三个展示对象，优先按稳定ID恢复；事件消失时回退相邻位置。
+    const total = this._homeEvents.length
     this.is_no_event = total === 0
     this.swiperIndex = 0
     if (total === 0) {
@@ -723,21 +730,25 @@ export default {
       this.activeSourceIndex = -1
       this._currentSlot = 0
       this._currentSource = 0
+      this._currentEventId = ""
       return
     }
     let source = this._currentSource
+    const restored = this._homeEvents.findIndex((event) => event.id === this._currentEventId)
+    if (restored >= 0) source = restored
     if (source < 0) source = 0
     if (source >= total) source = total - 1
     this._currentSource = source
+    this._currentEventId = this._homeEvents[source].id
     if (total <= 3) {
-      this.slots = this.events.slice(0, total)
+      this.slots = this._homeEvents.map((event, index) => this.createSlot(index, refresh))
       this._currentSlot = source
       this.swiperIndex = source
     } else {
       this.slots = [
-        this.events[source],
-        this.events[(source + 1) % total],
-        this.events[(source - 1 + total) % total]
+        this.createSlot(source, refresh),
+        this.createSlot((source + 1) % total, refresh),
+        this.createSlot((source - 1 + total) % total, refresh)
       ]
       this._currentSlot = 0
       this.swiperIndex = 0
@@ -747,7 +758,7 @@ export default {
   },
 
   onSwiperChange(event) {
-    const total = this.events.length
+    const total = this._homeEvents.length
     if (total <= 1) return
     const slotCount = this.slots.length
     const newSlot = event && event.index >= 0 && event.index < slotCount ? event.index : 0
@@ -758,13 +769,13 @@ export default {
     if (total > 3 && slotCount === 3) {
       const step = (newSlot - oldSlot + 3) % 3
       if (step === 1) {
-        // 前进：把两页之前的出屏槽位原地换成新的下一个事件
+        // 前进：只为出屏槽位生成新的下一个事件展示对象。
         newSource = (this._currentSource + 1) % total
-        this.slots[(newSlot + 1) % 3] = this.events[(newSource + 1) % total]
+        this.slots[(newSlot + 1) % 3] = this.createSlot((newSource + 1) % total, global.eventOrder.createRefresh(global.dateUtils))
       } else if (step === 2) {
-        // 后退：把两页之前的出屏槽位原地换成新的上一个事件
+        // 后退：只为出屏槽位生成新的上一个事件展示对象。
         newSource = (this._currentSource - 1 + total) % total
-        this.slots[(newSlot + 2) % 3] = this.events[(newSource - 1 + total) % total]
+        this.slots[(newSlot + 2) % 3] = this.createSlot((newSource - 1 + total) % total, global.eventOrder.createRefresh(global.dateUtils))
       } else {
         newSource = this._currentSource
       }
@@ -774,6 +785,7 @@ export default {
 
     this._currentSlot = newSlot
     this._currentSource = newSource
+    this._currentEventId = this._homeEvents[newSource].id
     this.swiperIndex = newSlot
     this.activeSourceIndex = newSource
     this.resumeMarquee()

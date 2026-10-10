@@ -468,7 +468,7 @@ test("F-02/F-08 排序筛选分页后编辑仍按ID，归档首页隐藏、恢�
       IFStaringDay: false, pinned: false, archived: false, category: i === 22 ? "life" : "birthday", sortOrder: i}))}))
   h.router.push({uri: "/pages/index"})
   const home = h.current()
-  assert.equal(home.events[0].id, "e22")
+  assert.equal(home.slots[0].id, "e22")
   h.router.push({uri: "/pages/list"})
   const list = h.current()
   assert.equal(list.events.length, 10)
@@ -493,7 +493,8 @@ test("F-02/F-08 排序筛选分页后编辑仍按ID，归档首页隐藏、恢�
   restored.archived = false
   restored.saveEvent()
   list.routeBack()
-  assert.equal(home.events[0].id, "e12", "恢复保留置顶，首页采用共享排序")
+  assert.equal(home.slots[home.swiperIndex].id, "e22", "排序改变后首页按稳定ID恢复原卡片")
+  assert.equal(home._homeEvents[0].id, "e12", "恢复保留置顶，首页采用共享排序")
 })
 
 test("固定筛选框点击即生效，排序失败保留原值，返回仅收起", () => {
@@ -767,26 +768,26 @@ test("C-20: 首页切换显示单位时原地修改属性，严格保留事件�
     {name: "另一个事件", date: "2030-11-06", on_index: true, IFStaringDay: false}
   ]))
   const home = h.router.push({uri: "/pages/index"})
-  assert.equal(home.events.length, 2)
+  assert.equal(home.slots.length, 2)
 
-  const arrayBefore = home.events
-  const objBefore = home.events[0]
-  const modeBefore = home.events[0].displayUnit
-  const otherBefore = home.events[1].displayText
+  const arrayBefore = home.slots
+  const objBefore = home.slots[0]
+  const modeBefore = home.slots[0].displayUnit
+  const otherBefore = home.slots[1].displayText
 
   // 触发切换模式
   home.toggleDisplayMode(0)
 
-  assert.equal(home.events, arrayBefore, "必须保持同一 events 数组引用，不重新赋值整个数组")
-  assert.equal(home.events[0], objBefore, "必须保持同一事件对象引用，避免销毁已有 DOM / Swiper 节点")
-  assert.notEqual(home.events[0].displayUnit, modeBefore, "当前事件单位已推进")
-  assert.ok(home.events[0].displayText, "更新了展示文本")
-  assert.ok(home.events[0].fontSize > 0, "更新了字号大小")
-  assert.equal(home.events[1].displayText, otherBefore, "不改变其他事件")
+  assert.equal(home.slots, arrayBefore, "必须保持同一槽位数组引用")
+  assert.equal(home.slots[0], objBefore, "必须保持同一事件对象引用，避免销毁已有 DOM / Swiper 节点")
+  assert.notEqual(home.slots[0].displayUnit, modeBefore, "当前事件单位已推进")
+  assert.ok(home.slots[0].displayText, "更新了展示文本")
+  assert.ok(home.slots[0].fontSize > 0, "更新了字号大小")
+  assert.equal(home.slots[1].displayText, otherBefore, "不改变其他事件")
   const saved = JSON.parse(h.files.get("internal://files/events.json"))
-  assert.equal(saved.events[0].displayUnit, home.events[0].displayUnit)
+  assert.equal(saved.events[0].displayUnit, home.slots[0].displayUnit)
   home.completed()
-  assert.equal(home.events[0].displayUnit, saved.events[0].displayUnit, "重读保留单位")
+  assert.equal(home.slots[0].displayUnit, saved.events[0].displayUnit, "重读保留单位")
 })
 
 test("C-08: 键盘候选列表按需构建：打字时不构建 2D 数组，展开时按需切片，收起立即释放", () => {
@@ -1188,6 +1189,48 @@ test("C-17/C-27: 列表页模板使用 list/list-item 显式高度与存储下�
   assert.ok(/\.event-item\s*\{[^}]*height:\s*\d+px/.test(listSource), "list-item 必须显式设置高度")
 })
 
+test("O-02 200条首页仅格式化3槽位，滑动生成1槽，按ID恢复增删改后的卡片", () => {
+  const h = createHarness()
+  seedEvents(h, 200)
+  const home = h.router.push({uri: "/pages/index"})
+  const original = home.formatEvent
+  let formatted = 0
+  home.formatEvent = function (...args) { formatted++; return original.apply(this, args) }
+  home.completed()
+  assert.equal(formatted, 3)
+  assert.equal(home._homeEvents.length, 200)
+  assert.equal(home.events, undefined)
+  formatted = 0
+  home.onSwiperChange({index: 1})
+  assert.equal(formatted, 1)
+  const selected = home.slots[1].id
+  home.toggleDisplayMode(home.activeSourceIndex)
+  const unit = home.slots[1].displayUnit
+  for (let i = 0; i < 200; i++) home.onSwiperChange({index: (home._currentSlot + 1) % 3})
+  assert.equal(home.slots[home._currentSlot].id, selected)
+  assert.equal(home.slots[home._currentSlot].displayUnit, unit, "出屏后重新生成保留单位")
+  const uri = "internal://files/events.json"
+  const state = JSON.parse(h.files.get(uri))
+  state.events.reverse()
+  state.events.find(e => e.id === selected).name = "修改后的事件"
+  state.events.unshift({...state.events[0], id: "inserted", name: "新增"})
+  h.files.set(uri, JSON.stringify(state))
+  home.completed()
+  assert.equal(home.slots[home._currentSlot].id, selected)
+  assert.ok(home.slots[home._currentSlot].name.includes("修改后的事件"))
+  home.onHide()
+  assert.equal(home._homeEvents.length, 0)
+  assert.equal(home.slots.length, 0)
+  home.onShow()
+  assert.equal(home.slots[home._currentSlot].id, selected)
+  state.events = state.events.filter(e => e.id !== selected)
+  h.files.set(uri, JSON.stringify(state))
+  home.completed()
+  assert.notEqual(home.slots[home._currentSlot].id, selected)
+  assert.equal(home.slots.length, 3)
+  assert.equal(home._currentEventId, home.slots[home._currentSlot].id)
+})
+
 test("C-18: 首页最多保留三个卡片槽位，滑动时原地轮换当前与相邻卡片", () => {
   function homeWith(count) {
     const h = createHarness()
@@ -1197,18 +1240,18 @@ test("C-18: 首页最多保留三个卡片槽位，滑动时原地轮换当前�
   }
 
   function assertSlotWindow(home) {
-    const total = home.events.length
+    const total = home._homeEvents.length
     const p = home._currentSlot
     assert.equal(home.slots.length, 3)
-    assert.equal(home.slots[p], home.events[home._currentSource], "当前槽位必须对应当前事件")
+    assert.equal(home.slots[p].id, home._homeEvents[home._currentSource].id, "当前槽位必须对应当前事件")
     assert.equal(
-      home.slots[(p + 1) % 3],
-      home.events[(home._currentSource + 1) % total],
+      home.slots[(p + 1) % 3].id,
+      home._homeEvents[(home._currentSource + 1) % total].id,
       "下一槽位必须对应下一个事件"
     )
     assert.equal(
-      home.slots[(p + 2) % 3],
-      home.events[(home._currentSource - 1 + total) % total],
+      home.slots[(p + 2) % 3].id,
+      home._homeEvents[(home._currentSource - 1 + total) % total].id,
       "上一槽位必须对应上一个事件"
     )
     assert.equal(home.swiperIndex, p, "swiper 索引与槽位一致")
@@ -1223,27 +1266,27 @@ test("C-18: 首页最多保留三个卡片槽位，滑动时原地轮换当前�
     assert.equal(home.is_no_event, false)
     assert.equal(home.slots.length, count, count + " 个事件时槽位数与事件数一致")
     for (let i = 0; i < count; i++) {
-      assert.equal(home.slots[i], home.events[i], "槽位必须复用同一展示对象")
+      assert.equal(home.slots[i].id, home._homeEvents[i].id, "槽位对应原始事件")
     }
   }
 
   // 多事件：仅三个槽位，顺序为当前 / 下一个 / 上一个（循环）
   const {home} = homeWith(5)
-  assert.equal(home.events.length, 5)
+  assert.equal(home._homeEvents.length, 5)
   assert.equal(home.slots.length, 3)
-  assert.equal(home.slots[0], home.events[0])
-  assert.equal(home.slots[1], home.events[1])
-  assert.equal(home.slots[2], home.events[4])
+  assert.equal(home.slots[0].id, home._homeEvents[0].id)
+  assert.equal(home.slots[1].id, home._homeEvents[1].id)
+  assert.equal(home.slots[2].id, home._homeEvents[4].id)
   assert.equal(home.activeSourceIndex, 0)
   assertSlotWindow(home)
 
   const slotsRef = home.slots
-  const eventsRef = home.events
+  const eventsRef = home._homeEvents
 
   // 双向快速滑动：每次只原地替换出屏槽位，数组与事件对象引用不变
   home.onSwiperChange({index: 1})
   assert.equal(home.slots, slotsRef, "必须原地更新槽位数组")
-  assert.equal(home.events, eventsRef, "不得重建全部首页事件数组")
+  assert.equal(home._homeEvents, eventsRef, "不得重建全部首页事件数组")
   assert.equal(home.activeSourceIndex, 1)
   assertSlotWindow(home)
 
@@ -1273,7 +1316,7 @@ test("C-18: 首页最多保留三个卡片槽位，滑动时原地轮换当前�
 
   // 切换显示单位时仍原地更新全部首页事件，槽位引用保持
   home.toggleDisplayMode(home.activeSourceIndex)
-  assert.equal(home.events, eventsRef)
+  assert.equal(home._homeEvents, eventsRef)
   assert.equal(home.slots, slotsRef)
   assertSlotWindow(home)
 })
@@ -1305,8 +1348,8 @@ test("C-19: 跑马灯仅在当前可见且名称超宽时启用，隐藏 / 离�
   )
   const home = h.router.push({uri: "/pages/index"})
   assert.equal(home.pageVisible, true, "显示时跑马灯按需恢复")
-  assert.equal(home.events[0].nameOverflow, true, "超宽名称启用跑马灯")
-  assert.equal(home.events[1].nameOverflow, false, "未超宽名称使用静态文本")
+  assert.equal(home.slots[0].nameOverflow, true, "超宽名称启用跑马灯")
+  assert.equal(home.slots[1].nameOverflow, false, "未超宽名称使用静态文本")
   assert.equal(home.activeSourceIndex, 0, "仅当前可见卡片启用跑马灯")
 
   home.onSwiperChange({index: 1})
@@ -1359,7 +1402,7 @@ test("C-06: 互联消息由应用级单例分发，页面销毁解除订阅，�
   home.routeMore()
   const list = h.current()
   assert.equal(home.pageVisible, false)
-  assert.equal(home.events.length, 0)
+  assert.equal(home.slots.length, 0)
   conn.onmessage({
     data: JSON.stringify({
       type: "addEvent", name: "插件新增", date: "2026-12-01",
@@ -1367,13 +1410,13 @@ test("C-06: 互联消息由应用级单例分发，页面销毁解除订阅，�
     })
   })
   assert.equal(readStoreEvents(h).length, 2, "插件新增必须写入文件")
-  assert.equal(home.events.length, 0, "隐藏页不得重建展示数据")
+  assert.equal(home.slots.length, 0, "隐藏页不得重建展示数据")
   assert.equal(home._needsRefresh, true, "隐藏页只标记需要刷新")
 
   // 返回首页后按最新数据重建
   list.routeBack()
   assert.equal(h.current(), home)
-  assert.ok(home.events.some((e) => e.name.includes("插件新增")))
+  assert.ok(home._homeEvents.some((e) => e.name.includes("插件新增")))
   assert.equal(home._needsRefresh, false)
 
   // 页面销毁后解除订阅：分发器不再持有旧页面
@@ -1811,7 +1854,7 @@ test("C-03/C-04: 隐藏页先释放重内容再创建新页，返回恢复卡片
   const list = h.current()
   assert.equal(home.pageVisible, false)
   assert.equal(home.contentVisible, false)
-  assert.equal(home.events.length, 0, "隐藏首页必须释放展示数据")
+  assert.equal(home.slots.length, 0, "隐藏首页必须释放展示数据")
   assert.equal(list.contentVisible, true, "新页面创建时旧页已释放")
 
   // 列表翻页 → 编辑：列表释放、页码保留
@@ -2094,7 +2137,7 @@ test("C-23: 连续进入 / 退出各页面后大块数据可回收，数组 / �
     assert.equal(h.pages.length, 1, "连续往返不得堆积页面")
     assert.equal(list._allEvents.length, 0, "隐藏列表必须释放原始快照")
     assert.equal(list.events.length, 0, "隐藏列表必须释放当前页数据")
-    assert.ok(home.events.length <= 12)
+    assert.ok(home._homeEvents.length <= 12)
     assert.equal(home.slots.length, 3, "首页最多三个槽位")
   }
 
