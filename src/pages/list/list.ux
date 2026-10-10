@@ -25,7 +25,8 @@
           <text class="filter-arrow iconfont" if="{{ settingsExpanded }}">&#xe686;</text>
           <text class="filter-arrow iconfont" else>&#xe685;</text>
         </div>
-        <div class="filter-body" if="{{ settingsExpanded }}">
+        <scroll class="filter-scroll" if="{{ settingsExpanded }}" scroll-y="true" scroll-x="false" bounces="true">
+        <div class="{{ filtersActive ? 'filter-body filter-body-with-reset' : 'filter-body' }}">
           <div class="filter-row">
             <text class="filter-label">{{ $t("sortModeLabel") }}</text>
             <picker class="filter-picker" type="text" range="{{ sortOptions }}" selected="{{ sortIndex }}" @change="onSortSelect"></picker>
@@ -40,6 +41,7 @@
           </div>
           <text class="state-action" if="{{ filtersActive }}" @click="resetFilters">{{ $t('resetFilters') }}</text>
         </div>
+        </scroll>
       </div>
       <div class="list-state" if="{{ contentVisible && loadState === 'loading' }}"><text class="state-text">{{ $t('eventsLoading') }}</text></div>
       <div class="list-state" elif="{{ contentVisible && loadState === 'error' }}">
@@ -574,7 +576,17 @@ export default {
 }
 .filter-body {
   width: 100%;
+  height: 126px;
   flex-direction: column;
+  flex-shrink: 0;
+}
+.filter-body-with-reset {
+  height: 172px;
+}
+.filter-scroll {
+  width: 100%;
+  height: 150px;
+  flex-shrink: 0;
 }
 .filter-row {
   width: 100%;
@@ -607,6 +619,15 @@ export default {
   .filter-panel {
     padding: 0 10px;
     border-radius: 14px;
+  }
+  .filter-scroll {
+    height: 136px;
+  }
+  .filter-body {
+    height: 192px;
+  }
+  .filter-body-with-reset {
+    height: 238px;
   }
   .filter-header {
     height: 40px;
@@ -643,6 +664,8 @@ export default {
 }
 
 @media (shape: rect) {
+  .filter-body { height: 144px; }
+  .filter-body-with-reset { height: 190px; }
   .filter-panel {
     padding: 0 16px;
     border-radius: 14px;
@@ -668,6 +691,8 @@ export default {
 }
 
 @media (shape: circle) {
+  .filter-body { height: 144px; }
+  .filter-body-with-reset { height: 190px; }
   .filter-panel {
     padding: 0 16px;
     border-radius: 14px;

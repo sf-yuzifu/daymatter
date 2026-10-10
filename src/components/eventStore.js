@@ -753,25 +753,52 @@ function createEventStore(options) {
   }
 
   function backupChecksum(value) {
-    const canonical = (v) => {
-      if (Array.isArray(v)) return "[" + v.map(canonical).join(",") + "]"
-      if (v && typeof v === "object") return "{" + Object.keys(v).sort().map(k => JSON.stringify(k) + ":" + canonical(v[k])).join(",") + "}"
-      if (typeof v === "number") {
-        const bytes = new DataView(new ArrayBuffer(8))
-        bytes.setFloat64(0, v, false)
-        return "n" + ("00000000" + bytes.getUint32(0, false).toString(16)).slice(-8) + ("00000000" + bytes.getUint32(4, false).toString(16)).slice(-8)
-      }
-      return JSON.stringify(v)
-    }
-    const text = canonical(value)
     let hash = 5381
-    for (let i = 0; i < text.length; i++) hash = (hash * 33 + text.charCodeAt(i)) >>> 0
+    const bytes = new DataView(new ArrayBuffer(8))
+    const append = (text) => {
+      for (let i = 0; i < text.length; i++) hash = (hash * 33 + text.charCodeAt(i)) >>> 0
+    }
+    const canonical = (v) => {
+      if (Array.isArray(v)) {
+        append("[")
+        for (let i = 0; i < v.length; i++) {
+          if (i) append(",")
+          canonical(v[i])
+        }
+        append("]")
+        return
+      }
+      if (v && typeof v === "object") {
+        append("{")
+        const keys = Object.keys(v).sort()
+        for (let i = 0; i < keys.length; i++) {
+          if (i) append(",")
+          append(JSON.stringify(keys[i]))
+          append(":")
+          canonical(v[keys[i]])
+        }
+        append("}")
+        return
+      }
+      if (typeof v === "number") {
+        bytes.setFloat64(0, v, false)
+        append("n" + ("00000000" + bytes.getUint32(0, false).toString(16)).slice(-8) + ("00000000" + bytes.getUint32(4, false).toString(16)).slice(-8))
+        return
+      }
+      append(JSON.stringify(v))
+    }
+    canonical(value)
     return ("00000000" + hash.toString(16)).slice(-8)
   }
 
   function restoreBackup(input, callback) {
     let backup
-    try { backup = JSON.parse(JSON.stringify(input.backup)) } catch (e) { callback({code: "INVALID_BACKUP"}); return }
+    // 保留队列输入隔离副本；复用序列化结果做预算检查，避免校验阶段再序列化。
+    try {
+      const text = JSON.stringify(input.backup)
+      if (!text || text.length > 240 * 1024) { callback({code: "INVALID_BACKUP"}); return }
+      backup = JSON.parse(text)
+    } catch (e) { callback({code: "INVALID_BACKUP"}); return }
     const data = backup && backup.data
     const bounded = (value, depth) => {
       if (depth > 32) return false
@@ -781,7 +808,7 @@ function createEventStore(options) {
     }
     if (!bounded(backup, 0)) { callback({code: "INVALID_BACKUP"}); return }
     if (!data || backup.format !== "daymatter-backup" || backup.backupVersion !== 1 || data.version !== DATA_VERSION ||
-        backup.checksum !== backupChecksum(data) || JSON.stringify(backup).length > 240 * 1024 ||
+         backup.checksum !== backupChecksum(data) ||
         !Array.isArray(data.events) || data.events.length > MAX_EVENTS ||
         ["created", "near", "manual"].indexOf(data.sortMode) < 0 || typeof data.primaryId !== "string" ||
         ["merge", "replace"].indexOf(input.mode) < 0 || ["keep", "overwrite"].indexOf(input.conflict) < 0 ||

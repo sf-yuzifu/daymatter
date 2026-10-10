@@ -437,6 +437,45 @@ test("原名称和本地化标题进入新版键盘，确认只改名称草稿",
   assert.equal(h.global.__daymatterImeOwner, null)
 })
 
+test("O-10 三屏0/10/30/100/200条长名称与农历事件冷启动返回翻页滑动基线", (t) => {
+  const metrics = []
+  for (const [shape, type, width, height] of [["pill-shaped", "band", 192, 490], ["rect", "band", 336, 480], ["circle", "watch", 480, 480]]) {
+    for (const count of [0, 10, 30, 100, 200]) {
+      const h = createHarness()
+      Object.assign(h.global, {screenShape: shape, deviceType: type, screenSize: {width, height}, isPillShaped: shape === "pill-shaped"})
+      const lunarDate = {year: 2020, month: 4, day: 29, leap: true}
+      const events = Array.from({length: count}, (_, i) => ({id: "scale" + i, name: "长名称😀".repeat(8) + i,
+        date: i % 4 === 0 ? h.global.dateUtils.lunarToSolar(lunarDate) : "2026-10-18", on_index: true,
+        repeat: "yearly", ...(i % 4 === 0 ? {calendar: "lunar", lunarDate,
+          lunarTableVersion: h.global.dateUtils.LUNAR_VERSION, lunarLeapPolicy: "regularFallback", lunarShortMonthPolicy: "lastDay"} : {})}))
+      h.files.set("internal://files/events.json", JSON.stringify({version: 2, revision: 1, primaryId: "", sortMode: "near", events}))
+      const started = performance.now()
+      const home = h.router.push({uri: "/pages/index"})
+      const cold = performance.now() - started
+      assert.equal(home.slots.length, Math.min(3, count))
+      for (let i = 0; i < 12 && count > 3; i++) home.onSwiperChange({index: (home._currentSlot + 1) % 3})
+      for (let i = 0; i < 12 && count > 3; i++) home.onSwiperChange({index: (home._currentSlot + 2) % 3})
+      const list = h.router.push({uri: "/pages/list"})
+      assert.equal(home._homeEvents.length, 0)
+      assert.equal(list.count, count)
+      assert.ok(list.events.length <= 10)
+      if (count > 10) {
+        list.changePage(list.totalPages)
+        assert.equal(list.events.at(-1).storageIndex >= 0, true)
+      }
+      const returned = performance.now()
+      list.routeBack()
+      assert.equal(home.homeEventCount, count)
+      assert.equal(list._allEvents.length, 0)
+      assert.equal(h.pages.length, 1)
+      assert.equal(h.pendingTimers(), 1)
+      metrics.push(`${shape}/${count}: cold=${cold.toFixed(2)}ms return=${(performance.now() - returned).toFixed(2)}ms slots=${home.slots.length}`)
+      home.onDestroy()
+    }
+  }
+  t.diagnostic("Node页面脚本模拟（不含设备I/O/绘制）：" + metrics.join("; "))
+})
+
 test("O-07 诊断默认关闭，启用后标量记录有界并正确计时", () => {
   const state = {}
   let now = 100

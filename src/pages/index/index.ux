@@ -87,19 +87,36 @@ const PROTOCOL_REQUEST_LIMIT = 32
 const PROTOCOL_PAYLOAD_LIMIT = 16384
 
 // 使用完整规范化 JSON，而非短哈希，避免属性顺序差异和哈希碰撞导致误判。
-function canonicalProtocolValue(value) {
-  if (Array.isArray(value)) return "[" + value.map(canonicalProtocolValue).join(",") + "]"
-  if (value && typeof value === "object") {
-    return (
-      "{" +
-      Object.keys(value)
-        .sort()
-        .map((key) => JSON.stringify(key) + ":" + canonicalProtocolValue(value[key]))
-        .join(",") +
-      "}"
-    )
+function canonicalProtocolValue(value, limit) {
+  const parts = []
+  let length = 0
+  function append(text) {
+    length += text.length
+    if (length > limit) return false
+    parts.push(text)
+    return true
   }
-  return JSON.stringify(value)
+  function visit(item) {
+    if (Array.isArray(item)) {
+      if (!append("[")) return false
+      for (let i = 0; i < item.length; i++) {
+        if (i && !append(",")) return false
+        if (!visit(item[i])) return false
+      }
+      return append("]")
+    }
+    if (item && typeof item === "object") {
+      if (!append("{")) return false
+      const keys = Object.keys(item).sort()
+      for (let i = 0; i < keys.length; i++) {
+        if (i && !append(",")) return false
+        if (!append(JSON.stringify(keys[i])) || !append(":") || !visit(item[keys[i]])) return false
+      }
+      return append("}")
+    }
+    return append(JSON.stringify(item))
+  }
+  return visit(value) ? parts.join("") : null
 }
 
 const BASE_FONT_SIZES = Object.freeze({
@@ -348,8 +365,8 @@ export default {
           parsedData.deviceId.length > 128
         )
           return
-        const fingerprint = canonicalProtocolValue(parsedData)
-        if (fingerprint.length > (parsedData.type === "restoreBackup" ? 250 * 1024 : parsedData.type === "addBG" ? 140 * 1024 : PROTOCOL_PAYLOAD_LIMIT)) {
+        const fingerprint = canonicalProtocolValue(parsedData, parsedData.type === "restoreBackup" ? 250 * 1024 : parsedData.type === "addBG" ? 140 * 1024 : PROTOCOL_PAYLOAD_LIMIT)
+        if (fingerprint === null) {
           this.rejectProtocolRequest(parsedData, "REQUEST_TOO_LARGE")
           return
         }
