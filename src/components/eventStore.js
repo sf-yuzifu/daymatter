@@ -66,8 +66,7 @@ function createEventStore(options) {
   // 表盘名称兜底文案由注入方提供（$t("unnamedEvent")），保持模块无多语言依赖
   const watchFaceFallbackName = options.watchFaceFallbackName || ""
   let sequence = 0
-  // 会话内是否已按当前数据维护过表盘文件（避免每次读取都写盘）
-  let watchFaceChecked = false
+  const startTrace = options.startTrace || (() => null)
 
   // 文件级串行队列：前序失败不阻塞后续任务
   const pending = []
@@ -369,7 +368,9 @@ function createEventStore(options) {
   }
 
   function loadState(callback) {
+    const finishRead = startTrace("store.fileRead")
     fileRead(uri, (error, text) => {
+      if (finishRead) finishRead({ok: !error, chars: text ? text.length : 0})
       if (error) {
         if (error.code === FILE_NOT_FOUND) {
           recoverFromBackup((recovered, recoveryError) => callback(recoveryError || null, recoveryError ? undefined : recovered || {state: emptyState(), migrated: false}))
@@ -380,12 +381,14 @@ function createEventStore(options) {
       }
       let parsed = null
       let parseFailed = false
+      const finishParse = startTrace("store.parseValidate")
       try {
         parsed = text && text.trim() ? JSON.parse(text) : null
       } catch (e) {
         parseFailed = true
       }
       const normalized = parseFailed ? null : normalizeState(parsed)
+      if (finishParse) finishParse({ok: !!normalized, count: normalized ? normalized.state.events.length : 0})
       if (!normalized) {
         backupCorrupt(() => {
           recoverFromBackup((recovered, recoveryError) => {
@@ -576,23 +579,17 @@ function createEventStore(options) {
 
   // 读取：返回 {events, revision, primaryId, migrated}；旧数据会 best-effort 落盘升级
   function read(callback) {
-    loadState((error, result) => {
+    const finishWait = startTrace("store.readQueue")
+    // 与写操作共享队列：只读一次最新状态，之后同任务维护表盘，避免旧快照补写。
+    enqueue((done) => {
+      if (finishWait) finishWait()
+      loadState((error, result) => {
       if (error) {
         callback(error)
+        done(null)
         return
       }
-      if (result.migrated) {
-        // 迁移（含主事件规则落定）后立即升级落盘并维护表盘文件
-        watchFaceChecked = true
-        enqueue((done) => commitAndSync(result.state, null, () => done(null)), () => {})
-      } else if (watchFace) {
-        // 每次进入/跨午夜维护年度日期，内容未变由表盘模块跳过写入。
-        watchFaceChecked = true
-        enqueue((done) => loadState((error, latest) => {
-          if (error) return done(error)
-          syncWatchFace(latest.state, () => done(null))
-        }), () => {})
-      }
+      // UI先行：回调不等待派生文件I/O，但后续写入仍等待当前维护完成。
       callback(null, {
         events: result.state.events,
         revision: result.state.revision,
@@ -600,7 +597,16 @@ function createEventStore(options) {
         sortMode: result.state.sortMode,
         migrated: result.migrated
       })
-    })
+      const finishSync = startTrace("store.watchfaceMaintenance")
+      const finish = () => {
+        if (finishSync) finishSync()
+        done(null)
+      }
+      if (result.migrated) commitAndSync(result.state, null, finish)
+      else if (watchFace) syncWatchFace(result.state, finish)
+      else finish()
+      })
+    }, () => {})
   }
 
   function add(input, callback) {

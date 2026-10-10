@@ -8,6 +8,7 @@ import eventStoreFactory from "./components/eventStore"
 import eventOrder from "./components/eventOrder"
 import watchFaceFactory from "./components/watchface"
 import backgroundStoreFactory from "./components/backgroundStore"
+import performanceTrace from "./components/performanceTrace"
 
 let screenSize = {width: 0, height: 0}
 
@@ -19,6 +20,7 @@ global.createMinuteTicker = minuteTicker.createMinuteTicker
 
 // 日期工具：显式解析与日历日算法，页面统一通过 global.dateUtils 使用
 global.dateUtils = dateUtils
+global.startPerfTrace = performanceTrace.start
 global.eventOrder = eventOrder
 
 // 表盘文件维护：名称兜底文案按当前语言取一次，模块本身不依赖多语言
@@ -28,6 +30,7 @@ global.watchFace = watchFaceFactory.createWatchFace({file: file, dateUtils: date
 global.eventStore = eventStoreFactory.createEventStore({
   file: file,
   dateUtils: dateUtils,
+  startTrace: performanceTrace.start,
   watchFace: global.watchFace
 })
 

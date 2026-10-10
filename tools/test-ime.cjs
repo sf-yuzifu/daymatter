@@ -437,6 +437,46 @@ test("原名称和本地化标题进入新版键盘，确认只改名称草稿",
   assert.equal(h.global.__daymatterImeOwner, null)
 })
 
+test("O-07 诊断默认关闭，启用后标量记录有界并正确计时", () => {
+  const state = {}
+  let now = 100
+  const trace = loadModule(fs.readFileSync(path.join(root, "src/components/performanceTrace.js"), "utf8"),
+    {global: state, Date: {now: () => now}, console: {info() {}}}, "unused")
+  assert.equal(trace.start("off"), null)
+  assert.equal(state.daymatterPerfRecords, undefined)
+  state.daymatterPerfEnabled = true
+  for (let i = 0; i < 70; i++) {
+    const finish = trace.start("read")
+    now += 2
+    finish({count: 200})
+  }
+  assert.equal(state.daymatterPerfRecords.length, 64)
+  assert.equal(state.daymatterPerfRecords[0].ms, 2)
+  state.daymatterPerfEnabled = false
+  assert.equal(trace.start("off"), null)
+})
+
+test("O-07 首页隐藏再返回和交错刷新拒绝迟到旧读取", () => {
+  const h = createHarness()
+  const home = h.router.push({uri: "/pages/index"})
+  const callbacks = []
+  h.global.eventStore.read = (callback) => callbacks.push(callback)
+  home.completed()
+  const old = callbacks.shift()
+  home.onHide()
+  home.onShow()
+  const fresh = callbacks.shift()
+  fresh(null, {events: [{id: "new", name: "新", date: "2026-10-18", on_index: true}]})
+  old(null, {events: []})
+  assert.equal(home.slots[0].id, "new")
+  home.completed()
+  home.completed()
+  callbacks.shift()(null, {events: []})
+  assert.equal(home.slots[0].id, "new")
+  callbacks.shift()({code: "READ_FAIL"})
+  assert.equal(home.slots[0].id, "new", "读取失败保留现有展示")
+})
+
 test("O-06 真实事件位置随循环变化，今天与不足一周不写入，保存后反馈", () => {
   const h = createHarness()
   seedEvents(h, 5)

@@ -162,6 +162,7 @@ export default {
     this._currentEventId = ""
     this._homeEvents = []
     this._destroyed = false
+    this._eventLoadGeneration = 0
     this._needsRefresh = false
     this._messageHandler = null
     // 应用级账本：页面重建不能丢失已执行/仍在提交的请求。
@@ -447,6 +448,7 @@ export default {
   },
 
   onHide() {
+    this._eventLoadGeneration++
     // 隐藏释放原始集合与槽位；保留稳定ID及位置供重新读取后恢复。
     this.pageVisible = false
     this.contentVisible = false
@@ -457,6 +459,7 @@ export default {
   },
 
   onDestroy() {
+    this._eventLoadGeneration++
     this._destroyed = true
     this._ticker.stop()
     if (this._messageHandler) {
@@ -708,8 +711,11 @@ export default {
   },
 
   completed() {
+    const generation = ++this._eventLoadGeneration
+    const finishRead = global.startPerfTrace && global.startPerfTrace("home.read")
     global.eventStore.read((error, result) => {
-      if (this._destroyed) return
+      if (finishRead) finishRead({ok: !error})
+      if (this._destroyed || generation !== this._eventLoadGeneration) return
       if (error) {
         // 读取失败不覆盖、不重建；仅在可见时提示
         if (this.pageVisible) showToast({message: this.$t("loadFail"), duration: 2000})
@@ -723,14 +729,22 @@ export default {
       const events = result.events
       this.allEvents = events.length
       const refresh = global.eventOrder.createRefresh(global.dateUtils)
+      const finishOrder = global.startPerfTrace && global.startPerfTrace("home.selectSort")
       this._homeEvents = global.eventOrder
         .select(events, result.sortMode || "created", global.dateUtils, {
           archived: false,
           home: true,
           refresh
         })
+      if (finishOrder) finishOrder({count: this._homeEvents.length})
       this._needsRefresh = false
+      const finishFormat = global.startPerfTrace && global.startPerfTrace("home.formatSlots")
       this.setupSlots(refresh)
+      if (finishFormat) finishFormat({count: this.slots.length})
+      const finishUi = global.startPerfTrace && global.startPerfTrace("home.nextTick")
+      if (finishUi && typeof this.$nextTick === "function") this.$nextTick(() => {
+        if (!this._destroyed && this.pageVisible && generation === this._eventLoadGeneration) finishUi()
+      })
     })
   },
 

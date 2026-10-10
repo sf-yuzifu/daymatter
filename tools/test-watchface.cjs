@@ -395,12 +395,42 @@ test("会话内首次读取维护一次表盘文件，重复读取不重复写",
     events: [{id: "a", name: "甲", date: "2026-01-01", on_index: true, IFStaringDay: false, themeColor: ""}]
   })
   const {store} = createStore(fake)
+  let reads = 0
+  const readText = fake.file.readText
+  fake.file.readText = (args) => { if (args.uri === URI) reads++; readText(args) }
   await call(store, "read")
   const writes = fake.stats.dateWrites
   assert.ok(writes > 0, "首次读取补齐表盘文件")
   await call(store, "read")
   await call(store, "read")
   assert.equal(fake.stats.dateWrites, writes, "内容未变时后续读取不写盘")
+  assert.equal(reads, 3, "O-07 每次读取含表盘维护只读一次事件文件")
+  const external = JSON.parse(fake.files.get(URI))
+  external.events[0].name = "外部修改"
+  external.revision++
+  fake.files.set(URI, JSON.stringify(external))
+  assert.equal((await call(store, "read")).events[0].name, "外部修改")
+  assert.equal(dateText(fake), "外部修改,2026-01-01,false")
+})
+
+test("O-07 读取等待在途提交，页面回调先于表盘维护完成，回调内修改不死锁", () => {
+  const fake = createFakeFile()
+  seedFile(fake, {primaryId: "a", events: [{id: "a", name: "旧", date: "2026-01-01", on_index: true}]})
+  const {store} = createStore(fake)
+  fake.controls.defer = true
+  let readResult = null
+  let changed = false
+  store.update("a", {name: "新"}, error => assert.equal(error, null))
+  store.read((error, result) => {
+    assert.equal(error, null)
+    readResult = result
+    store.update("a", {name: "再改"}, error => { assert.equal(error, null); changed = true })
+  })
+  assert.equal(readResult, null)
+  fake.flush()
+  assert.equal(readResult.events[0].name, "新")
+  assert.equal(changed, true)
+  assert.equal(dateText(fake), "再改,2026-01-01,false")
 })
 
 test("D-20 表盘写入路径：先临时文件再 move，move 不支持覆盖时退化为直接写", async () => {

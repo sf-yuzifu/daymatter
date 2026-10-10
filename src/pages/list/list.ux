@@ -254,11 +254,13 @@ export default {
 
   loadList() {
     const generation = ++this._loadGeneration
+    const finishRead = global.startPerfTrace && global.startPerfTrace("list.read")
     this.loadState = "loading"
     // 从编辑 / 新增返回时恢复原页；列表销毁重建也由模块级变量兜底
     const restorePage = pendingListPage
     pendingListPage = 0
     global.eventStore.read((error, result) => {
+      if (finishRead) finishRead({ok: !error})
       if (this._destroyed || !this.contentVisible || generation !== this._loadGeneration) return
       if (error) {
         this.loadState = "error"
@@ -312,12 +314,14 @@ export default {
     this.filtersActive = this.categoryFilter !== "all" || this.archiveFilter || this.periodFilter !== "all"
     this.filterSummary = this.sortOptions[this.sortIndex] + " · " + this.categoryOptions[this.categoryIndex] + " · " + this.scopeOptions[this.scopeIndex]
     const refresh = global.eventOrder.createRefresh(global.dateUtils)
+    const finishOrder = global.startPerfTrace && global.startPerfTrace("list.selectSort")
     const ordered = global.eventOrder.select(this._allEvents, this.sortMode, global.dateUtils, {
       archived: this.archiveFilter,
       category: this.categoryFilter,
       period: this.periodFilter,
       refresh
     })
+    if (finishOrder) finishOrder({count: ordered.length})
     const total = ordered.length
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
     let page = targetPage > 0 ? targetPage : 1
@@ -328,6 +332,7 @@ export default {
     const start = (page - 1) * PAGE_SIZE
     const end = Math.min(start + PAGE_SIZE, total)
     const pageEvents = []
+    const finishFormat = global.startPerfTrace && global.startPerfTrace("list.formatPage")
     for (let i = start; i < end; i++) {
       pageEvents.push(
         this.formatEvent(
@@ -338,6 +343,12 @@ export default {
       )
     }
     this.events = pageEvents
+    if (finishFormat) finishFormat({count: pageEvents.length})
+    const finishUi = global.startPerfTrace && global.startPerfTrace("list.nextTick")
+    const generation = this._loadGeneration
+    if (finishUi && typeof this.$nextTick === "function") this.$nextTick(() => {
+      if (!this._destroyed && this.contentVisible && generation === this._loadGeneration) finishUi()
+    })
   },
 
   changePage(targetPage) {
