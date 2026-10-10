@@ -1,4 +1,12 @@
 {
+  "eventListTitle": "事件列表",
+  "resetFilters": "重置筛选",
+  "eventsLoading": "正在加载事件…",
+  "eventsRefreshFail": "刷新失败，当前显示上次数据",
+  "eventsLoadFail": "事件加载失败，请重试",
+  "retryLoad": "重试",
+  "noEventsYet": "还没有事件",
+  "noMatchingEvents": "当前条件下没有事件",
   "homeAnnualFuture": "{name}第{count}周年还有",
   "homeAnnualPast": "{name}第{count}周年已经",
   "homeAnnualToday": "{name}第{count}周年",

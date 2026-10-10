@@ -1,4 +1,12 @@
 {
+  "eventListTitle": "Events",
+  "resetFilters": "Reset filters",
+  "eventsLoading": "Loading events…",
+  "eventsRefreshFail": "Refresh failed. Showing previous data.",
+  "eventsLoadFail": "Could not load events. Please retry.",
+  "retryLoad": "Retry",
+  "noEventsYet": "No events yet",
+  "noMatchingEvents": "No events match these filters",
   "homeAnnualFuture": "Until {name} — anniversary {count}",
   "homeAnnualPast": "{name} — anniversary {count} elapsed",
   "homeAnnualToday": "{name} — anniversary {count}",

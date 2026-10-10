@@ -1,4 +1,12 @@
 {
+  "eventListTitle": "事件清單",
+  "resetFilters": "重設篩選",
+  "eventsLoading": "正在載入事件…",
+  "eventsRefreshFail": "更新失敗，目前顯示上次資料",
+  "eventsLoadFail": "事件載入失敗，請重試",
+  "retryLoad": "重試",
+  "noEventsYet": "尚未有事件",
+  "noMatchingEvents": "目前條件下沒有事件",
   "homeAnnualFuture": "{name}第{count}週年還有",
   "homeAnnualPast": "{name}第{count}週年已經",
   "homeAnnualToday": "{name}第{count}週年",

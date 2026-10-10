@@ -2,7 +2,7 @@
   <div class="list-page">
     <text class="time">{{ time }}</text>
     <text class="title" if="{{ global.screenShape == 'rect' }}">
-      {{ $t("eventCount", {count: count}) }}
+      {{ loadState === 'loading' && !hasSnapshot || loadState === 'error' && !hasSnapshot ? $t('eventListTitle') : $t("eventCount", {count: count}) }}
     </text>
     <img
       if="{{ global.screenShape == 'rect' }}"
@@ -12,10 +12,10 @@
     />
     <text @click="routeBack" class="title" elif="{{ global.screenShape == 'circle' }}">
       <span class="iconfont">&#xe685;</span>
-      <span>{{ $t("eventCount", {count: count}) }}</span>
+      <span>{{ !hasSnapshot ? $t('eventListTitle') : $t("eventCount", {count: count}) }}</span>
     </text>
     <img else class="top" src="/common/back.png" @click="routeBack" />
-    <text class="count" if="{{ global.isPillShaped }}">{{ $t("eventCount", {count: count}) }}</text>
+    <text class="count" if="{{ global.isPillShaped }}">{{ !hasSnapshot ? $t('eventListTitle') : $t("eventCount", {count: count}) }}</text>
     <div class="box">
       <div class="filter-panel" if="{{ contentVisible }}">
         <div class="filter-header" @click="toggleSettings">
@@ -26,37 +26,31 @@
           <text class="filter-arrow iconfont" else>&#xe685;</text>
         </div>
         <div class="filter-body" if="{{ settingsExpanded }}">
-          <div class="filter-row" @click="cycleDraftSort">
+          <div class="filter-row">
             <text class="filter-label">{{ $t("sortModeLabel") }}</text>
-            <marquee class="filter-value" scrollamount="20" text-offset="20">
-              {{ $t(draftSort) }}
-            </marquee>
+            <picker class="filter-picker" type="text" range="{{ sortOptions }}" selected="{{ sortIndex }}" @change="onSortSelect"></picker>
           </div>
-          <div class="filter-row" @click="cycleDraftCategory">
+          <div class="filter-row">
             <text class="filter-label">{{ $t("category") }}</text>
-            <marquee class="filter-value" scrollamount="20" text-offset="20">
-              {{ $t(draftCategory === "anniversary" ? "categoryAnniversary" : draftCategory) }}
-            </marquee>
+            <picker class="filter-picker" type="text" range="{{ categoryOptions }}" selected="{{ categoryIndex }}" @change="onCategorySelect"></picker>
           </div>
-          <div class="filter-row" @click="cycleDraftScope">
+          <div class="filter-row">
             <text class="filter-label">{{ $t("displayScope") }}</text>
-            <marquee class="filter-value" scrollamount="20" text-offset="20">
-              {{
-                $t(
-                  periodFilter === "today"
-                    ? "todayEvents"
-                    : periodFilter === "upcoming"
-                    ? "upcomingEvents"
-                    : draftArchived
-                    ? "archived"
-                    : "activeEvents"
-                )
-              }}
-            </marquee>
+            <picker class="filter-picker" type="text" range="{{ scopeOptions }}" selected="{{ scopeIndex }}" @change="onScopeSelect"></picker>
           </div>
+          <text class="state-action" if="{{ filtersActive }}" @click="resetFilters">{{ $t('resetFilters') }}</text>
         </div>
       </div>
-      <list class="event-list" bounces="true" if="{{ contentVisible }}">
+      <div class="list-state" if="{{ contentVisible && loadState === 'loading' }}"><text class="state-text">{{ $t('eventsLoading') }}</text></div>
+      <div class="list-state" elif="{{ contentVisible && loadState === 'error' }}">
+        <text class="state-text">{{ $t(hasSnapshot ? 'eventsRefreshFail' : 'eventsLoadFail') }}</text>
+        <text class="state-action" @click="loadList">{{ $t('retryLoad') }}</text>
+      </div>
+      <div class="list-state" elif="{{ contentVisible && hasSnapshot && count === 0 }}">
+        <text class="state-text">{{ $t(emptyStore ? 'noEventsYet' : 'noMatchingEvents') }}</text>
+        <text class="state-action" if="{{ filtersActive }}" @click="resetFilters">{{ $t('resetFilters') }}</text>
+      </div>
+      <list class="event-list" bounces="true" if="{{ contentVisible && hasSnapshot && count > 0 }}">
         <list-item
           for="{{ events }}"
           type="event"
@@ -170,7 +164,10 @@ export default {
     settingsExpanded: false,
     draftSort: "created",
     draftCategory: "all",
-    draftArchived: false
+    draftArchived: false,
+    sortOptions: [], categoryOptions: [], scopeOptions: [],
+    sortIndex: 0, categoryIndex: 0, scopeIndex: 0,
+    filtersActive: false, hasSnapshot: false, loadState: "loading", emptyStore: true
   },
 
   onInit() {
@@ -178,6 +175,12 @@ export default {
     this._allEvents = []
     this._primaryId = ""
     this._destroyed = false
+    this._loadGeneration = 0
+    this._categories = ["all"].concat(global.eventOrder.CATEGORIES)
+    this._scopes = ["all", "archived", "today", "upcoming"]
+    this.sortOptions = global.eventOrder.MODES.map(key => this.$t(key))
+    this.categoryOptions = this._categories.map(key => this.$t(key === "anniversary" ? "categoryAnniversary" : key))
+    this.scopeOptions = ["activeEvents", "archived", "todayEvents", "upcomingEvents"].map(key => this.$t(key))
     this._ticker = global.createMinuteTicker((dateChanged) => this.handleMinuteTick(dateChanged))
   },
 
@@ -250,21 +253,23 @@ export default {
   },
 
   loadList() {
+    const generation = ++this._loadGeneration
+    this.loadState = "loading"
     // 从编辑 / 新增返回时恢复原页；列表销毁重建也由模块级变量兜底
     const restorePage = pendingListPage
     pendingListPage = 0
     global.eventStore.read((error, result) => {
-      if (this._destroyed || !this.contentVisible) return
+      if (this._destroyed || !this.contentVisible || generation !== this._loadGeneration) return
       if (error) {
-        // 读取失败不覆盖原数据，仅提示；页面保持空列表
-        this._allEvents = []
-        this.showPage(1)
-        showToast({message: this.$t("loadFail"), duration: 2000})
+        this.loadState = "error"
         return
       }
       this.sortMode = result.sortMode || "created"
       this._allEvents = result.events
       this._primaryId = result.primaryId || ""
+      this.hasSnapshot = true
+      this.loadState = "ready"
+      this.emptyStore = result.events.length === 0
       this.showPage(restorePage > 0 ? restorePage : this.page)
     })
   },
@@ -279,6 +284,8 @@ export default {
   },
 
   onHide() {
+    this._loadGeneration++
+    this.hasSnapshot = false
     this.settingsExpanded = false
     // 隐藏时释放列表节点与展示数据，页码 / 原始下标在重新显示时重新校验
     this.contentVisible = false
@@ -289,6 +296,7 @@ export default {
   },
 
   onDestroy() {
+    this._loadGeneration++
     this._destroyed = true
     this._ticker.stop()
     this._allEvents = []
@@ -298,18 +306,11 @@ export default {
   },
 
   showPage(targetPage) {
-    this.filterSummary =
-      this.categoryFilter === "all" && !this.archiveFilter
-        ? this.$t("sortAndFilter")
-        : this.$t(
-            this.categoryFilter === "anniversary" ? "categoryAnniversary" : this.categoryFilter
-          ) +
-          " · " +
-          this.$t(this.archiveFilter ? "archived" : "activeEvents")
-    // 每次列表变更后按原始存储下标重建当前页映射
-    if (this.periodFilter !== "all")
-      this.filterSummary +=
-        " · " + this.$t(this.periodFilter === "today" ? "todayEvents" : "upcomingEvents")
+    this.sortIndex = global.eventOrder.MODES.indexOf(this.sortMode)
+    this.categoryIndex = this._categories.indexOf(this.categoryFilter)
+    this.scopeIndex = this._scopes.indexOf(this.archiveFilter ? "archived" : this.periodFilter)
+    this.filtersActive = this.categoryFilter !== "all" || this.archiveFilter || this.periodFilter !== "all"
+    this.filterSummary = this.sortOptions[this.sortIndex] + " · " + this.categoryOptions[this.categoryIndex] + " · " + this.scopeOptions[this.scopeIndex]
     const refresh = global.eventOrder.createRefresh(global.dateUtils)
     const ordered = global.eventOrder.select(this._allEvents, this.sortMode, global.dateUtils, {
       archived: this.archiveFilter,
@@ -354,15 +355,45 @@ export default {
     }
   },
 
-  cycleDraftSort() {
+  onSortSelect(event) {
+    const index = this.sortOptions.indexOf(event.newValue)
+    if (index >= 0) this.saveSortMode(global.eventOrder.MODES[index])
+  },
+  onCategorySelect(event) {
     if (this._savingSettings) return
+    const index = this.categoryOptions.indexOf(event.newValue)
+    if (index < 0) return
+    this.categoryFilter = this.draftCategory = this._categories[index]
+    this.showPage(1)
+  },
+  onScopeSelect(event) {
+    if (this._savingSettings) return
+    const index = this.scopeOptions.indexOf(event.newValue)
+    if (index < 0) return
+    this.archiveFilter = this.draftArchived = index === 1
+    this.periodFilter = index === 1 ? "all" : this._scopes[index]
+    this.showPage(1)
+  },
+  resetFilters() {
+    if (this._savingSettings) return
+    this.categoryFilter = this.draftCategory = "all"
+    this.archiveFilter = this.draftArchived = false
+    this.periodFilter = "all"
+    this.showPage(1)
+  },
+  cycleDraftSort() {
     const modes = global.eventOrder.MODES
-    const mode = modes[(modes.indexOf(this.sortMode) + 1) % modes.length]
+    this.saveSortMode(modes[(modes.indexOf(this.sortMode) + 1) % modes.length])
+  },
+  saveSortMode(mode) {
+    if (this._savingSettings) return
+    if (mode === this.sortMode || this.loadState !== "ready") return
     this._savingSettings = true
     global.eventStore.setSortMode(mode, (error) => {
       this._savingSettings = false
       if (this._destroyed) return
       if (error && error.code !== "WATCHFACE_FAIL") {
+        this.sortIndex = global.eventOrder.MODES.indexOf(this.sortMode)
         showToast({message: this.$t("saveFail", {code: error.code})})
         return
       }
@@ -408,6 +439,7 @@ export default {
   },
 
   routeEditEvent(storageIndex) {
+    if (this.loadState !== "ready") return
     const event = this._allEvents[storageIndex]
     if (!event) return
     pendingListPage = this.page
@@ -452,6 +484,47 @@ export default {
 
 <style>
 @import "../../common/app.css";
+.filter-picker {
+  flex: 1;
+  min-width: 0px;
+  height: 36px;
+  font-size: 22px;
+  color: #eeeeee;
+  selected-color: #eeeeee;
+  background-color: #363636;
+  border-radius: 10px;
+}
+.list-state {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  flex-shrink: 0;
+}
+.state-text {
+  width: 100%;
+  font-size: 22px;
+  color: #aaaaaa;
+  text-align: center;
+}
+.state-action {
+  width: 100%;
+  height: 40px;
+  font-size: 22px;
+  color: #70b7ff;
+  text-align: center;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+@media (shape: pill-shaped) {
+  .filter-picker {
+    width: 100%;
+    height: 30px;
+    flex-grow: 0;
+    flex-basis: auto;
+    flex-shrink: 0;
+  }
+}
 .filter-item {
   width: 100%;
 }
@@ -501,6 +574,7 @@ export default {
   flex-shrink: 0;
 }
 .filter-label {
+  width: 92px;
   font-size: 22px;
   font-weight: bold;
   color: #999999;
@@ -572,6 +646,9 @@ export default {
   .filter-row {
     height: 48px;
   }
+  .filter-label {
+    width: 100px;
+  }
   .filter-label,
   .filter-value {
     font-size: 24px;
@@ -593,6 +670,9 @@ export default {
   }
   .filter-row {
     height: 48px;
+  }
+  .filter-label {
+    width: 100px;
   }
   .filter-label,
   .filter-value {
