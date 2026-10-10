@@ -616,6 +616,8 @@ test("首页年度标题使用各语言完整语序，今天无还有，含首�
     }
     assert.equal(home.formatEvent({name: "高考", date: "2026-10-18"}, "days", 0, {fontSize: 20, width: 150}).name,
       "高考" + messages.remaining)
+    assert.equal(home.formatEvent({name: "生日", date: "2026-10-06", repeat: "yearly"}, "days", 0, {fontSize: 20, width: 150}).name, "生日")
+    assert.equal(home.formatEvent({name: "生日", date: "2026-10-18", repeat: "yearly"}, "days", 0, {fontSize: 20, width: 150}).name, "生日" + messages.remaining)
   }
 })
 
@@ -682,6 +684,7 @@ test("O-03 列表名称独立，周年在状态前，数字仍为天数且表盘
   const todayAnnual = list.formatEvent({date: "2021-10-06", name: "周年当天", repeat: "yearly"}, 4)
   assert.equal(todayAnnual.statusText, "第5周年")
   assert.equal(todayAnnual.days, "今天")
+  assert.equal(list.formatEvent({date: "2026-10-06", name: "生日", repeat: "yearly"}, 5).statusText, "")
 })
 
 test("O-01 实际首页及列表刷新每事件最多计算一次，近期筛选与展示复用", () => {

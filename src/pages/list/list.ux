@@ -225,7 +225,7 @@ export default {
     // 名称保持独立；周年在状态之前，表盘标记不再拼进名称。
     const watchface = event.id === this._primaryId
     if (event.calendar === "lunar" && !recurringStatus) days = "--"
-    if (event.repeat === "yearly" && status.anniversary !== null)
+    if (event.repeat === "yearly" && status.anniversary > 0)
       statusText =
         this.$t("anniversary", {count: status.anniversary}) + (statusText ? " · " + statusText : "")
 

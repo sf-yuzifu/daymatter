@@ -544,7 +544,7 @@ export default {
     }
 
     // 根据事件状态调整主题色色调
-    if (event.repeat === "yearly" && status.anniversary !== null)
+    if (event.repeat === "yearly" && status.anniversary > 0)
       name = this.$t(status.state === "future" ? "homeAnnualFuture" : status.state === "past" ? "homeAnnualPast" : "homeAnnualToday", {
         name: event.name,
         count: status.anniversary
