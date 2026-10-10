@@ -69,11 +69,13 @@
               style="background-color: {{ global.adjustThemeColor($item.themeColor, $item.already) }}"
             >
               <div class="name-row">
-                <text
+                <marquee
                   class="{{ $item.watchface && !$item.statusText ? 'countdown-name countdown-name-with-icon' : 'countdown-name' }}"
+                  scrollamount="20"
+                  text-offset="20"
                 >
                   {{ $item.name }}
-                </text>
+                </marquee>
                 <div class="watchface-icon" if="{{ $item.watchface && !$item.statusText }}">
                   <div class="watchface-strap"></div>
                   <div class="watchface-dial"></div>
@@ -702,8 +704,9 @@ export default {
 
 .countdown-name {
   flex: 1;
+  min-width: 0px;
+  height: 28px;
   font-size: 22px;
-  text-overflow: ellipsis;
   font-weight: bold;
   color: white;
   lines: 1;
@@ -808,6 +811,7 @@ export default {
 
   .countdown-name {
     font-size: 26px;
+    height: 34px;
   }
 
   .countdown-status {
@@ -845,6 +849,7 @@ export default {
 
   .countdown-name {
     font-size: 26px;
+    height: 34px;
   }
 
   .countdown-status {
@@ -882,6 +887,7 @@ export default {
 
   .countdown-name {
     font-size: 26px;
+    height: 34px;
   }
 
   .countdown-status {
