@@ -26,6 +26,7 @@ STUB = r'''
 SCRIPT_PATH = "assets/"
 subscriptions, objects, reads = {}, {}, 0
 eventText = "测试,2026-06-07,false"
+alternateText = nil
 timestamp = 100
 local function object(properties)
     local o = {properties = properties or {}, hidden = false, updates = 0}
@@ -51,10 +52,13 @@ package.preload.lvgl = function() return {
 package.preload.dataman = function() return {
     subscribe = function(key, obj, cb) subscriptions[key] = function(value) cb(obj, value) end; return key end
 } end
-io.open = function()
+io.open = function(path)
     reads = reads + 1
-    if eventText == nil then return nil end
-    return {read = function() return eventText end, close = function() end}
+    local text
+    if path == "/data/quickapp/files/com.yzf.daymatter/date.txt" then text = eventText
+    elseif path == "/data/files/com.yzf.daymatter/date.txt" then text = alternateText end
+    if text == nil then return nil end
+    return {read = function() return text end, close = function() end}
 end
 os.date = function() return {year=2026, month=6, day=7, wday=1} end
 os.time = function() return timestamp end
@@ -63,12 +67,16 @@ function hasText(text)
     return false
 end
 '''
-for device in ["band9", "band10", "band9pro", "s4"]:
+for device in ["band9", "band10", "band9pro", "s4", "band10pro", "redmiwatch6", "s5_46", "s5_41"]:
     vm = LuaRuntime(unpack_returned_tuples=True)
     vm.execute(STUB)
     vm.execute((ROOT / "build" / device / "app/_lua/daymatter/daymatter.lua").read_text(encoding="utf-8"))
     vm.execute(r'''
         assert(hasText("测试就在"))
+        eventText = nil; alternateText = "新路径,2026-06-07,false"
+        ScreenStateChangedCB("OFF", "ON"); assert(hasText("新路径就在"))
+        eventText = ""; ScreenStateChangedCB("OFF", "ON"); assert(hasText("高考就在"))
+        alternateText = nil
         subscriptions.timeSecondLow(2147483647)
         eventText = ""; ScreenStateChangedCB("OFF", "ON"); assert(hasText("高考就在"))
         eventText = "bad"; ScreenStateChangedCB("OFF", "ON"); assert(hasText("高考就在"))

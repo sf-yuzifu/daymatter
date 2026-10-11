@@ -3,8 +3,16 @@ local lvgl = require("lvgl")
 local dataman = require("dataman")
 local function imagePath(name) return SCRIPT_PATH .. name end
 local lastFileText, parsedEvent
+local eventPaths = {
+    "/data/quickapp/files/com.yzf.daymatter/date.txt",
+    "/data/files/com.yzf.daymatter/date.txt",
+}
 local function readEvent()
-    local file = io.open("/data/quickapp/files/com.yzf.daymatter/date.txt", "r")
+    local file
+    for _, path in ipairs(eventPaths) do
+        file = io.open(path, "r")
+        if file then break end
+    end
     if not file then lastFileText, parsedEvent = nil, nil; return nil end
     local ok, text = pcall(function() return file:read(1024) end)
     file:close()
@@ -21,6 +29,7 @@ local function font(size)
     local names = {watchFont and "MiSans-Demibold" or "misansw_demibold"}
     -- Try Demibold directly on Band 9 Pro, without relying on file visibility.
     if DEVICE.width == 336 then names = {"MiSans-Demibold", "MiSans-Regular", "misansw_demibold"} end
+    if DEVICE.fontName then names = {DEVICE.fontName, "MiSans-Regular", "misansw_demibold"} end
     for _, name in ipairs(names) do
         local ok, value = pcall(lvgl.Font, name, size)
         if ok and value then fonts[size] = value; return value end
@@ -53,9 +62,11 @@ local function label(width, y, size)
         long_mode = lvgl.LABEL.LONG_SCROLL_CIRCULAR,
     }
 end
-image(face, "bg.bin", 0, 0)
-local frame = image(face, "before.png", DEVICE.frameX, DEVICE.frameY)
-image(face, "later.png", DEVICE.frameX, DEVICE.frameY + 188)
+if DEVICE.backgroundImage then image(face, DEVICE.backgroundImage, 0, 0) end
+local beforeImage = DEVICE.beforeImage or "before.png"
+local laterImage = DEVICE.laterImage or "later.png"
+local frame = image(face, beforeImage, DEVICE.frameX, DEVICE.frameY)
+image(face, laterImage, DEVICE.frameX, DEVICE.frameY + 188)
 local group = lvgl.Object(face, {
     w = DEVICE.width, h = 140, x = DEVICE.daysX, y = DEVICE.daysY,
     bg_opa = 0, border_width = 0, pad_all = 0,
@@ -89,7 +100,7 @@ local function refresh()
     lastDisplay = key
     setText(title, event.name .. (days > 0 and "还有" or days == 0 and "就在" or "已过"))
     setText(target, "目标日: " .. event.date)
-    frame:set {src = imagePath(days > 0 and "before.png" or "later.png")}
+    frame:set {src = imagePath(days > 0 and beforeImage or laterImage)}
     for _, digit in ipairs(digits) do show(digit, false) end
     show(today, days == 0)
     if days == 0 then return end
