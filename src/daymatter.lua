@@ -18,7 +18,9 @@ if fontProbe then fontProbe:close() end
 local fonts = {}
 local function font(size)
     if fonts[size] then return fonts[size] end
-    local names = watchFont and {"MiSans-Demibold", "misansw_demibold"} or {"misansw_demibold", "MiSans-Demibold"}
+    local names = {watchFont and "MiSans-Demibold" or "misansw_demibold"}
+    -- Try Demibold directly on Band 9 Pro, without relying on file visibility.
+    if DEVICE.width == 336 then names = {"MiSans-Demibold", "MiSans-Regular", "misansw_demibold"} end
     for _, name in ipairs(names) do
         local ok, value = pcall(lvgl.Font, name, size)
         if ok and value then fonts[size] = value; return value end
@@ -47,7 +49,7 @@ local function label(width, y, size)
     container:clear_flag(lvgl.FLAG.SCROLLABLE)
     return container:Label {
         w = width, x = 0, y = y, text = "", text_color = "#ffffff",
-        text_font = font(size or 20), text_align = lvgl.ALIGN.TOP_MID,
+        font_size = size or 20, text_font = font(size or 20), text_align = lvgl.ALIGN.TOP_MID,
         long_mode = lvgl.LABEL.LONG_SCROLL_CIRCULAR,
     }
 end
