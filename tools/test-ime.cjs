@@ -416,6 +416,37 @@ test("F-06 模板只更新新增草稿，保留日期名称且取消不提交", 
   assert.equal(h.files.get("internal://files/events.json"),before)
 })
 
+test("编辑页循环picker跨首尾映射正确，日历保留同日且只更新草稿", () => {
+  const h = createHarness()
+  const editor = h.router.push({uri: "/pages/edit", params: {extend: "true", date: "2020-05-23", event_name: "自定义名称"}})
+  const writesBefore = h.writes.slice()
+  for (let copy = 0; copy < 3; copy++) {
+    editor.onTemplateChange({newSelected: copy * 4 + 1})
+    assert.equal(editor.templateIndex, 1)
+    assert.equal(editor.category, "birthday")
+    assert.equal(editor.repeat, "yearly")
+    editor.onTemplateChange({newSelected: copy * 4})
+    assert.equal(editor.templateIndex, 0)
+    assert.equal(editor.category, "birthday")
+    for (let index = 0; index < editor.categoryKeys.length; index++) {
+      editor.onCategoryChange({newSelected: copy * editor.categoryKeys.length + index})
+      assert.equal(editor.category, editor.categoryKeys[index])
+    }
+    for (let index = 0; index < editor.unitKeys.length; index++) {
+      editor.onUnitChange({newSelected: copy * editor.unitKeys.length + index})
+      assert.equal(editor.displayUnit, editor.unitKeys[index])
+    }
+    editor.onCalendarChange({newSelected: copy * 2 + 1})
+    assert.equal(editor.calendar, "lunar")
+    assert.equal(editor.lunarDate.leap, true)
+    editor.onCalendarChange({newSelected: copy * 2})
+    assert.equal(editor.calendar, "solar")
+    assert.equal(editor.date, "2020-05-23")
+  }
+  assert.equal(editor.event_name, "自定义名称")
+  assert.deepEqual(h.writes, writesBefore)
+})
+
 test("原名称和本地化标题进入新版键盘，确认只改名称草稿", () => {
   const h = createHarness()
   const editor = h.openEditor()

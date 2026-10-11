@@ -30,8 +30,8 @@
           <picker
             class="unit-picker category-picker"
             type="text"
-            range="{{ templateOptions }}"
-            selected="{{ templateIndex }}"
+            range="{{ templateRange }}"
+            selected="{{ templateIndex + templateOptions.length }}"
             @change="onTemplateChange"
           ></picker>
         </div>
@@ -42,8 +42,8 @@
           <picker
             class="unit-picker"
             type="text"
-            range="{{ calendarOptions }}"
-            selected="{{ calendar === 'lunar' ? 1 : 0 }}"
+            range="{{ calendarRange }}"
+            selected="{{ (calendar === 'lunar' ? 1 : 0) + calendarOptions.length }}"
             @change="onCalendarChange"
           ></picker>
         </div>
@@ -119,8 +119,8 @@
             <picker
               class="unit-picker category-picker"
               type="text"
-              range="{{ categoryOptions }}"
-              selected="{{ categoryKeys.indexOf(category) }}"
+              range="{{ categoryRange }}"
+              selected="{{ categoryKeys.indexOf(category) + categoryOptions.length }}"
               @change="onCategoryChange"
             ></picker>
           </div>
@@ -191,8 +191,8 @@
             <picker
               class="unit-picker"
               type="text"
-              range="{{ unitOptions }}"
-              selected="{{ unitKeys.indexOf(displayUnit) }}"
+              range="{{ unitRange }}"
+              selected="{{ unitKeys.indexOf(displayUnit) + unitOptions.length }}"
               @change="onUnitChange"
             ></picker>
           </div>
@@ -329,10 +329,12 @@ export default {
     event_name: "",
     templateIndex: 0,
     templateOptions: [],
+    templateRange: [],
     extend: "true",
     date: "",
     calendar: "solar",
     calendarOptions: [],
+    calendarRange: [],
     lunarDate: null,
     dateLabel: "",
     on_index: true,
@@ -345,8 +347,10 @@ export default {
     moveDirection: "",
     categoryKeys: ["uncategorized", "birthday", "study", "life", "anniversary"],
     categoryOptions: [],
+    categoryRange: [],
     unitKeys: ["days", "weeks", "months", "years"],
     unitOptions: [],
+    unitRange: [],
     useWatchface: false,
     themeColor: "#3184d0",
     callback_uri: "/pages/index",
@@ -388,6 +392,11 @@ export default {
     this.categoryOptions = this.categoryKeys.map((key) =>
       this.$t(key === "anniversary" ? "categoryAnniversary" : key)
     )
+    // 与日期页一致：三份选项，selected 始终定位到中间一份。
+    this.templateRange = this.repeatPickerOptions(this.templateOptions)
+    this.calendarRange = this.repeatPickerOptions(this.calendarOptions)
+    this.categoryRange = this.repeatPickerOptions(this.categoryOptions)
+    this.unitRange = this.repeatPickerOptions(this.unitOptions)
     this.repeat = this.repeat === "yearly" ? "yearly" : "none"
     if (["days", "weeks", "months", "years"].indexOf(this.displayUnit) < 0)
       this.displayUnit = "days"
@@ -489,9 +498,21 @@ export default {
     this.moreSummary = labels.join(" · ")
   },
 
+  repeatPickerOptions(options) {
+    return [...options, ...options, ...options]
+  },
+
+  pickerOptionIndex(event, options) {
+    if (Number.isInteger(event.newSelected)) {
+      if (event.newSelected < 0 || event.newSelected >= options.length * 3) return -1
+      return event.newSelected % options.length
+    }
+    return options.indexOf(event.newValue)
+  },
+
   onTemplateChange(event) {
     if (this.extend !== "true" || this._saving) return
-    const index = this.templateOptions.indexOf(event.newValue)
+    const index = this.pickerOptionIndex(event, this.templateOptions)
     if (![1, 2, 3].includes(index)) {
       this.templateIndex = 0
       return
@@ -536,7 +557,7 @@ export default {
     this.updateDateLabel()
   },
   onCalendarChange(event) {
-    const index = this.calendarOptions.indexOf(event.newValue)
+    const index = this.pickerOptionIndex(event, this.calendarOptions)
     if (index < 0) return
     const wanted = index === 1 ? "lunar" : "solar"
     if (wanted !== this.calendar) this.changeCalendar()
@@ -653,7 +674,7 @@ export default {
     this.updateMoreSummary()
   },
   onCategoryChange(event) {
-    const index = this.categoryOptions.indexOf(event.newValue)
+    const index = this.pickerOptionIndex(event, this.categoryOptions)
     if (index >= 0) this.category = this.categoryKeys[index]
     this.updateMoreSummary()
   },
@@ -703,7 +724,7 @@ export default {
   },
 
   onUnitChange(event) {
-    const index = this.unitOptions.indexOf(event.newValue)
+    const index = this.pickerOptionIndex(event, this.unitOptions)
     if (index >= 0) this.displayUnit = this.unitKeys[index]
     this.updateMoreSummary()
   },
