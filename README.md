@@ -1,7 +1,6 @@
 <p align="center">
-  <img src="src/common/logo.png" alt="倒数日图标" />
+  <img src="images/banner.png" alt="倒数日图标" />
 </p>
-<h1 align="center">倒数日</h1>
 <p align="center">面向小米 / Redmi Vela 穿戴设备的倒数日快应用。</p>
 
 ## 功能
