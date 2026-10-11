@@ -1206,6 +1206,16 @@ marquee {
 }
 
 @media (shape: pill-shaped) {
+  /* 为原生开关保留完整滑块高度，避免新固件裁掉滑块下半部。 */
+  .button {
+    min-height: 48px;
+  }
+
+  .setting-switch {
+    height: 40px;
+    width: 76px;
+  }
+  
   .setting-label {
     font-size: 24px;
     min-height: 32px;
