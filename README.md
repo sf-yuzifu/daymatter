@@ -60,4 +60,6 @@ npm run release    # 发布构建，包含 JSC
 
 本项目采用 [GPL-3.0-or-later](LICENSE)。第三方来源见 [来源记录](docs/third-party-notices.md)。
 
+本项目基于 [chiyuki0325/miband9-countdown](https://github.com/chiyuki0325/miband9-countdown) 修改与扩展，沿用原项目的 GNU GPL v3 许可证。
+
 感谢 [chiyuki0325](https://github.com/chiyuki0325/)（原始项目）、[无源流沙](https://www.bandbbs.cn/threads/14584/)（界面设计）、[NEORUAA](https://github.com/NEORUAA/)（输入法）。

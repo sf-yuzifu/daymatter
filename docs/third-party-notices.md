@@ -2,7 +2,7 @@
 
 ## 已核实来源
 
-- 原始倒数日：chiyuki0325；当前项目根LICENSE为GPL-3.0-or-later。
+- 原始倒数日：[chiyuki0325/miband9-countdown](https://github.com/chiyuki0325/miband9-countdown)；上游LICENSE为GNU GPL v3，当前项目根LICENSE使用相同许可证文本，声明为GPL-3.0-or-later。
 - UI设计：无源流沙，README已保留来源链接。
 - 键盘技术迁移记录：来自作者自己的sf-yuzifu/bandcomic `86ffc63`的src/pages/ime，基于NEORUAA/Vela_input_method。用户已确认bandcomic为自有项目，不列为第三方致谢；来源仓库根AGPL许可不单独作为作者自有代码复用的发行阻断。原输入法等非自有部分仍按各自许可保留署名。
 - 农历表：yize/solarlunar固定提交b1d43280119a448dbf557dfdcf73fc6f7f59f422，ISC，原记录同时致谢Ajing/JJonline；2057/2097按HKO修正。腕端tools/lunar-evaluation/LICENSE、插件LICENSE-lunar保留声明。
