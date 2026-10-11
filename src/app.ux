@@ -46,10 +46,10 @@ global.getTime = function () {
 
 const THEME_COLOR_MAP = Object.freeze({
   "#3184d0": Object.freeze(["#f78803", "#3184d0"]),
-  "#f78803": Object.freeze(["#fdb763", "#f78803"]),
-  "#e74c3c": Object.freeze(["#e74c3c", "#f29f97"]),
-  "#27ae60": Object.freeze(["#104627", "#27ae60"]),
-  "#9b59b6": Object.freeze(["#532c64", "#9b59b6"])
+  "#f78803": Object.freeze(["#986039", "#B86618"]),
+  "#e74c3c": Object.freeze(["#974F53", "#C44750"]),
+  "#27ae60": Object.freeze(["#42735C", "#27845D"]),
+  "#9b59b6": Object.freeze(["#705589", "#9255B3"])
 })
 
 const B64_LOOKUP = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
