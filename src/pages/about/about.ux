@@ -271,6 +271,10 @@ export default {
   width: 100%;
 }
 
+.padding {
+  height: 36px;
+}
+
 @media (shape: rect) {
   .background-settings {
     width: 83%;
