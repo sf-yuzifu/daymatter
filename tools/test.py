@@ -27,19 +27,26 @@ SCRIPT_PATH = "assets/"
 subscriptions, objects, reads = {}, {}, 0
 eventText = "测试,2026-06-07,false"
 alternateText = nil
+backgroundText, alternateBackgroundText = nil, nil
+imagePresent, imageDecodes = true, true
+imageExtra = 0
 timestamp = 100
 local function object(properties)
-    local o = {properties = properties or {}, hidden = false, updates = 0}
+    local o = {properties = properties or {}, hidden = false, updates = 0, flags = {[1] = true}}
     objects[#objects + 1] = o
     function o:set(values)
         self.updates = self.updates + 1
         for k, v in pairs(values) do self.properties[k] = v end
-        if values.src then assert(not values.src:find("10.png", 1, true)) end
+        if values.src then assert(not values.src:match("/10%.png$")) end
     end
-    function o:clear_flag(flag) if flag == 2 then self.hidden = false end end
-    function o:add_flag(flag) if flag == 2 then self.hidden = true end end
+    function o:clear_flag(flag) assert(flag); self.flags[flag] = nil; if flag == 2 then self.hidden = false end end
+    function o:add_flag(flag) assert(flag); self.flags[flag] = true; if flag == 2 then self.hidden = true end end
     function o:Image(properties) return object(properties) end
     function o:Label(properties) return object(properties) end
+    function o:get_img_size(path)
+        if not imageDecodes then return 0, 0 end
+        return expectedWidth + imageExtra, expectedHeight + imageExtra
+    end
     return o
 end
 package.preload.lvgl = function() return {
@@ -47,16 +54,19 @@ package.preload.lvgl = function() return {
     HOR_RES = function() return 466 end, VER_RES = function() return 466 end,
     OPA = function(v) return v end, Font = function() return 1 end,
     BUILTIN_FONT = {MONTSERRAT_20 = 1}, ALIGN = {CENTER = 1, TOP_MID = 2},
-    FLAG = {SCROLLABLE = 1, HIDDEN = 2}, LABEL = {LONG_SCROLL_CIRCULAR = 1}
+    FLAG = {SCROLLABLE = 1, HIDDEN = 2, EVENT_BUBBLE = 3, CLICKABLE = 4}, LABEL = {LONG_SCROLL_CIRCULAR = 1, LONG_WRAP = 2}
 } end
 package.preload.dataman = function() return {
     subscribe = function(key, obj, cb) subscriptions[key] = function(value) cb(obj, value) end; return key end
 } end
 io.open = function(path)
-    reads = reads + 1
+    if path == "/data/quickapp/files/com.yzf.daymatter/date.txt" then reads = reads + 1 end
     local text
     if path == "/data/quickapp/files/com.yzf.daymatter/date.txt" then text = eventText
-    elseif path == "/data/files/com.yzf.daymatter/date.txt" then text = alternateText end
+    elseif path == "/data/files/com.yzf.daymatter/date.txt" then text = alternateText
+    elseif path == "/data/quickapp/files/com.yzf.daymatter/background.txt" then text = backgroundText
+    elseif path == "/data/files/com.yzf.daymatter/background.txt" then text = alternateBackgroundText
+    elseif path:match("/bg_%d+%.png$") and imagePresent then text = "image" end
     if text == nil then return nil end
     return {read = function() return text end, close = function() end}
 end
@@ -66,13 +76,46 @@ function hasText(text)
     for _, o in ipairs(objects) do if o.properties.text == text then return true end end
     return false
 end
+function hasSource(path)
+    for _, o in ipairs(objects) do if not o.hidden and o.properties.src == path then return true end end
+    return false
+end
 '''
 for device in ["band9", "band10", "band9pro", "s4", "band10pro", "redmiwatch6", "s5_46", "s5_41"]:
     vm = LuaRuntime(unpack_returned_tuples=True)
     vm.execute(STUB)
+    import json
+    configs = json.loads((ROOT / "devices.json").read_text(encoding="utf-8"))
+    config = configs["s4" if device == "s5_41" else device]
+    vm.globals().expectedWidth, vm.globals().expectedHeight = config["width"], config["height"]
     vm.execute((ROOT / "build" / device / "app/_lua/daymatter/daymatter.lua").read_text(encoding="utf-8"))
     vm.execute(r'''
         assert(hasText("测试就在"))
+        for _, obj in ipairs(objects) do assert(not obj.flags[1] and obj.flags[3]) end
+        assert(objects[1].flags[4])
+        backgroundText = "bg_123.png"; ScreenStateChangedCB("OFF", "ON")
+        assert(hasSource("/data/quickapp/files/com.yzf.daymatter/bg_123.png"))
+        imageExtra = 4; backgroundText = "bg_124.png"; ScreenStateChangedCB("OFF", "ON")
+        assert(hasSource("/data/quickapp/files/com.yzf.daymatter/bg_124.png"))
+        for _, obj in ipairs(objects) do
+            if obj.properties.src == "/data/quickapp/files/com.yzf.daymatter/bg_124.png" then
+                assert(obj.properties.x == -2 and obj.properties.y == -2)
+            end
+        end
+        imageExtra = 0
+        backgroundText = ""; ScreenStateChangedCB("OFF", "ON")
+        assert(not hasSource("/data/quickapp/files/com.yzf.daymatter/bg_123.png"))
+        backgroundText = nil; alternateBackgroundText = "bg_456.png"
+        ScreenStateChangedCB("OFF", "ON"); assert(hasSource("/data/files/com.yzf.daymatter/bg_456.png"))
+        imagePresent = false; ScreenStateChangedCB("OFF", "ON")
+        assert(not hasSource("/data/files/com.yzf.daymatter/bg_456.png"))
+        imagePresent = true; imageDecodes = false; ScreenStateChangedCB("OFF", "ON")
+        assert(not hasSource("/data/files/com.yzf.daymatter/bg_456.png"))
+        imageDecodes = true; ScreenStateChangedCB("OFF", "ON")
+        assert(hasSource("/data/files/com.yzf.daymatter/bg_456.png"))
+        backgroundText = "../bg_456.png"; ScreenStateChangedCB("OFF", "ON")
+        assert(not hasSource("/data/files/com.yzf.daymatter/bg_456.png"))
+        backgroundText, alternateBackgroundText = nil, nil
         eventText = nil; alternateText = "新路径,2026-06-07,false"
         ScreenStateChangedCB("OFF", "ON"); assert(hasText("新路径就在"))
         eventText = ""; ScreenStateChangedCB("OFF", "ON"); assert(hasText("高考就在"))
