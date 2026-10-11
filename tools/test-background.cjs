@@ -142,10 +142,12 @@ test("背景小分片：逐片ACK/重复不追加、校验失败留旧图、完�
   }
 })
 
-test("256KiB背景按24KiB分片提交，超限总量/分片拒绝", () => {
+test("1MiB、520×520背景按24KiB分片提交，超限总量/分片拒绝", () => {
   const h = harness()
-  const bytes = Buffer.alloc(256 * 1024, 17)
+  const bytes = Buffer.alloc(1024 * 1024, 17)
   Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aU1cAAAAASUVORK5CYII=", "base64").copy(bytes)
+  bytes.writeUInt32BE(520, 16)
+  bytes.writeUInt32BE(520, 20)
   let hash = 2166136261
   for (const byte of bytes) hash = Math.imul(hash ^ byte, 16777619) >>> 0
   const identity = {sessionId: "s", requestId: "r", deviceId: "d"}
@@ -159,7 +161,7 @@ test("256KiB背景按24KiB分片提交，超限总量/分片拒绝", () => {
     h.store.receive(frame, done); h.flush()
     count++
   }
-  assert.equal(count, 11)
+  assert.equal(count, 43)
   h.store.receive({...identity, type: "finishBG"}, (error, result) => {
     done(error)
     assert.equal(result.complete, true)
@@ -253,16 +255,16 @@ test("G-01/G-06：真实PNG/JPEG后缀、旧文件兼容、头部尺寸及字节
   })
   h.flush()
   for (const data of [Buffer.from("not an image"), Buffer.from([255, 216, 255, 192, 0, 255]),
-    Buffer.alloc(256 * 1024 + 1)]) {
+    Buffer.alloc(1024 * 1024 + 1)]) {
     h.store.save(data.toString("base64"), (error) => assert.ok(error))
     h.flush()
   }
   const huge = Buffer.from(png)
-  huge.writeUInt32BE(513, 16)
+  huge.writeUInt32BE(521, 16)
   h.store.save(huge.toString("base64"), (error) => assert.ok(error))
   h.flush()
   const hugeJpeg = Buffer.from(jpeg, "base64")
-  hugeJpeg.writeUInt16BE(513, 7)
+  hugeJpeg.writeUInt16BE(521, 7)
   h.store.save(hugeJpeg.toString("base64"), (error) => assert.ok(error))
   h.flush()
   assert.equal(h.files.has("internal://files/bg_101.png"), true)
@@ -272,7 +274,7 @@ test("G-01/G-06：真实PNG/JPEG后缀、旧文件兼容、头部尺寸及字节
 test("G-06：超限Base64在分配前拒绝，不调用解码器", () => {
   let decoded = false
   const store = context.module.exports.createBackgroundStore({file: {}, decode: () => { decoded = true }})
-  store.save("A".repeat(350000), (error) => assert.ok(error))
+  store.save("A".repeat(Math.ceil(1024 * 1024 / 3) * 4 + 4), (error) => assert.ok(error))
   assert.equal(decoded, false)
 })
 

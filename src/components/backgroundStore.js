@@ -1,8 +1,8 @@
 // background.json引用决定当前背景；旧版本无索引时迁移bg_<时间>.png/jpg。
 // 应用级单飞避免多个页面实例、连续上传和迟到回调交叉删除文件。
-const MAX_BYTES = 256 * 1024
+const MAX_BYTES = 1024 * 1024
 const CHUNK_BYTES = 24 * 1024
-const MAX_EDGE = 512
+const MAX_EDGE = 520
 
 function imageInfo(bytes) {
   let width = 0
@@ -221,7 +221,7 @@ function createBackgroundStore({file, decode, now = () => Date.now(), setTimer =
       })
       return
     }
-    // 图片最多256KiB；兼容复制仍每次仅持有3KiB，避免完整读取图片。
+    // 图片最多1MiB；兼容复制仍每次仅持有3KiB，避免完整读取图片。
     let position = 0
     let total = 0
     const next = () => {

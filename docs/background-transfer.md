@@ -4,9 +4,9 @@
 
 插件进入背景页后，通过握手读取腕端`screenWidth/screenHeight`，提供“读取连接设备屏幕”重读入口。尺寸来自实际设备，不按型号猜测；预览与设备关联，换设备后不能发送旧成品。
 
-- 输出设备原尺寸，单边1～512px，9 Pro为336×480。
+- 输出设备原尺寸，宽高各1～520px，最大520×520；9 Pro为336×480，可覆盖小米手环10的520px高度及S5 46mm的480px宽度。
 - 居中裁剪填满或等比留黑边，圆屏/胶囊边缘由设备裁切。
-- PNG≤256KiB，Best压缩与自适应过滤，无损编码合成后的RGB像素；透明合成白底。超限明确拒绝，不减色/缩小或回退JPEG。
+- PNG≤1MiB（1,048,576字节），Best压缩与自适应过滤，无损编码合成后的RGB像素；透明合成白底。超限明确拒绝，不减色/缩小或回退JPEG。
 - 先裁原图再缩放，避免极端比例产生巨大中间图。
 - 选图只生成实际成品预览，确认后才发送；切换处理方式使旧预览失效。
 
@@ -14,7 +14,7 @@
 
 ## 传输协议
 
-要求`backgroundChunks`、`backgroundChunks24KiB`、`background256KiB`、`backgroundResult`、`requestId`、`mutationResult`能力。未确认则要求升级，不静默改用整包；腕端保留旧`addBG`及3KiB分片接收兼容。
+要求`backgroundChunks`、`backgroundChunks24KiB`、`background1MiB`、`backgroundResult`、`requestId`、`mutationResult`能力。未确认则要求升级，不静默改用整包；腕端保留`background256KiB`能力声明、旧`addBG`及3KiB分片接收兼容。
 
 | 消息 | 字段与行为 |
 | --- | --- |
@@ -24,7 +24,7 @@
 | `finishBG` | 同请求身份，要求完整长度与校验一致后提交 |
 | `mutationResult` | 文件与索引最终保存结果，可通过原请求查询 |
 
-请求身份为`sessionId/requestId/deviceId`；deviceId用于关联，不是认证。窗口1，每片≤24576B二进制/32768字符Base64，256KiB最多11片，写入临时文件成功才ACK。偏移连续，上一片重复载荷只重报ACK，冲突拒绝；腕端不拼整图字符串。
+请求身份为`sessionId/requestId/deviceId`；deviceId用于关联，不是认证。窗口1，每片≤24576B二进制/32768字符Base64，1MiB最多43片，写入临时文件成功才ACK。偏移连续，上一片重复载荷只重报ACK，冲突拒绝；腕端不拼整图字符串。
 
 每片等待8秒，最多重试2次；重试同一片不重复提交。腕端接收阶段120秒总超时，在途原生写回后结算；完整图提交开始后不按接收超时中断。最终结果未知时查询原请求，不能把事件列表当成背景内容核实。
 
