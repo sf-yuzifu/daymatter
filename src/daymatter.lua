@@ -109,6 +109,7 @@ local loadedBackground
 local lastBackgroundDiagnostic
 local backgroundDebugLabel
 local function backgroundDiagnostic(message)
+    if not DEBUG_ENABLE then return end
     if message ~= lastBackgroundDiagnostic then
         print("[daymatter:background] " .. message)
         lastBackgroundDiagnostic = message
@@ -211,6 +212,7 @@ local target = label(DEVICE.labelWidth, DEVICE.targetY)
 local dateLabel = label(155, DEVICE.dateY)
 local battery = label(84, DEVICE.batteryY, DEVICE.width == 466 and 24 or 20)
 -- Temporary on-screen diagnostics, above all watchface content and away from rounded edges.
+if DEBUG_ENABLE then
 backgroundDebugLabel = face:Label {
     w = math.min(DEVICE.width - 32, 300), h = 180,
     align = lvgl.ALIGN.CENTER, text = "", text_font = font(16), font_size = 16,
@@ -221,6 +223,7 @@ backgroundDebugLabel = face:Label {
 backgroundDebugLabel:clear_flag(lvgl.FLAG.SCROLLABLE)
 backgroundDebugLabel:add_flag(lvgl.FLAG.EVENT_BUBBLE)
 backgroundDebugLabel:add_flag(lvgl.FLAG.HIDDEN)
+end
 local cache = {}
 local function setText(object, text)
     if cache[object] ~= text then

@@ -32,7 +32,9 @@ def main():
     parser.add_argument("--band10-device-type", type=int, help="Verified EasyFace Band 10 DeviceType")
     parser.add_argument("--compiler", type=Path, help="Optional EasyFace Compiler.exe")
     parser.add_argument("--id", type=int, default=252661004)
+    parser.add_argument("--debug", action="store_true", help="Enable watchface logs and centered diagnostics")
     args = parser.parse_args()
+    suffix = "-debug" if args.debug else ""
     generate(devices)
     selected = args.device
     if selected != "all":
@@ -45,7 +47,7 @@ def main():
         config = dict(config)
         if name == "band10" and args.band10_device_type is not None:
             config["deviceType"] = args.band10_device_type
-        output = ROOT / "build" / name
+        output = ROOT / "build" / (name + suffix)
         app = output / "app" / "_lua" / "daymatter"
         app.mkdir(parents=True, exist_ok=True)
         (output / "images").mkdir(exist_ok=True)
@@ -73,7 +75,7 @@ def main():
         else:
             shutil.copyfile(assets / "preview.png", output / "preview.png")
         shutil.copyfile(output / "preview.png", output / "images" / "preview.png")
-        source = "local LOGIC = (function()\n" + logic + "\nend)()\nlocal DEVICE = " + lua(config) + "\n" + entry
+        source = "local DEBUG_ENABLE = " + lua(args.debug) + "\nlocal LOGIC = (function()\n" + logic + "\nend)()\nlocal DEVICE = " + lua(config) + "\n" + entry
         (app / "daymatter.lua").write_text(source, encoding="utf-8")
         if config["deviceType"] is None:
             print(f"{name}: Lua/assets generated; .fprj blocked until --band10-device-type is verified")
@@ -91,7 +93,7 @@ def main():
         if args.compiler:
             dist = ROOT / "dist"
             dist.mkdir(exist_ok=True)
-            artifact = dist / f"daymatter-{name}.face"
+            artifact = dist / f"daymatter-{name}{suffix}.face"
             staging = output / "compiled"
             staging.mkdir(exist_ok=True)
             fresh = staging / artifact.name
@@ -103,7 +105,7 @@ def main():
             shutil.copyfile(fresh, artifact)
             for alias, alias_config in devices.items():
                 if alias_config.get("packageAlias") == name:
-                    shutil.copyfile(artifact, dist / f"daymatter-{alias}.face")
+                    shutil.copyfile(artifact, dist / f"daymatter-{alias}{suffix}.face")
                     print(f"{alias}: shared {name} package, compatibility verified on device")
 
 

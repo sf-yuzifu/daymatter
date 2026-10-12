@@ -90,7 +90,13 @@ python tools/build.py --compiler "<EasyFace 4.23目录>\Compiler.exe"
 
 图片缺失、解码失败、比布局小或超过允许尺寸时恢复默认，后续轮询重试；略大的背景保持原像素居中裁剪，例如 470×470 图片在 466×466 布局中四边各裁 2px。恢复默认同时重置图片坐标。
 
-当前保留背景诊断日志与中央诊断框：异常时显示路径和尺寸，加载成功自动隐藏诊断框。
+默认正式包不创建中央诊断框、不输出表盘调试日志。需要定位问题时使用 `--debug`：
+
+```powershell
+python tools/build.py --device band9pro --debug --compiler "<EasyFace 4.23目录>\Compiler.exe"
+```
+
+调试工程位于 `build/band9pro-debug/`，调试包为 `dist/daymatter-band9pro-debug.face`，不覆盖正式工程或包。调试模式异常时在屏幕中央显示路径和尺寸，加载成功自动隐藏诊断框；相同消息不重复打印。Band 11 调试共包使用 `daymatter-band11-debug.face`。
 
 ## 字体与手势
 
@@ -102,6 +108,7 @@ python tools/build.py --compiler "<EasyFace 4.23目录>\Compiler.exe"
 
 ```powershell
 python tools/build.py
+python tools/build.py --debug
 python tools/test.py
 ```
 

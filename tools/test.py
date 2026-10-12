@@ -26,6 +26,8 @@ assert logic.decode(2304, 9) == 9
 STUB = r'''
 SCRIPT_PATH = "assets/"
 subscriptions, objects, reads = {}, {}, 0
+logCount = 0
+print = function() logCount = logCount + 1 end
 eventText = "测试,2026-06-07,false"
 alternateText = nil
 backgroundText, alternateBackgroundText = nil, nil
@@ -137,6 +139,25 @@ for device, config in configs.items():
         ScreenStateChangedCB("OFF", "ON"); before = reads
         timestamp = timestamp + 1; subscriptions.timeSecondLow(512); assert(reads == before)
         timestamp = timestamp + 5; subscriptions.timeSecondLow(768); assert(reads == before + 1)
+    ''')
+    assert vm.globals().logCount == 0, "Release entry must not print diagnostics"
+    vm.execute("for _, obj in ipairs(objects) do assert(obj.properties.long_mode ~= 2) end")
+    # Exercise the actual generated debug entry, including failure and recovery visibility.
+    debug_vm = LuaRuntime(unpack_returned_tuples=True)
+    debug_vm.execute(STUB)
+    debug_vm.globals().expectedWidth, debug_vm.globals().expectedHeight = config["width"], config["height"]
+    debug_vm.execute((ROOT / "build" / (device + "-debug") / "app/_lua/daymatter/daymatter.lua").read_text(encoding="utf-8"))
+    debug_vm.execute(r'''
+        local panel
+        for _, obj in ipairs(objects) do if obj.properties.long_mode == 2 then panel = obj end end
+        assert(panel and panel.hidden)
+        backgroundText = "bg_123.png"; imagePresent = false
+        ScreenStateChangedCB("OFF", "ON")
+        assert(logCount == 1 and not panel.hidden and panel.properties.text:find("file open failed", 1, true))
+        ScreenStateChangedCB("OFF", "ON"); assert(logCount == 1)
+        imagePresent = true; ScreenStateChangedCB("OFF", "ON")
+        assert(logCount == 2 and panel.hidden)
+        assert(hasSource("/data/quickapp/files/com.yzf.daymatter/bg_123.png"))
     ''')
     print(f"{device}: Lua 5.4 entry, fallback, overflow and screen refresh passed")
 print("Calendar and interface regressions passed")
