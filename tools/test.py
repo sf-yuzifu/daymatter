@@ -26,6 +26,7 @@ assert logic.decode(2304, 9) == 9
 STUB = r'''
 SCRIPT_PATH = "assets/"
 subscriptions, objects, reads = {}, {}, 0
+timers, imageReads = {}, 0
 logCount = 0
 fontCalls, availableFont = {}, "MiSans-Medium"
 print = function() logCount = logCount + 1 end
@@ -54,6 +55,15 @@ local function object(properties)
     return o
 end
 package.preload.lvgl = function() return {
+    Timer = function(opts)
+        assert(opts.period == 5000 and opts.repeat_count == -1)
+        local t = {paused = true}
+        function t:resume() self.paused = false end
+        function t:pause() self.paused = true end
+        function t:fire() if not self.paused then opts.cb(self) end end
+        timers[#timers + 1] = t
+        return t
+    end,
     Object = function(parent, properties) return object(properties) end,
     HOR_RES = function() return 466 end, VER_RES = function() return 466 end,
     OPA = function(v) return v end, Font = function(name, size)
@@ -75,7 +85,10 @@ io.open = function(path)
     elseif path == "/data/files/com.yzf.daymatter/date.txt" then text = alternateText
     elseif path == "/data/quickapp/files/com.yzf.daymatter/background.txt" then text = backgroundText
     elseif path == "/data/files/com.yzf.daymatter/background.txt" then text = alternateBackgroundText
-    elseif path:match("/bg_%d+%.png$") and imagePresent then text = "image" end
+    elseif path:match("/bg_%d+%.png$") then
+        imageReads = imageReads + 1
+        if imagePresent then text = "image" end
+    end
     if text == nil then return nil end
     return {read = function() return text end, close = function() end}
 end
@@ -136,7 +149,7 @@ for device, config in configs.items():
         ScreenStateChangedCB("OFF", "ON"); assert(hasText("新路径就在"))
         eventText = ""; ScreenStateChangedCB("OFF", "ON"); assert(hasText("高考就在"))
         alternateText = nil
-        subscriptions.timeSecondLow(2147483647)
+        assert(subscriptions.timeSecondLow == nil and #timers == 1)
         eventText = ""; ScreenStateChangedCB("OFF", "ON"); assert(hasText("高考就在"))
         eventText = "bad"; ScreenStateChangedCB("OFF", "ON"); assert(hasText("高考就在"))
         eventText = "测试,0001-01-01,true"; ScreenStateChangedCB("OFF", "ON")
@@ -144,14 +157,20 @@ for device, config in configs.items():
         eventText = "测试,2026-06-07,true"; ScreenStateChangedCB("OFF", "ON")
         assert(hasText("测试已过"))
         ScreenStateChangedCB("ON", "OFF")
-        local before = reads; timestamp = timestamp + 20; subscriptions.timeSecondLow(256)
+        local before = reads; timers[1]:fire()
         assert(reads == before)
         ScreenStateChangedCB("OFF", "ON"); before = reads
-        timestamp = timestamp + 1; subscriptions.timeSecondLow(512); assert(reads == before)
-        timestamp = timestamp + 5; subscriptions.timeSecondLow(768); assert(reads == before)
-        calendarDay = "2026-06-08"; subscriptions.timeSecondLow(1024); assert(reads == before)
         ScreenStateChangedCB("ON", "ON"); assert(reads == before)
-        ScreenStateChangedCB("ON", "OFF"); ScreenStateChangedCB("OFF", "ON"); assert(reads == before + 1)
+        eventText = "Timer更新,2026-06-07,false"; timers[1]:fire()
+        assert(reads == before + 1 and hasText("Timer更新就在"))
+        backgroundText = "bg_789.png"; timers[1]:fire()
+        assert(hasSource("/data/quickapp/files/com.yzf.daymatter/bg_789.png"))
+        local imageBefore = imageReads; timers[1]:fire(); assert(imageReads == imageBefore)
+        imagePresent = false; timers[1]:fire(); assert(imageReads == imageBefore)
+        ScreenStateChangedCB("ON", "OFF"); ScreenStateChangedCB("OFF", "ON")
+        assert(not hasSource("/data/quickapp/files/com.yzf.daymatter/bg_789.png"))
+        imagePresent = true; timers[1]:fire()
+        assert(hasSource("/data/quickapp/files/com.yzf.daymatter/bg_789.png"))
     ''')
     assert vm.globals().logCount == 0, "Release entry must not print diagnostics"
     vm.execute("for _, obj in ipairs(objects) do assert(obj.properties.long_mode ~= 2) end")

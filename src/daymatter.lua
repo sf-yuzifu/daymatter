@@ -120,9 +120,10 @@ local function backgroundReference()
         end
     end
 end
-local function refreshBackground()
+local function refreshBackground(forceCheck)
     local resetSource = false
     local path = backgroundReference()
+    if path and path == loadedBackground and not forceCheck then return end
     if path then
         local file = io.open(path, "rb")
         if file then
@@ -219,11 +220,9 @@ local function show(object, visible)
 end
 local lastDisplay
 local cachedEvent
-local function refresh(checkFiles)
-    if checkFiles then
-        refreshBackground()
-        cachedEvent = readEvent()
-    end
+local function refresh(forceCheck)
+    refreshBackground(forceCheck)
+    cachedEvent = readEvent()
     local now = os.date("*t")
     local weekdays = { "周日", "周一", "周二", "周三", "周四", "周五", "周六" }
     setText(dateLabel, string.format("%02d/%02d %s", now.month, now.day, weekdays[now.wday]))
@@ -267,20 +266,20 @@ for i, key in ipairs(keys) do
     end
 end
 local active = true
-local lastCalendarDay = os.date("%Y-%m-%d")
--- Keep local calendar rollover working without polling application files.
-subscribe("timeSecondLow", group, 9, function()
-    if not active then return end
-    local day = os.date("%Y-%m-%d")
-    if day ~= lastCalendarDay then
-        lastCalendarDay = day; refresh(false)
-    end
-end)
 refresh(true)
+local refreshTimer = lvgl.Timer {
+    period = 5000, repeat_count = -1,
+    cb = function()
+        if active then refresh(false) end
+    end,
+}
+refreshTimer:resume()
 function ScreenStateChangedCB(previous, current, reason)
     active = current == "ON"
     if active and previous ~= "ON" then
-        lastCalendarDay = os.date("%Y-%m-%d")
         refresh(true)
+        refreshTimer:resume()
+    elseif not active then
+        refreshTimer:pause()
     end
 end
