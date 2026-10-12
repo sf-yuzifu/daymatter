@@ -1,4 +1,4 @@
-"""Import original assets, generate EasyFace projects and optionally compile them."""
+"""Generate clean EasyFace projects from configured assets and optionally compile them."""
 import argparse
 import json
 from pathlib import Path
@@ -29,44 +29,32 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     devices = load_devices()
     parser.add_argument("--device", choices=["all", *devices], default="all")
-    parser.add_argument("--band10-device-type", type=int, help="Verified EasyFace Band 10 DeviceType")
     parser.add_argument("--compiler", type=Path, help="Optional EasyFace Compiler.exe")
     parser.add_argument("--id", type=int, default=252661004)
     parser.add_argument("--debug", action="store_true", help="Enable watchface logs and centered diagnostics")
     args = parser.parse_args()
     suffix = "-debug" if args.debug else ""
-    generate(devices)
     selected = args.device
     if selected != "all":
         selected = devices[selected].get("packageAlias", selected)
+    targets = {name: config for name, config in devices.items()
+               if not config.get("packageAlias") and selected in ("all", name)}
+    # Check every selected asset before removing any generated application content.
+    manifests = {name: resource_manifest(config) for name, config in targets.items()}
+    generate(targets)
     logic = (ROOT / "src" / "logic.lua").read_text(encoding="utf-8")
     entry = (ROOT / "src" / "daymatter.lua").read_text(encoding="utf-8")
-    for name, config in devices.items():
-        if config.get("packageAlias") or selected not in ("all", name):
-            continue
-        config = dict(config)
-        if name == "band10" and args.band10_device_type is not None:
-            config["deviceType"] = args.band10_device_type
+    for name, config in targets.items():
         output = ROOT / "build" / (name + suffix)
         app = output / "app" / "_lua" / "daymatter"
+        if (output / "app").exists():
+            shutil.rmtree(output / "app")
         app.mkdir(parents=True, exist_ok=True)
         (output / "images").mkdir(exist_ok=True)
         (output / "output").mkdir(exist_ok=True)
         assets = ROOT / "devices" / config.get("assets", name)
-        if config.get("backgroundImage"):
-            shutil.copyfile(assets / config["backgroundImage"], app / config["backgroundImage"])
-        if (app / "bg.bin").exists():
-            (app / "bg.bin").unlink()
-        for filename in [*(f"{digit}.png" for digit in range(10)), config.get("beforeImage", "before.png"), config.get("laterImage", "later.png"), "today.png", "mao.png"]:
-            source_asset = assets / filename if filename.endswith("_9.png") else ROOT / "assets" / "common" / filename
+        for filename, source_asset in manifests[name].items():
             shutil.copyfile(source_asset, app / filename)
-            obsolete = app / (Path(filename).stem + ".bin")
-            if obsolete.exists():
-                obsolete.unlink()
-        if name == "band9":
-            for filename in ("before.png", "later.png"):
-                if (app / filename).exists():
-                    (app / filename).unlink()
         if config.get("previewSize"):
             # Compiler preview dimensions differ from the runtime display.
             from PIL import Image
@@ -77,12 +65,6 @@ def main():
         shutil.copyfile(output / "preview.png", output / "images" / "preview.png")
         source = "local DEBUG_ENABLE = " + lua(args.debug) + "\nlocal LOGIC = (function()\n" + logic + "\nend)()\nlocal DEVICE = " + lua(config) + "\n" + entry
         (app / "daymatter.lua").write_text(source, encoding="utf-8")
-        if config["deviceType"] is None:
-            print(f"{name}: Lua/assets generated; .fprj blocked until --band10-device-type is verified")
-            stale = output / "daymatter.fprj"
-            if stale.exists():
-                stale.unlink()
-            continue
         project = ET.Element("FaceProject", DeviceType=str(config["deviceType"]))
         screen = ET.SubElement(project, "Screen", Title="倒数日", Bitmap="preview.png")
         ET.SubElement(screen, "Widget", Shape="34", Name="app__lua%2Fdaymatter%2Fdaymatter.lua", X="0", Y="0",
@@ -107,6 +89,29 @@ def main():
                 if alias_config.get("packageAlias") == name:
                     shutil.copyfile(artifact, dist / f"daymatter-{alias}{suffix}.face")
                     print(f"{alias}: shared {name} package, compatibility verified on device")
+
+
+def resource_manifest(config):
+    """Resolve device overrides first, then common assets; only listed files are packed."""
+    if not isinstance(config.get("deviceType"), int):
+        raise ValueError("deviceType must be a verified integer")
+    assets = ROOT / "devices" / config["assets"]
+    names = [*(f"{digit}.png" for digit in range(10)),
+             config.get("beforeImage", "before.png"), config.get("laterImage", "later.png"),
+             "today.png", "mao.png"]
+    if config.get("backgroundImage"):
+        names.append(config["backgroundImage"])
+    manifest = {}
+    for name in names:
+        if Path(name).name != name or "\\" in name:
+            raise ValueError(f"Asset must be a filename: {name}")
+        source = assets / name
+        if not source.is_file():
+            source = ROOT / "assets" / "common" / name
+        if not source.is_file():
+            raise FileNotFoundError(f"Missing configured asset: {name} ({assets})")
+        manifest[name] = source
+    return manifest
 
 
 if __name__ == "__main__":

@@ -56,6 +56,8 @@ python tools/build.py --compiler "<EasyFace 4.23目录>\Compiler.exe"
 
 源码在生成时内嵌成一份 Lua，不依赖额外模块加载。编译先写独立暂存目录，只有本次产物成功生成才更新 `dist/`，避免 EasyFace 返回成功退出码但未产出新包时误用旧包。
 
+构建先校验选中设备的资源清单，再重建其 `build/<目标>/app/`，确保旧图片和模块不会混入包。素材优先从设备目录读取，再尝试共用目录；缺失素材明确报错。单设备构建只生成对应资源目录的预览，别名按实际共包目标处理。DeviceType 统一修改 `devices.json`，不再使用命令行覆盖参数。
+
 ### 预览
 
 每次构建自动从 `assets/preview-base.png` 水平、竖直居中等比裁剪：
@@ -110,6 +112,7 @@ python tools/build.py --device band9pro --debug --compiler "<EasyFace 4.23目录
 python tools/build.py
 python tools/build.py --debug
 python tools/test.py
+python tools/test_build.py
 ```
 
 Lua 5.4 回归覆盖八份生成入口：日期边界、高考占位、计入起始日、异常文件、双路径读取、无效订阅、数字超限、亮灭屏刷新、背景切换/重试/裁剪和对象事件标志。UI 使用模拟 API；实机还需检查字体、PNG/JPG 解码、文件访问、订阅和系统长按手势。
