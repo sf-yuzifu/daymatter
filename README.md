@@ -14,6 +14,7 @@ src/
   logic.lua            日期计算、事件解析、订阅值校验
   daymatter.lua        UI、字体、文件联动与刷新
 tools/
+  config.py            设备配置继承与共包别名解析
   build.py             生成工程并可选编译
   previews.py          生成设备预览
   test.py              Lua 5.4 回归
@@ -21,6 +22,8 @@ requirements.txt       Python 开发依赖
 ```
 
 `build/` 是可重新生成的 EasyFace 工程和编译缓存，`dist/` 是最新 `.face` 安装包，两者均不纳入 Git。修改 `src/`、素材和设备配置后重新构建，不直接编辑生成工程。
+
+设备配置统一放在 `devices.json`：布局、资源目录、背景/卡片、字体名称、预览圆角和打包尺寸。`extends` 继承父设备并覆盖指定字段（10 Pro→9 Pro，S5 41mm→S4）；`packageAlias` 指定直接复用安装包（Band 11→Band 10）。构建、预览和回归测试共用 `tools/config.py`，新增设备无需在多个脚本中添加机型分支。
 
 ## 设备与资源复用
 

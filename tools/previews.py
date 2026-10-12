@@ -1,19 +1,22 @@
 """Centered cover crop with antialiased device screen masks."""
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageOps
+from config import load_devices
 
 ROOT = Path(__file__).resolve().parents[1]
-SCREENS = {
-    "band9": (192, 490, "capsule"), "band10": (212, 520, "capsule"),
-    "band9pro": (336, 480, 48), "redmiwatch6": (432, 514, 104),
-    "s4": (466, 466, "circle"), "s5_46": (480, 480, "circle"),
-}
 
 
-def generate():
+def generate(devices=None):
+    devices = devices if devices is not None else load_devices()
     with Image.open(ROOT / "assets" / "preview-base.png") as original:
         base = original.convert("RGBA")
-    for name, (width, height, shape) in SCREENS.items():
+    seen = set()
+    for config in devices.values():
+        name = config["assets"]
+        if name in seen:
+            continue
+        seen.add(name)
+        width, height, shape = config["width"], config["height"], config["previewShape"]
         image = ImageOps.fit(base, (width, height), Image.Resampling.LANCZOS, centering=(0.5, 0.5))
         factor = 4
         mask = Image.new("L", (width * factor, height * factor), 0)

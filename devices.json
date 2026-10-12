@@ -1,6 +1,10 @@
 {
   "band9": {
-    "branch": "origin/watchface/band9",
+    "assets": "band9",
+    "backgroundImage": "bg9.png",
+    "beforeImage": "before_9.png",
+    "laterImage": "later_9.png",
+    "previewShape": "capsule",
     "width": 192,
     "height": 490,
     "deviceType": 366,
@@ -22,7 +26,9 @@
     "labelHeight": 520
   },
   "band10": {
-    "branch": "origin/watchface/band10",
+    "assets": "band10",
+    "backgroundImage": "bg10.png",
+    "previewShape": "capsule",
     "width": 212,
     "height": 520,
     "deviceType": 466,
@@ -44,7 +50,9 @@
     "labelHeight": 520
   },
   "band9pro": {
-    "branch": "origin/watchface/band9pro",
+    "assets": "band9pro",
+    "backgroundImage": "bg9p.png",
+    "previewShape": 48,
     "width": 336,
     "height": 480,
     "deviceType": 367,
@@ -66,7 +74,10 @@
     "labelHeight": 480
   },
   "s4": {
-    "branch": "origin/watchface/s4",
+    "assets": "s4",
+    "backgroundImage": "bgs4.png",
+    "previewShape": "circle",
+    "previewSize": [464, 464],
     "width": 466,
     "height": 466,
     "deviceType": 462,
@@ -88,31 +99,14 @@
     "labelHeight": 466
   },
   "band10pro": {
-    "assets": "band9pro",
-    "fontName": "MiSans-Demibold",
-    "width": 336,
-    "height": 480,
+    "extends": "band9pro",
     "deviceType": 567,
-    "frameX": 68,
-    "frameY": 46,
-    "daysX": 0,
-    "daysY": 81,
-    "digitStart": 86,
-    "digitStep": 41,
-    "todayX": 88,
-    "todayY": 0,
-    "timeX": [77.5, 118, 147.5, 177, 217.5],
-    "timeY": 269,
-    "nameY": 49,
-    "targetY": 172.5,
-    "dateY": 360.5,
-    "batteryY": 440,
-    "labelWidth": 200,
-    "labelHeight": 480
+    "fontName": "MiSans-Demibold"
   },
   "redmiwatch6": {
-    "assets": "band9pro",
-    "blackBackground": true,
+    "assets": "redmiwatch6",
+    "backgroundImage": "bgrw6.png",
+    "previewShape": 104,
     "fontName": "MiSans-Regular",
     "width": 432,
     "height": 514,
@@ -135,8 +129,9 @@
     "labelHeight": 514
   },
   "s5_46": {
-    "assets": "s4",
-    "blackBackground": true,
+    "assets": "s5_46",
+    "backgroundImage": "bgs5.png",
+    "previewShape": "circle",
     "fontName": "MiSans-Demibold",
     "width": 480,
     "height": 480,
@@ -157,5 +152,12 @@
     "batteryY": 426,
     "labelWidth": 200,
     "labelHeight": 480
-  }
+  },
+  "s5_41": {
+    "extends": "s4",
+    "deviceType": 562,
+    "fontName": "MiSans-Demibold",
+    "previewSize": [480, 480]
+  },
+  "band11": { "packageAlias": "band10" }
 }

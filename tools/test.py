@@ -2,6 +2,7 @@
 from pathlib import Path
 from datetime import date
 from lupa.lua54 import LuaRuntime
+from config import load_devices
 
 ROOT = Path(__file__).resolve().parents[1]
 runtime = LuaRuntime(unpack_returned_tuples=True)
@@ -81,12 +82,15 @@ function hasSource(path)
     return false
 end
 '''
-for device in ["band9", "band10", "band9pro", "s4", "band10pro", "redmiwatch6", "s5_46", "s5_41"]:
+configs = load_devices()
+assert configs["band10pro"]["timeX"] == configs["band9pro"]["timeX"]
+assert configs["s5_41"]["assets"] == "s4" and configs["s5_41"]["previewSize"] == [480, 480]
+assert configs["band11"]["packageAlias"] == "band10"
+for device, config in configs.items():
+    if config.get("packageAlias"):
+        continue
     vm = LuaRuntime(unpack_returned_tuples=True)
     vm.execute(STUB)
-    import json
-    configs = json.loads((ROOT / "devices.json").read_text(encoding="utf-8"))
-    config = configs["s4" if device == "s5_41" else device]
     vm.globals().expectedWidth, vm.globals().expectedHeight = config["width"], config["height"]
     vm.execute((ROOT / "build" / device / "app/_lua/daymatter/daymatter.lua").read_text(encoding="utf-8"))
     vm.execute(r'''
