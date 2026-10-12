@@ -84,13 +84,13 @@
 
 事件备份规则见[JSON 备份与恢复](backup.md)。恢复消息单独允许有界大载荷，原普通写请求预算保持；腕端请求账本额外限制累计指纹为 512 Ki UTF-16 单元，避免多份备份请求无限累积。
 
-新插件背景上传要求`backgroundChunks/backgroundChunks24KiB/background1MiB/backgroundResult/requestId/mutationResult`能力，使用beginBG/分片/finishBG及最终结果查询；旧addBG接收入口和background256KiB能力声明保留。缺能力时明确要求升级，不静默回退整包。保存回执证明文件和引用已提交，不证明固件图片显示：
+新插件背景上传要求`backgroundChunks/backgroundChunks18KiB/background1MiB/backgroundResult/requestId/mutationResult`能力，使用beginBG/分片/finishBG及最终结果查询；旧addBG接收入口、24KiB分片接收和backgroundChunks24KiB/background256KiB能力声明保留。缺能力时明确要求升级，不静默回退整包。保存回执证明文件和引用已提交，不证明固件图片显示：
 
 - 插件生成实际屏幕原尺寸（宽高各≤520px）、≤1MiB的无损PNG（透明合成白底）；腕端按编码头识别JPEG/PNG并保存为`.jpg`/`.png`，保留旧背景迁移兼容。
 - `backgroundJpeg` 能力声明不代表所有目标固件的 JPEG 显示均已验证。
 - 腕端先校验并解码Base64，写入不参与扫描的临时文件，再移动到唯一正式路径提交；提交后才清理旧图。解码、扫描、写入或移动失败保留旧背景，清理失败不撤销新图。应用级单飞拒绝在途第二张上传，迟到扫描/页面回调隔离已本地验证；固件文件移动与实际显示仍待验收。此处解码指Base64解码，不代表图片可显示验证。
 - 插件像素解码前检查文件≤16MiB、单边≤8192px、≤8Mi像素、解码分配限制64MiB；目标原尺寸会按需放大小输入以铺满屏幕。宿主选图一次返回完整data，无法读取前限流；原图压缩后释放，64MiB不代表整体峰值。
-- 每片≤24KiB二进制/32KiB Base64，窗口1，临时append成功才ACK；身份/偏移/上一片载荷去重、累计长度与FNV校验后提交。每片8秒最多2次重试、总120秒接收超时，完整提交阶段不按接收超时中断；详见[背景说明](background-transfer.md)。
+- 新插件每片≤18KiB二进制/24KiB Base64，1MiB最多57片，窗口1，临时append成功才ACK；身份/偏移/上一片载荷去重、累计长度与FNV校验后提交。每片8秒最多2次重试、总120秒接收超时，完整提交阶段不按接收超时中断；详见[背景说明](background-transfer.md)。
 - 不在腕端完整解码像素；校验/保存回执不能证明固件可显示。事件列表不能核实背景内容。
 
 保存后替换、格式/预算、分片和背景结果确认已本地完成；固件显示/实际内存、真实断连和多屏仍待验收。新插件统一输出PNG，LVGL I8未启用。表盘只读接口见[表盘文件接口](watchface-interface.md)。

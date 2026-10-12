@@ -14,7 +14,7 @@
 
 ## 传输协议
 
-要求`backgroundChunks`、`backgroundChunks24KiB`、`background1MiB`、`backgroundResult`、`requestId`、`mutationResult`能力。未确认则要求升级，不静默改用整包；腕端保留`background256KiB`能力声明、旧`addBG`及3KiB分片接收兼容。
+要求`backgroundChunks`、`backgroundChunks18KiB`、`background1MiB`、`backgroundResult`、`requestId`、`mutationResult`能力。未确认则要求升级，不静默改用整包；腕端保留`backgroundChunks24KiB`和`background256KiB`能力声明、旧`addBG`及3KiB/24KiB分片接收兼容。
 
 | 消息 | 字段与行为 |
 | --- | --- |
@@ -24,7 +24,7 @@
 | `finishBG` | 同请求身份，要求完整长度与校验一致后提交 |
 | `mutationResult` | 文件与索引最终保存结果，可通过原请求查询 |
 
-请求身份为`sessionId/requestId/deviceId`；deviceId用于关联，不是认证。窗口1，每片≤24576B二进制/32768字符Base64，1MiB最多43片，写入临时文件成功才ACK。偏移连续，上一片重复载荷只重报ACK，冲突拒绝；腕端不拼整图字符串。
+请求身份为`sessionId/requestId/deviceId`；deviceId用于关联，不是认证。窗口1，新插件每片≤18432B二进制/24576字符Base64，1MiB最多57片，写入临时文件成功才ACK。腕端兼容接收上限仍为24KiB。偏移连续，上一片重复载荷只重报ACK，冲突拒绝；腕端不拼整图字符串。
 
 每片等待8秒，最多重试2次；重试同一片不重复提交。腕端接收阶段120秒总超时，在途原生写回后结算；完整图提交开始后不按接收超时中断。最终结果未知时查询原请求，不能把事件列表当成背景内容核实。
 
@@ -38,7 +38,7 @@
 
 ## 内存与兼容边界
 
-腕端传输缓冲主要为当前24KiB字节、当前32KiB字符和上一片32KiB去重字符，JSON/文件API复制与原生解码还会占用内存。PNG文件大小不等于像素内存：336×480 RGBA约630KiB。move兼容复制仍使用3KiB缓冲。
+新版上传腕端传输缓冲主要为当前18KiB字节、当前24KiB字符和上一片24KiB去重字符；旧插件24KiB分片对应24KiB字节及两份32KiB字符。JSON/文件API复制与原生解码还会占用内存。PNG文件大小不等于像素内存：336×480 RGBA约630KiB。move兼容复制仍使用3KiB缓冲。
 
 未启用LVGL I8；统一输出PNG。保存回执证明落盘与引用提交，不证明固件图片可显示。真实BLE、append、断连和峰值需按设备验证。
 

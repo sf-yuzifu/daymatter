@@ -142,7 +142,7 @@ test("背景小分片：逐片ACK/重复不追加、校验失败留旧图、完�
   }
 })
 
-test("1MiB、520×520背景按24KiB分片提交，超限总量/分片拒绝", () => {
+for (const chunkKiB of [18, 24]) test(`1MiB、520×520背景按${chunkKiB}KiB分片提交，超限总量/分片拒绝`, () => {
   const h = harness()
   const bytes = Buffer.alloc(1024 * 1024, 17)
   Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aU1cAAAAASUVORK5CYII=", "base64").copy(bytes)
@@ -155,13 +155,13 @@ test("1MiB、520×520背景按24KiB分片提交，超限总量/分片拒绝", ()
   h.store.receive({...identity, type: "beginBG", bytes: bytes.length, checksum: hash}, done)
   h.flush()
   let count = 0
-  for (let offset = 0; offset < bytes.length; offset += 24 * 1024) {
-    const frame = {...identity, type: "backgroundChunk", offset, data: bytes.subarray(offset, offset + 24 * 1024).toString("base64")}
+  for (let offset = 0; offset < bytes.length; offset += chunkKiB * 1024) {
+    const frame = {...identity, type: "backgroundChunk", offset, data: bytes.subarray(offset, offset + chunkKiB * 1024).toString("base64")}
     h.store.receive(frame, done); h.flush()
     h.store.receive(frame, done); h.flush()
     count++
   }
-  assert.equal(count, 43)
+  assert.equal(count, chunkKiB === 18 ? 57 : 43)
   h.store.receive({...identity, type: "finishBG"}, (error, result) => {
     done(error)
     assert.equal(result.complete, true)

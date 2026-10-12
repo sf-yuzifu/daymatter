@@ -1,6 +1,7 @@
 // background.json引用决定当前背景；旧版本无索引时迁移bg_<时间>.png/jpg。
 // 应用级单飞避免多个页面实例、连续上传和迟到回调交叉删除文件。
 const MAX_BYTES = 1024 * 1024
+// 新插件发送18KiB；保留旧插件24KiB分片接收上限。
 const CHUNK_BYTES = 24 * 1024
 const MAX_EDGE = 520
 
