@@ -53,7 +53,7 @@ def main():
             continue
         config = dict(config)
         if name == "s5_41":
-            print("s5_41: 466x466 layout; S5 DeviceType 562 installation compatibility remains unverified")
+            print("s5_41: 466x466 layout; S5 DeviceType 562 compatibility verified on device")
         if name == "band10" and args.band10_device_type is not None:
             config["deviceType"] = args.band10_device_type
         output = ROOT / "build" / name
@@ -114,8 +114,8 @@ def main():
                 raise RuntimeError(f"Compiler did not produce {name} artifact")
             shutil.copyfile(fresh, artifact)
             if name == "band10":
-                shutil.copyfile(dist / "daymatter-band10.face", dist / "daymatter-band11-test.face")
-                print("band11: identical Band 10 package copied for cross-device installation testing (unverified)")
+                shutil.copyfile(dist / "daymatter-band10.face", dist / "daymatter-band11.face")
+                print("band11: shared Band 10 package, compatibility verified on device")
 
 
 if __name__ == "__main__":

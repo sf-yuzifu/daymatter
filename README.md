@@ -34,9 +34,9 @@ requirements.txt       Python 开发依赖
 | `s4` | 466×466 | 462 | bgs4、通用卡片 |
 | `s5_46` | 480×480 | 562 | bgs5、通用卡片 |
 | `s5_41` | 466×466 | 562 | 生成时复用 S4 布局、背景和预览 |
-| `band11` | 212×520 | 复用 Band 10 | 输出与 Band 10 完全相同的测试包 |
+| `band11` | 212×520 | 复用 Band 10 | 输出与 Band 10 完全相同的安装包，已实机验证 |
 
-设备信息来自 EasyFace 内嵌枚举和屏幕信息；S5 41mm 的分辨率由实机使用者确认。S5 41mm 沿用 S5 打包编号，Band 11 沿用 Band 10 包；跨型号安装兼容性以设备实际验证为准。
+设备信息来自 EasyFace 内嵌枚举和屏幕信息。用户已实机验证 Band 11 共用 Band 10 包，以及 S5 41mm 使用 466×466 布局、S5 DeviceType 562 的安装兼容性；S5 41mm 继续复用 S4 资源。
 
 ## 生成与打包
 
@@ -49,7 +49,7 @@ python tools/build.py --device band9pro
 python tools/build.py --compiler "<EasyFace 4.23目录>\Compiler.exe"
 ```
 
-生成工程位于 `build/<目标>/daymatter.fprj`，也可用 EasyFace 手动打开。编译产物位于 `dist/daymatter-<目标>.face`，Band 11 副本名为 `daymatter-band11-test.face`。默认 ID 为 `252661004`，可通过 `--id` 指定。
+生成工程位于 `build/<目标>/daymatter.fprj`，也可用 EasyFace 手动打开。编译产物位于 `dist/daymatter-<目标>.face`，Band 11 副本名为 `daymatter-band11.face`。默认 ID 为 `252661004`，可通过 `--id` 指定。
 
 源码在生成时内嵌成一份 Lua，不依赖额外模块加载。编译先写独立暂存目录，只有本次产物成功生成才更新 `dist/`，避免 EasyFace 返回成功退出码但未产出新包时误用旧包。
 
