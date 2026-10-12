@@ -79,7 +79,11 @@ io.open = function(path)
     if text == nil then return nil end
     return {read = function() return text end, close = function() end}
 end
-os.date = function() return {year=2026, month=6, day=7, wday=1} end
+calendarDay = "2026-06-07"
+os.date = function(format)
+    if format == "%Y-%m-%d" then return calendarDay end
+    return {year=2026, month=6, day=7, wday=1}
+end
 os.time = function() return timestamp end
 function hasText(text)
     for _, o in ipairs(objects) do if o.properties.text == text then return true end end
@@ -144,7 +148,10 @@ for device, config in configs.items():
         assert(reads == before)
         ScreenStateChangedCB("OFF", "ON"); before = reads
         timestamp = timestamp + 1; subscriptions.timeSecondLow(512); assert(reads == before)
-        timestamp = timestamp + 5; subscriptions.timeSecondLow(768); assert(reads == before + 1)
+        timestamp = timestamp + 5; subscriptions.timeSecondLow(768); assert(reads == before)
+        calendarDay = "2026-06-08"; subscriptions.timeSecondLow(1024); assert(reads == before)
+        ScreenStateChangedCB("ON", "ON"); assert(reads == before)
+        ScreenStateChangedCB("ON", "OFF"); ScreenStateChangedCB("OFF", "ON"); assert(reads == before + 1)
     ''')
     assert vm.globals().logCount == 0, "Release entry must not print diagnostics"
     vm.execute("for _, obj in ipairs(objects) do assert(obj.properties.long_mode ~= 2) end")

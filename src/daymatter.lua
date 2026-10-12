@@ -218,12 +218,16 @@ local function show(object, visible)
     if visible then object:clear_flag(lvgl.FLAG.HIDDEN) else object:add_flag(lvgl.FLAG.HIDDEN) end
 end
 local lastDisplay
-local function refresh()
-    refreshBackground()
+local cachedEvent
+local function refresh(checkFiles)
+    if checkFiles then
+        refreshBackground()
+        cachedEvent = readEvent()
+    end
     local now = os.date("*t")
     local weekdays = { "周日", "周一", "周二", "周三", "周四", "周五", "周六" }
     setText(dateLabel, string.format("%02d/%02d %s", now.month, now.day, weekdays[now.wday]))
-    local event = readEvent() or LOGIC.fallback(now)
+    local event = cachedEvent or LOGIC.fallback(now)
     local days = LOGIC.days(event, now)
     local key = event.name .. "|" .. event.date .. "|" .. days
     if key == lastDisplay then return end
@@ -263,19 +267,20 @@ for i, key in ipairs(keys) do
     end
 end
 local active = true
-local lastCheck = 0
--- Retain the already-used seconds subscription; throttle file reads without new timer APIs.
+local lastCalendarDay = os.date("%Y-%m-%d")
+-- Keep local calendar rollover working without polling application files.
 subscribe("timeSecondLow", group, 9, function()
     if not active then return end
-    local now = os.time()
-    if now < lastCheck or now - lastCheck >= 5 then
-        lastCheck = now; refresh()
+    local day = os.date("%Y-%m-%d")
+    if day ~= lastCalendarDay then
+        lastCalendarDay = day; refresh(false)
     end
 end)
-refresh()
+refresh(true)
 function ScreenStateChangedCB(previous, current, reason)
     active = current == "ON"
-    if active then
-        lastCheck = os.time(); refresh()
+    if active and previous ~= "ON" then
+        lastCalendarDay = os.date("%Y-%m-%d")
+        refresh(true)
     end
 end
