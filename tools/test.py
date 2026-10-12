@@ -27,6 +27,7 @@ STUB = r'''
 SCRIPT_PATH = "assets/"
 subscriptions, objects, reads = {}, {}, 0
 logCount = 0
+fontCalls, availableFont = {}, "MiSans-Medium"
 print = function() logCount = logCount + 1 end
 eventText = "测试,2026-06-07,false"
 alternateText = nil
@@ -55,7 +56,12 @@ end
 package.preload.lvgl = function() return {
     Object = function(parent, properties) return object(properties) end,
     HOR_RES = function() return 466 end, VER_RES = function() return 466 end,
-    OPA = function(v) return v end, Font = function() return 1 end,
+    OPA = function(v) return v end, Font = function(name, size)
+        fontCalls[#fontCalls + 1] = {name = name, size = size}
+        if name == availableFont then return name end
+        if name == "MiSans-Medium" then error("unavailable font") end
+        return nil
+    end,
     BUILTIN_FONT = {MONTSERRAT_20 = 1}, ALIGN = {CENTER = 1, TOP_MID = 2},
     FLAG = {SCROLLABLE = 1, HIDDEN = 2, EVENT_BUBBLE = 3, CLICKABLE = 4}, LABEL = {LONG_SCROLL_CIRCULAR = 1, LONG_WRAP = 2}
 } end
@@ -159,5 +165,27 @@ for device, config in configs.items():
         assert(logCount == 2 and panel.hidden)
         assert(hasSource("/data/quickapp/files/com.yzf.daymatter/bg_123.png"))
     ''')
+    for available in ["MiSans-Medium", "MiSans-Demibold", "misansw_demibold", "none"]:
+        font_vm = LuaRuntime(unpack_returned_tuples=True)
+        font_vm.execute(STUB)
+        font_vm.globals().availableFont = available
+        font_vm.globals().expectedWidth, font_vm.globals().expectedHeight = config["width"], config["height"]
+        font_vm.execute((ROOT / "build" / device / "app/_lua/daymatter/daymatter.lua").read_text(encoding="utf-8"))
+        font_vm.execute(r'''
+            local expected = {"MiSans-Medium", "MiSans-Demibold", "misansw_demibold"}
+            local attempts = availableFont == "MiSans-Medium" and 1 or availableFont == "MiSans-Demibold" and 2 or 3
+            local bySize = {}
+            for _, call in ipairs(fontCalls) do
+                local count = (bySize[call.size] or 0) + 1
+                bySize[call.size] = count
+                assert(call.name == expected[count])
+            end
+            for _, count in pairs(bySize) do assert(count == attempts) end
+            for _, obj in ipairs(objects) do
+                if obj.properties.text_font then
+                    assert(obj.properties.text_font == (availableFont == "none" and 1 or availableFont))
+                end
+            end
+        ''')
     print(f"{device}: Lua 5.4 entry, fallback, overflow and screen refresh passed")
 print("Calendar and interface regressions passed")

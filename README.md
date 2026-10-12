@@ -102,7 +102,7 @@ python tools/build.py --device band9pro --debug --compiler "<EasyFace 4.23目录
 
 ## 字体与手势
 
-优先检测 `/font/`、`/system/font/`、`/resource/font/` 下的 `MiSans-Medium.ttf`，存在时使用 `MiSans-Medium`。否则使用设备配置的 Demibold/Regular 回退规则，加载失败最终回退内置字体。字体名称成功返回不保证所有固件字形一致。
+字体候选由 `devices.json` 的 `fonts` 配置（继承设备沿用父配置），当前统一依次尝试 `MiSans-Medium`、`MiSans-Demibold`、`misansw_demibold`。不依赖字体文件是否可见或屏幕宽度；调用报错或返回空值时尝试下一项，全部失败回退内置字体。每个字号缓存结果。若固件对未知名称静默返回默认字体，调用结果无法判断字形是否正确，仍需实机确认。
 
 全部控件清除 `SCROLLABLE` 并开启 `EVENT_BUBBLE`，根容器额外开启 `CLICKABLE`，让系统收到长按表盘事件。
 

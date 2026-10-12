@@ -1,5 +1,6 @@
 {
   "band9": {
+    "fonts": ["MiSans-Medium", "MiSans-Demibold", "misansw_demibold"],
     "assets": "band9",
     "backgroundImage": "bg9.png",
     "beforeImage": "before_9.png",
@@ -26,6 +27,7 @@
     "labelHeight": 520
   },
   "band10": {
+    "fonts": ["MiSans-Medium", "MiSans-Demibold", "misansw_demibold"],
     "assets": "band10",
     "backgroundImage": "bg10.png",
     "previewShape": "capsule",
@@ -50,6 +52,7 @@
     "labelHeight": 520
   },
   "band9pro": {
+    "fonts": ["MiSans-Medium", "MiSans-Demibold", "misansw_demibold"],
     "assets": "band9pro",
     "backgroundImage": "bg9p.png",
     "previewShape": 48,
@@ -74,6 +77,7 @@
     "labelHeight": 480
   },
   "s4": {
+    "fonts": ["MiSans-Medium", "MiSans-Demibold", "misansw_demibold"],
     "assets": "s4",
     "backgroundImage": "bgs4.png",
     "previewShape": "circle",
@@ -100,14 +104,13 @@
   },
   "band10pro": {
     "extends": "band9pro",
-    "deviceType": 567,
-    "fontName": "MiSans-Demibold"
+    "deviceType": 567
   },
   "redmiwatch6": {
     "assets": "redmiwatch6",
     "backgroundImage": "bgrw6.png",
     "previewShape": 104,
-    "fontName": "MiSans-Regular",
+    "fonts": ["MiSans-Medium", "MiSans-Demibold", "misansw_demibold"],
     "width": 432,
     "height": 514,
     "deviceType": 565,
@@ -132,7 +135,7 @@
     "assets": "s5_46",
     "backgroundImage": "bgs5.png",
     "previewShape": "circle",
-    "fontName": "MiSans-Demibold",
+    "fonts": ["MiSans-Medium", "MiSans-Demibold", "misansw_demibold"],
     "width": 480,
     "height": 480,
     "deviceType": 562,
@@ -156,7 +159,6 @@
   "s5_41": {
     "extends": "s4",
     "deviceType": 562,
-    "fontName": "MiSans-Demibold",
     "previewSize": [480, 480]
   },
   "band11": { "packageAlias": "band10" }

@@ -24,33 +24,17 @@ local function readEvent()
     end
     return parsedEvent
 end
-local fontProbe = io.open("/font/MiSans-Demibold.ttf", "r")
-local watchFont = fontProbe ~= nil
-if fontProbe then fontProbe:close() end
-local mediumFont = false
-for _, path in ipairs({ "/font/MiSans-Medium.ttf", "/system/font/MiSans-Medium.ttf", "/resource/font/MiSans-Medium.ttf" }) do
-    local file = io.open(path, "r")
-    if file then
-        file:close()
-        mediumFont = true
-        break
-    end
-end
 local fonts = {}
 local function font(size)
     if fonts[size] then return fonts[size] end
-    local names = { watchFont and "MiSans-Demibold" or "misansw_demibold" }
-    -- Try Demibold directly on Band 9 Pro, without relying on file visibility.
-    if DEVICE.width == 336 then names = { "MiSans-Demibold", "MiSans-Regular", "misansw_demibold" } end
-    if DEVICE.fontName then names = { DEVICE.fontName, "MiSans-Regular", "misansw_demibold" } end
-    if mediumFont then table.insert(names, 1, "MiSans-Medium") end
-    for _, name in ipairs(names) do
+    for _, name in ipairs(DEVICE.fonts) do
         local ok, value = pcall(lvgl.Font, name, size)
         if ok and value then
             fonts[size] = value; return value
         end
     end
-    return lvgl.BUILTIN_FONT.MONTSERRAT_20
+    fonts[size] = lvgl.BUILTIN_FONT.MONTSERRAT_20
+    return fonts[size]
 end
 local root = lvgl.Object(nil, {
     w = lvgl.HOR_RES(),
