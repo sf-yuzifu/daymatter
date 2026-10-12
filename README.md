@@ -52,7 +52,7 @@ python tools/build.py --device band9pro
 python tools/build.py --compiler "<EasyFace 4.23目录>\Compiler.exe"
 ```
 
-生成工程位于 `build/<目标>/daymatter.fprj`，也可用 EasyFace 手动打开。编译产物位于 `dist/daymatter-<目标>.face`，Band 11 副本名为 `daymatter-band11.face`。默认 ID 为 `252661004`，可通过 `--id` 指定。
+生成工程位于 `build/<目标>/daymatter.fprj`，也可用 EasyFace 手动打开。编译产物位于 `dist/daymatter-<目标>.face`，Band 11 副本名为 `daymatter-band11.face`。默认 ID 为 `979825266002`，版本为 `1`，可通过 `--id` / `--version` 指定。EasyFace 的 ID 参数未实际写入包头，脚本编译后更新 ID，并在偏移4写入 UInt32 发布版本；偏移16的格式版本保持不变。用户已实机确认列表显示 `979825266002` 和 `v1`。
 
 源码在生成时内嵌成一份 Lua，不依赖额外模块加载。编译先写独立暂存目录，只有本次产物成功生成才更新 `dist/`，避免 EasyFace 返回成功退出码但未产出新包时误用旧包。
 
